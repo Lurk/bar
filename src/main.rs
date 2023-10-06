@@ -30,8 +30,42 @@ struct Config {
 
 struct Page {
     path: String,
-    content: String,
+    content: Option<String>,
     template: String,
+}
+
+impl Page {
+    fn new(path: String, template: String) -> Self {
+        Self {
+            path,
+            content: None,
+            template,
+        }
+    }
+}
+
+struct Site {
+    pages: HashMap<String, Page>,
+}
+
+impl Site {
+    fn new() -> Self {
+        Self {
+            pages: HashMap::new(),
+        }
+    }
+
+    fn add_page(&mut self, page: Page) {
+        self.pages.insert(page.path.clone(), page);
+    }
+
+    fn next_unrendered_page(&self) -> Option<&Page> {
+        self.pages
+            .iter()
+            .filter(|(_, page)| page.content.is_none())
+            .map(|(_, page)| page)
+            .next()
+    }
 }
 
 fn get_title(default_title: String) -> impl Function + 'static {
@@ -59,6 +93,8 @@ fn main() -> Result<(), Errors> {
     let config: Config = serde_yaml::from_reader(f)?;
     let template_path = args.path.join(&config.template).canonicalize()?;
     let posts = init_from_path(args.path.join(&config.content_path).canonicalize()?)?;
+    let mut site = Site::new();
+    site.add_page(Page::new("/".to_string(), "index.html".to_string()));
 
     let mut tera = Tera::new(format!("{}/**/*.html", template_path.to_str().unwrap()).as_str())?;
     tera.register_function("get_title", get_title(config.title.clone()));
@@ -67,9 +103,11 @@ fn main() -> Result<(), Errors> {
         get_description(config.description.clone()),
     );
     tera.register_function("get_host", get_host(config.domain.clone()));
-    let mut context = Context::new();
-    context.insert("domain", &config.domain);
-    let result = tera.render("index.html", &context)?;
-    println!("{}", result);
+    while let Some(page) = site.next_unrendered_page() {
+        let mut context = Context::new();
+        context.insert("domain", &config.domain);
+        let result = tera.render(page.template.as_str(), &context)?;
+        println!("{}", result);
+    }
     Ok(())
 }
