@@ -4,9 +4,10 @@ pub mod posts;
 use clap::Parser;
 use error::Errors;
 use serde::{Deserialize, Serialize};
-use std::fs::File;
+use std::default;
 use std::path::PathBuf;
-use tera::{Context, Tera};
+use std::{collections::HashMap, fs::File};
+use tera::{Context, Function, Tera, Value};
 
 use crate::posts::init_from_path;
 
@@ -22,6 +23,8 @@ struct Args {
 struct Config {
     content_path: PathBuf,
     template: PathBuf,
+    domain: String,
+    title: String,
 }
 
 struct Page {
@@ -30,17 +33,25 @@ struct Page {
     template: String,
 }
 
+fn get_title(default_title: String) -> impl Function + 'static {
+    move |args: &HashMap<String, Value>| match args.get("path") {
+        Some(path) => Ok(tera::to_value("foo")?),
+        None => Ok(tera::to_value(&default_title)?),
+    }
+}
+
 fn main() -> Result<(), Errors> {
     let args = Args::parse();
     let path = args.path.clone().join("config.yaml");
     let f = File::open(path)?;
     let config: Config = serde_yaml::from_reader(f)?;
-    let template_path = args.path.join(config.template).canonicalize()?;
-    println!("{:?}", template_path);
-    let posts = init_from_path(args.path.join(config.content_path).canonicalize()?)?;
+    let template_path = args.path.join(&config.template).canonicalize()?;
+    let posts = init_from_path(args.path.join(&config.content_path).canonicalize()?)?;
 
-    let tera = Tera::new(format!("{}/**/*.html", template_path.to_str().unwrap()).as_str())?;
+    let mut tera = Tera::new(format!("{}/**/*.html", template_path.to_str().unwrap()).as_str())?;
+    tera.register_function("get_title", get_title(config.title.clone()));
     let mut context = Context::new();
+    context.insert("domain", &config.domain);
     let result = tera.render("index.html", &context)?;
     println!("{}", result);
     Ok(())
