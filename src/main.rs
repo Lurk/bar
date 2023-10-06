@@ -25,6 +25,7 @@ struct Config {
     template: PathBuf,
     domain: String,
     title: String,
+    description: String,
 }
 
 struct Page {
@@ -40,6 +41,17 @@ fn get_title(default_title: String) -> impl Function + 'static {
     }
 }
 
+fn get_description(default_description: String) -> impl Function + 'static {
+    move |args: &HashMap<String, Value>| match args.get("path") {
+        Some(path) => Ok(tera::to_value("foo")?),
+        None => Ok(tera::to_value(&default_description)?),
+    }
+}
+
+fn get_host(host: String) -> impl Function + 'static {
+    move |_: &HashMap<String, Value>| Ok(tera::to_value(&host)?)
+}
+
 fn main() -> Result<(), Errors> {
     let args = Args::parse();
     let path = args.path.clone().join("config.yaml");
@@ -50,6 +62,11 @@ fn main() -> Result<(), Errors> {
 
     let mut tera = Tera::new(format!("{}/**/*.html", template_path.to_str().unwrap()).as_str())?;
     tera.register_function("get_title", get_title(config.title.clone()));
+    tera.register_function(
+        "get_description",
+        get_description(config.description.clone()),
+    );
+    tera.register_function("get_host", get_host(config.domain.clone()));
     let mut context = Context::new();
     context.insert("domain", &config.domain);
     let result = tera.render("index.html", &context)?;
