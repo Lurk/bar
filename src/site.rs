@@ -48,11 +48,7 @@ impl Site {
     }
 
     pub fn get_page(&self, path: &str) -> Option<Arc<Page>> {
-        self.pages
-            .lock()
-            .unwrap()
-            .get(path)
-            .map(|page| page.clone())
+        self.pages.lock().unwrap().get(path).cloned()
     }
 
     pub fn set_page_content(&self, path: &str, content: String) {
@@ -64,5 +60,11 @@ impl Site {
             title: page.title.clone(),
             description: page.description.clone(),
         }));
+    }
+}
+
+impl Default for Site {
+    fn default() -> Self {
+        Self::new()
     }
 }

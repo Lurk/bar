@@ -32,10 +32,7 @@ struct Config {
 
 fn get_string_arg(args: &HashMap<String, Value>, key: &str) -> Option<String> {
     match args.get(key) {
-        Some(value) => match value.as_str() {
-            Some(string) => Some(string.to_string().clone()),
-            None => None,
-        },
+        Some(value) => value.as_str().map(|string| string.to_string().clone()),
         None => None,
     }
 }
@@ -67,7 +64,7 @@ fn add_page(site: Arc<Site>) -> impl Function + 'static {
         let title = get_string_arg(args, "title").unwrap_or("".to_string());
         let description = get_string_arg(args, "description").unwrap_or("".to_string());
         site.add_page(Arc::new(Page::new(path, template, title, description)));
-        Ok(tera::to_value(&())?)
+        Ok(tera::to_value(())?)
     }
 }
 

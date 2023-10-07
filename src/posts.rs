@@ -54,6 +54,12 @@ impl Posts {
     }
 }
 
+impl Default for Posts {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 pub fn init_from_path(path: PathBuf) -> Result<Posts, Errors> {
     let content_paths = std::fs::read_dir(path).unwrap();
     let mut posts_vec: Vec<(String, Yamd)> = Vec::new();
@@ -70,7 +76,7 @@ pub fn init_from_path(path: PathBuf) -> Result<Posts, Errors> {
             .timestamp
             .as_ref()
             .unwrap()
-            .cmp(&a.1.metadata.timestamp.as_ref().unwrap())
+            .cmp(a.1.metadata.timestamp.as_ref().unwrap())
     });
     for post in posts_vec {
         posts.add(post.0, post.1);
