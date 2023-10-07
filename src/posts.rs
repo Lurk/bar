@@ -2,7 +2,7 @@ use std::{collections::HashMap, fs, path::PathBuf};
 
 use yamd::{deserialize, nodes::yamd::Yamd};
 
-use crate::error::Errors;
+use crate::error::{ContextExt, Errors};
 
 pub struct Posts {
     posts: HashMap<String, Yamd>,
@@ -65,7 +65,8 @@ pub fn init_from_path(path: PathBuf) -> Result<Posts, Errors> {
     let mut posts_vec: Vec<(String, Yamd)> = Vec::new();
     for path in content_paths {
         let file = path?.path().canonicalize()?;
-        let file_contents = fs::read_to_string(&file)?;
+        let file_contents =
+            fs::read_to_string(&file).with_context(format!("yamd file: {:?}", &file))?;
         let yamd = deserialize(file_contents.as_str()).unwrap();
         posts_vec.push((file.file_stem().unwrap().to_str().unwrap().into(), yamd));
     }

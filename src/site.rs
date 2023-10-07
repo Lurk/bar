@@ -1,7 +1,12 @@
 use std::{
     collections::HashMap,
+    fs::OpenOptions,
+    io::Write,
+    path::PathBuf,
     sync::{Arc, Mutex},
 };
+
+use crate::error::{ContextExt, Errors};
 
 pub struct Page {
     pub path: String,
@@ -24,12 +29,14 @@ impl Page {
 }
 
 pub struct Site {
+    dist_folder: PathBuf,
     pages: Mutex<HashMap<String, Arc<Page>>>,
 }
 
 impl Site {
-    pub fn new() -> Self {
+    pub fn new(path: PathBuf) -> Self {
         Self {
+            dist_folder: path,
             pages: Mutex::new(HashMap::new()),
         }
     }
@@ -61,10 +68,30 @@ impl Site {
             description: page.description.clone(),
         }));
     }
-}
 
-impl Default for Site {
-    fn default() -> Self {
-        Self::new()
+    pub fn save(&self) -> Result<(), Errors> {
+        for page in self.pages.lock().unwrap().values() {
+            if let Some(content) = &page.content {
+                let page_path = match page.path.as_str() {
+                    "/" => "index.html",
+                    path => path,
+                };
+
+                let path = self.dist_folder.join(&page_path);
+                println!("write to file: {}", path.clone().display());
+                let prefix = path.parent().unwrap();
+                std::fs::create_dir_all(prefix)
+                    .with_context(format!("create directory: {}", prefix.clone().display()))?;
+                let mut file = OpenOptions::new()
+                    .write(true)
+                    .create(true)
+                    .append(false)
+                    .open(&path)
+                    .with_context(format!("open file: {}", &path.display()))?;
+                file.write_all(content.as_bytes())
+                    .with_context(format!("write to file: {}", &path.display()))?;
+            }
+        }
+        Ok(())
     }
 }

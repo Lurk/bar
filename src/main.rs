@@ -1,9 +1,10 @@
 pub mod error;
+pub mod fs;
 pub mod posts;
 pub mod site;
 
 use clap::Parser;
-use error::Errors;
+use error::{ContextExt, Errors};
 use serde::{Deserialize, Serialize};
 use site::{Page, Site};
 use std::path::PathBuf;
@@ -11,6 +12,7 @@ use std::sync::Arc;
 use std::{collections::HashMap, fs::File};
 use tera::{Context, Function, Tera, Value};
 
+use crate::fs::canonicalize;
 use crate::posts::init_from_path;
 
 #[derive(Parser, Debug)]
@@ -23,6 +25,7 @@ struct Args {
 
 #[derive(Debug, Serialize, Deserialize)]
 struct Config {
+    dist_path: PathBuf,
     content_path: PathBuf,
     template: PathBuf,
     domain: String,
@@ -74,19 +77,19 @@ fn get_host(host: String) -> impl Function + 'static {
 
 fn main() -> Result<(), Errors> {
     let args = Args::parse();
-    let path = args.path.clone().join("config.yaml");
-    let f = File::open(path)?;
+    let config_path = args.path.clone().join("config.yaml");
+    let f = File::open(&config_path).with_context(format!("config file: {:?}", &config_path))?;
     let config: Arc<Config> = Arc::new(serde_yaml::from_reader(f)?);
-    let template_path = args.path.join(&config.template).canonicalize()?;
-    let posts = init_from_path(args.path.join(&config.content_path).canonicalize()?)?;
-    let site: Arc<Site> = Arc::new(Site::new());
+    let template_path = canonicalize(&args.path.join(&config.template))?;
+    let posts = init_from_path(canonicalize(&args.path.join(&config.content_path))?)?;
+    let dist_path = canonicalize(&args.path.join(&config.dist_path))?;
+    let site: Arc<Site> = Arc::new(Site::new(dist_path));
     site.add_page(Arc::new(Page::new(
         "/".to_string(),
         "index.html".to_string(),
         config.title.clone(),
         config.description.clone(),
     )));
-
     let mut tera = Tera::new(format!("{}/**/*.html", template_path.to_str().unwrap()).as_str())?;
     tera.register_function("get_title", get_title(site.clone(), config.clone()));
     tera.register_function(
@@ -95,12 +98,12 @@ fn main() -> Result<(), Errors> {
     );
     tera.register_function("get_host", get_host(config.domain.clone()));
     tera.register_function("add_page", add_page(site.clone()));
-
     while let Some(page) = site.next_unrendered_page() {
         let mut context = Context::new();
         context.insert("domain", &config.domain);
         let result = tera.render(page.template.as_str(), &context)?;
         site.set_page_content(page.path.as_str(), result);
     }
+    site.save()?;
     Ok(())
 }
