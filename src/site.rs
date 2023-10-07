@@ -1,6 +1,6 @@
 use std::{
     collections::HashMap,
-    fs::OpenOptions,
+    fs::{remove_dir_all, OpenOptions},
     io::Write,
     path::PathBuf,
     sync::{Arc, Mutex},
@@ -31,6 +31,7 @@ impl Page {
 pub struct Site {
     dist_folder: PathBuf,
     pages: Mutex<HashMap<String, Arc<Page>>>,
+    static_files: Mutex<HashMap<String, PathBuf>>,
 }
 
 impl Site {
@@ -38,6 +39,7 @@ impl Site {
         Self {
             dist_folder: path,
             pages: Mutex::new(HashMap::new()),
+            static_files: Mutex::new(HashMap::new()),
         }
     }
 
@@ -69,7 +71,13 @@ impl Site {
         }));
     }
 
+    pub fn add_static_file(&self, path: String, file: PathBuf) {
+        self.static_files.lock().unwrap().insert(path, file);
+    }
+
     pub fn save(&self) -> Result<(), Errors> {
+        remove_dir_all(&self.dist_folder)
+            .with_context(format!("remove directory: {}", self.dist_folder.display()))?;
         for page in self.pages.lock().unwrap().values() {
             if let Some(content) = &page.content {
                 let page_path = match page.path.as_str() {
@@ -91,6 +99,20 @@ impl Site {
                 file.write_all(content.as_bytes())
                     .with_context(format!("write to file: {}", &path.display()))?;
             }
+        }
+
+        for (path, file) in self.static_files.lock().unwrap().iter() {
+            let static_file_path = self.dist_folder.join(path);
+            println!(
+                "copy file: {} to {}",
+                &file.display(),
+                &static_file_path.display()
+            );
+            let prefix = static_file_path.parent().unwrap();
+            std::fs::create_dir_all(prefix)
+                .with_context(format!("create directory: {}", prefix.clone().display()))?;
+            std::fs::copy(file, &static_file_path)
+                .with_context(format!("copy file: {}", &static_file_path.display()))?;
         }
         Ok(())
     }

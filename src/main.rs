@@ -9,7 +9,9 @@ use serde::{Deserialize, Serialize};
 use site::{Page, Site};
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::time::{SystemTime, UNIX_EPOCH};
 use std::{collections::HashMap, fs::File};
+
 use tera::{Context, Function, Tera, Value};
 
 use crate::fs::canonicalize;
@@ -71,6 +73,25 @@ fn add_page(site: Arc<Site>) -> impl Function + 'static {
     }
 }
 
+fn add_static_file(site: Arc<Site>, config: Arc<Config>) -> impl Function + 'static {
+    move |args: &HashMap<String, Value>| {
+        if let (Some(path), Some(file_path)) = (
+            get_string_arg(args, "path"),
+            get_string_arg(args, "file_path"),
+        ) {
+            let now = SystemTime::now();
+            let since_the_epoch = now.duration_since(UNIX_EPOCH).expect("Time went backwards");
+            site.add_static_file(path.clone(), config.template.join(file_path));
+            return Ok(tera::to_value(format!(
+                "{}?cb={}",
+                &path,
+                since_the_epoch.as_millis()
+            ))?);
+        }
+        Err(tera::Error::msg("path and file_path are required"))
+    }
+}
+
 fn get_host(host: String) -> impl Function + 'static {
     move |_: &HashMap<String, Value>| Ok(tera::to_value(&host)?)
 }
@@ -98,6 +119,10 @@ fn main() -> Result<(), Errors> {
     );
     tera.register_function("get_host", get_host(config.domain.clone()));
     tera.register_function("add_page", add_page(site.clone()));
+    tera.register_function(
+        "add_static_file",
+        add_static_file(site.clone(), config.clone()),
+    );
     while let Some(page) = site.next_unrendered_page() {
         let mut context = Context::new();
         context.insert("domain", &config.domain);
