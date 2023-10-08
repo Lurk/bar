@@ -1,12 +1,30 @@
-use std::{collections::HashMap, fs, path::PathBuf};
+use std::{
+    collections::{HashMap, HashSet},
+    fs,
+    path::PathBuf,
+    sync::Arc,
+};
 
+use serde::Serialize;
 use yamd::{deserialize, nodes::yamd::Yamd};
 
 use crate::error::{ContextExt, Errors};
 
+#[derive(Debug, Serialize)]
+pub struct Post {
+    pid: Arc<str>,
+    content: Yamd,
+}
+
+impl Post {
+    pub fn new(pid: Arc<str>, content: Yamd) -> Self {
+        Self { pid, content }
+    }
+}
+
 pub struct Posts {
-    posts: HashMap<String, Yamd>,
-    order: Vec<String>,
+    posts: HashMap<Arc<str>, Post>,
+    order: Vec<Arc<str>>,
 }
 
 impl Posts {
@@ -18,36 +36,39 @@ impl Posts {
     }
 
     pub fn add(&mut self, key: String, value: Yamd) {
-        self.posts.insert(key.clone(), value);
-        self.order.push(key);
+        let pid: Arc<str> = Arc::from(key.as_str());
+        self.posts
+            .insert(pid.clone(), Post::new(pid.clone(), value));
+        self.order.push(pid.clone());
     }
 
-    pub fn keys(&self) -> &Vec<String> {
+    pub fn keys(&self) -> &Vec<Arc<str>> {
         &self.order
     }
 
-    pub fn get(&self, key: &str) -> Option<&Yamd> {
+    pub fn get(&self, key: &str) -> Option<&Post> {
         self.posts.get(key)
     }
 
-    pub fn get_tags(&self) -> Vec<String> {
-        let mut tags: Vec<String> = Vec::new();
+    pub fn get_tags(&self) -> HashSet<String> {
+        let mut tags: HashSet<String> = HashSet::new();
         for post in self.posts.values() {
-            for tag in post.metadata.tags.iter() {
-                if !tags.contains(tag) {
-                    tags.push(tag.clone());
-                }
+            for tag in post.content.metadata.tags.iter() {
+                tags.insert(tag.clone());
             }
         }
         tags
     }
 
-    pub fn get_posts_by_tag(&self, tag: &str) -> Vec<&Yamd> {
-        let mut posts: Vec<&Yamd> = Vec::new();
+    pub fn get_posts_by_tag(&self, tag: &str, amount: usize) -> Vec<&Post> {
+        let mut posts: Vec<&Post> = Vec::with_capacity(amount);
         for pid in self.keys() {
             let post = self.get(pid).unwrap();
-            if post.metadata.tags.contains(&tag.to_string()) {
+            if post.content.metadata.tags.contains(&tag.to_string()) {
                 posts.push(post);
+            }
+            if posts.len() == amount {
+                break;
             }
         }
         posts

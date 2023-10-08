@@ -42,23 +42,12 @@ fn get_string_arg(args: &HashMap<String, Value>, key: &str) -> Option<String> {
     }
 }
 
-fn get_title(site: Arc<Site>, config: Arc<Config>) -> impl Function + 'static {
-    move |args: &HashMap<String, Value>| {
-        let path = get_string_arg(args, "path").unwrap_or("/".to_string());
-        match site.get_page(path.as_str()) {
-            Some(page) => Ok(tera::to_value(&page.title)?),
-            None => Ok(tera::to_value(&config.title)?),
-        }
-    }
-}
-
-fn get_description(site: Arc<Site>, config: Arc<Config>) -> impl Function + 'static {
-    move |args: &HashMap<String, Value>| {
-        let path = get_string_arg(args, "path").unwrap_or("/".to_string());
-        match site.get_page(path.as_str()) {
-            Some(page) => Ok(tera::to_value(&page.description)?),
-            None => Ok(tera::to_value(&config.description)?),
-        }
+fn get_usize_arg(args: &HashMap<String, Value>, key: &str) -> Option<usize> {
+    match args.get(key) {
+        Some(value) => value
+            .as_number()
+            .map(|number| number.as_u64().unwrap() as usize),
+        None => None,
     }
 }
 
@@ -92,8 +81,13 @@ fn add_static_file(site: Arc<Site>, config: Arc<Config>) -> impl Function + 'sta
     }
 }
 
-fn get_host(host: String) -> impl Function + 'static {
-    move |_: &HashMap<String, Value>| Ok(tera::to_value(&host)?)
+fn get_posts_by_tag(posts: Arc<posts::Posts>) -> impl Function + 'static {
+    move |args: &HashMap<String, Value>| {
+        let tag = get_string_arg(args, "tag").unwrap_or("".to_string());
+        let amount = get_usize_arg(args, "amount").unwrap_or(3);
+        let posts = posts.get_posts_by_tag(tag.as_str(), amount);
+        Ok(tera::to_value(&posts)?)
+    }
 }
 
 fn main() -> Result<(), Errors> {
@@ -102,7 +96,9 @@ fn main() -> Result<(), Errors> {
     let f = File::open(&config_path).with_context(format!("config file: {:?}", &config_path))?;
     let config: Arc<Config> = Arc::new(serde_yaml::from_reader(f)?);
     let template_path = canonicalize(&args.path.join(&config.template))?;
-    let posts = init_from_path(canonicalize(&args.path.join(&config.content_path))?)?;
+    let posts = Arc::new(init_from_path(canonicalize(
+        &args.path.join(&config.content_path),
+    )?)?);
     let dist_path = canonicalize(&args.path.join(&config.dist_path))?;
     let site: Arc<Site> = Arc::new(Site::new(dist_path));
     site.add_page(Arc::new(Page::new(
@@ -112,20 +108,18 @@ fn main() -> Result<(), Errors> {
         config.description.clone(),
     )));
     let mut tera = Tera::new(format!("{}/**/*.html", template_path.to_str().unwrap()).as_str())?;
-    tera.register_function("get_title", get_title(site.clone(), config.clone()));
-    tera.register_function(
-        "get_description",
-        get_description(site.clone(), config.clone()),
-    );
-    tera.register_function("get_host", get_host(config.domain.clone()));
     tera.register_function("add_page", add_page(site.clone()));
     tera.register_function(
         "add_static_file",
         add_static_file(site.clone(), config.clone()),
     );
+    tera.register_function("get_posts_by_tag", get_posts_by_tag(posts.clone()));
     while let Some(page) = site.next_unrendered_page() {
         let mut context = Context::new();
         context.insert("domain", &config.domain);
+        context.insert("title", &page.title);
+        context.insert("description", &page.description);
+        context.insert("path", &page.path);
         let result = tera.render(page.template.as_str(), &context)?;
         site.set_page_content(page.path.as_str(), result);
     }
