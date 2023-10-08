@@ -82,7 +82,7 @@ impl Site {
             if let Some(content) = &page.content {
                 let page_path = match page.path.as_str() {
                     "/" => "index.html",
-                    path => path,
+                    path => path.trim_start_matches("/"),
                 };
 
                 let path = self.dist_folder.join(&page_path);
@@ -102,7 +102,7 @@ impl Site {
         }
 
         for (path, file) in self.static_files.lock().unwrap().iter() {
-            let static_file_path = self.dist_folder.join(path);
+            let static_file_path = self.dist_folder.join(path.trim_start_matches("/"));
             println!(
                 "copy file: {} to {}",
                 &file.display(),

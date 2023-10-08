@@ -69,6 +69,15 @@ fn get_posts_by_tag(posts: Arc<Posts>) -> impl Function + 'static {
     }
 }
 
+fn get_post_by_path(posts: Arc<Posts>) -> impl Function + 'static {
+    move |args: &HashMap<String, Value>| {
+        let path = get_string_arg(args, "path").unwrap();
+        let pid = path.trim_end_matches(".html").trim_start_matches("post/");
+        let post = posts.get(pid);
+        Ok(tera::to_value(&post)?)
+    }
+}
+
 pub fn initialize(
     template_path: &PathBuf,
     config: Arc<Config>,
@@ -82,5 +91,6 @@ pub fn initialize(
         add_static_file(site.clone(), config.clone()),
     );
     tera.register_function("get_posts_by_tag", get_posts_by_tag(posts.clone()));
+    tera.register_function("get_post_by_path", get_post_by_path(posts.clone()));
     Ok(tera)
 }
