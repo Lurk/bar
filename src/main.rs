@@ -33,6 +33,7 @@ pub struct Config {
     domain: String,
     title: String,
     description: String,
+    index_tags: Vec<String>,
 }
 
 fn main() -> Result<(), Errors> {
