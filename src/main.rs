@@ -21,7 +21,7 @@ use crate::posts::init_from_path;
 #[command(author, version, about, long_about = None)]
 struct Args {
     /// path to the project directory
-    #[arg(short, long)]
+    #[clap(default_value = ".")]
     path: PathBuf,
 }
 
@@ -55,7 +55,7 @@ fn main() -> Result<(), Errors> {
     let tera = initialize(&template_path, config.clone(), posts.clone(), site.clone())?;
     while let Some(page) = site.next_unrendered_page() {
         let mut context = Context::new();
-        context.insert("domain", &config.domain);
+        context.insert("config", &config);
         context.insert("title", &page.title);
         context.insert("description", &page.description);
         context.insert("path", &page.path);
