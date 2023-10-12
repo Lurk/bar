@@ -1,6 +1,6 @@
 use std::{
     collections::HashMap,
-    path::PathBuf,
+    path::Path,
     sync::Arc,
     time::{SystemTime, UNIX_EPOCH},
 };
@@ -65,7 +65,7 @@ fn get_posts_by_tag(posts: Arc<Posts>) -> impl Function + 'static {
         let tag = get_string_arg(args, "tag").unwrap_or("".to_string());
         let amount = get_usize_arg(args, "amount").unwrap_or(3);
         let posts = posts.get_posts_by_tag(tag.as_str(), amount);
-        Ok(tera::to_value(&posts)?)
+        Ok(tera::to_value(posts)?)
     }
 }
 
@@ -74,12 +74,12 @@ fn get_post_by_path(posts: Arc<Posts>) -> impl Function + 'static {
         let path = get_string_arg(args, "path").unwrap();
         let pid = path.trim_end_matches(".html").trim_start_matches("post/");
         let post = posts.get(pid);
-        Ok(tera::to_value(&post)?)
+        Ok(tera::to_value(post)?)
     }
 }
 
 pub fn initialize(
-    template_path: &PathBuf,
+    template_path: &Path,
     config: Arc<Config>,
     posts: Arc<Posts>,
     site: Arc<Site>,

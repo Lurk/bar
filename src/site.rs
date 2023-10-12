@@ -82,14 +82,14 @@ impl Site {
             if let Some(content) = &page.content {
                 let page_path = match page.path.as_str() {
                     "/" => "index.html",
-                    path => path.trim_start_matches("/"),
+                    path => path.trim_start_matches('/'),
                 };
 
-                let path = self.dist_folder.join(&page_path);
+                let path = self.dist_folder.join(page_path);
                 println!("write to file: {}", path.clone().display());
                 let prefix = path.parent().unwrap();
                 std::fs::create_dir_all(prefix)
-                    .with_context(format!("create directory: {}", prefix.clone().display()))?;
+                    .with_context(format!("create directory: {}", prefix.display()))?;
                 let mut file = OpenOptions::new()
                     .write(true)
                     .create(true)
@@ -102,7 +102,7 @@ impl Site {
         }
 
         for (path, file) in self.static_files.lock().unwrap().iter() {
-            let static_file_path = self.dist_folder.join(path.trim_start_matches("/"));
+            let static_file_path = self.dist_folder.join(path.trim_start_matches('/'));
             println!(
                 "copy file: {} to {}",
                 &file.display(),
@@ -110,7 +110,7 @@ impl Site {
             );
             let prefix = static_file_path.parent().unwrap();
             std::fs::create_dir_all(prefix)
-                .with_context(format!("create directory: {}", prefix.clone().display()))?;
+                .with_context(format!("create directory: {}", prefix.display()))?;
             std::fs::copy(file, &static_file_path)
                 .with_context(format!("copy file: {}", &static_file_path.display()))?;
         }
