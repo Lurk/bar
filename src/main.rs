@@ -2,6 +2,7 @@ pub mod error;
 pub mod fs;
 pub mod posts;
 pub mod site;
+pub mod syntax_highlight;
 pub mod templating;
 
 use clap::Parser;

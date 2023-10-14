@@ -11,12 +11,20 @@ use crate::{
     error::Errors,
     posts::Posts,
     site::{Page, Site},
+    syntax_highlight::{code, init},
     Config,
 };
 
-fn get_string_arg(args: &HashMap<String, Value>, key: &str) -> Option<String> {
+pub fn get_string_arg(args: &HashMap<String, Value>, key: &str) -> Option<String> {
     match args.get(key) {
         Some(value) => value.as_str().map(|string| string.to_string().clone()),
+        None => None,
+    }
+}
+
+pub fn get_arc_str_arg(args: &HashMap<String, Value>, key: &str) -> Option<Arc<str>> {
+    match args.get(key) {
+        Some(value) => value.as_str().map(|string| Arc::from(string)),
         None => None,
     }
 }
@@ -130,5 +138,6 @@ pub fn initialize(
         "prepare_srcset_for_cloudinary_image",
         prepare_srcset_for_cloudinary_image(),
     );
+    tera.register_function("code", code(init()?));
     Ok(tera)
 }

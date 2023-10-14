@@ -20,6 +20,7 @@ pub enum Errors {
     ConfigFileNotValid(serde_yaml::Error),
     TerraError(tera::Error),
     OsStringError(std::ffi::OsString),
+    BinErr(bincode::Error),
 }
 
 impl From<io::Error> for Errors {
@@ -52,6 +53,12 @@ impl From<std::ffi::OsString> for Errors {
     }
 }
 
+impl From<bincode::Error> for Errors {
+    fn from(err: bincode::Error) -> Self {
+        Errors::BinErr(err)
+    }
+}
+
 impl Display for Errors {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -61,6 +68,7 @@ impl Display for Errors {
             Errors::ConfigFileNotValid(err) => write!(f, "Config file not valid:\n {}", err),
             Errors::TerraError(err) => write!(f, "Terra error:\n {}", err),
             Errors::OsStringError(err) => write!(f, "OsString error:\n {:?}", err),
+            Errors::BinErr(_) => todo!(),
         }
     }
 }
@@ -74,6 +82,7 @@ impl Debug for Errors {
             Errors::ConfigFileNotValid(err) => write!(f, "Config file not valid:\n {:#?}", err),
             Errors::TerraError(err) => write!(f, "Terra error:\n {:#?}", err),
             Errors::OsStringError(err) => write!(f, "OsString error:\n {:#?}", err),
+            Errors::BinErr(_) => todo!(),
         }
     }
 }
