@@ -71,9 +71,9 @@ impl Debug for Errors {
             Errors::FileNotFound(context, err) => {
                 write!(f, "File {} not found:\n {:?}", context, err)
             }
-            Errors::ConfigFileNotValid(err) => write!(f, "Config file not valid:\n {}", err),
-            Errors::TerraError(err) => write!(f, "Terra error:\n {}", err),
-            Errors::OsStringError(err) => write!(f, "OsString error:\n {:?}", err),
+            Errors::ConfigFileNotValid(err) => write!(f, "Config file not valid:\n {:#?}", err),
+            Errors::TerraError(err) => write!(f, "Terra error:\n {:#?}", err),
+            Errors::OsStringError(err) => write!(f, "OsString error:\n {:#?}", err),
         }
     }
 }
