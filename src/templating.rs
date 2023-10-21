@@ -1,12 +1,3 @@
-use std::{
-    collections::HashMap,
-    path::Path,
-    sync::Arc,
-    time::{SystemTime, UNIX_EPOCH},
-};
-use cloudinary::transformation::{crop_mode::CropMode, gravity::Gravity, Image, Transformations};
-use tera::{Function, Tera, Value};
-use url::Url;
 use crate::{
     error::Errors,
     posts::Posts,
@@ -14,6 +5,15 @@ use crate::{
     syntax_highlight::{code, init},
     Config,
 };
+use cloudinary::transformation::{crop_mode::CropMode, gravity::Gravity, Image, Transformations};
+use std::{
+    collections::HashMap,
+    path::Path,
+    sync::Arc,
+    time::{SystemTime, UNIX_EPOCH},
+};
+use tera::{Function, Tera, Value};
+use url::Url;
 
 pub fn get_string_arg(args: &HashMap<String, Value>, key: &str) -> Option<String> {
     match args.get(key) {
@@ -123,11 +123,32 @@ fn prepare_srcset_for_cloudinary_image() -> impl Function + 'static {
                             },
                         ));
                         format!("{} {}w", local_image, width)
-                    }).collect::<Vec<String>>()
+                    })
+                    .collect::<Vec<String>>()
                     .join(",");
                 Ok(tera::to_value(result)?)
             }
             Err(_) => todo!(),
+        }
+    }
+}
+
+fn get_image_url() -> impl Function + 'static {
+    move |args: &HashMap<String, Value>| {
+        let width = get_usize_arg(args, "width").unwrap();
+        let src = get_url_arg(args, "src").unwrap();
+        match Image::try_from(src.clone()) {
+            Ok(image) => {
+                let result = image.clone().add_transformation(Transformations::Crop(
+                    CropMode::FillByWidth {
+                        width: width as u32,
+                        ar: None,
+                        gravity: Some(Gravity::AutoClassic),
+                    },
+                ));
+                Ok(tera::to_value(result.to_string())?)
+            }
+            Err(_) => Ok(tera::to_value(src.to_string())?),
         }
     }
 }
@@ -151,5 +172,6 @@ pub fn initialize(
         prepare_srcset_for_cloudinary_image(),
     );
     tera.register_function("code", code(init()?));
+    tera.register_function("get_image_url", get_image_url());
     Ok(tera)
 }
