@@ -4,9 +4,9 @@ use std::{
     sync::Arc,
     time::{SystemTime, UNIX_EPOCH},
 };
-
+use cloudinary::transformation::{crop_mode::CropMode, gravity::Gravity, Image, Transformations};
 use tera::{Function, Tera, Value};
-
+use url::Url;
 use crate::{
     error::Errors,
     posts::Posts,
@@ -22,9 +22,16 @@ pub fn get_string_arg(args: &HashMap<String, Value>, key: &str) -> Option<String
     }
 }
 
+pub fn get_url_arg(args: &HashMap<String, Value>, key: &str) -> Option<Url> {
+    match args.get(key) {
+        Some(value) => value.as_str().map(|string| Url::parse(string).unwrap()),
+        None => None,
+    }
+}
+
 pub fn get_arc_str_arg(args: &HashMap<String, Value>, key: &str) -> Option<Arc<str>> {
     match args.get(key) {
-        Some(value) => value.as_str().map(|string| Arc::from(string)),
+        Some(value) => value.as_str().map(Arc::from),
         None => None,
     }
 }
@@ -100,23 +107,28 @@ fn get_post_by_path(posts: Arc<Posts>) -> impl Function + 'static {
 
 fn prepare_srcset_for_cloudinary_image() -> impl Function + 'static {
     move |args: &HashMap<String, Value>| {
-        let src = get_string_arg(args, "src").unwrap();
+        let src = get_url_arg(args, "src").unwrap();
 
-        if src.starts_with("https://res.cloudinary.com") {
-            let result = get_vec_of_usize_arg(args, "breakpoints")
-                .unwrap()
-                .iter()
-                .map(|width| {
-                    format!(
-                        "{}  {}w,",
-                        src.replace("image/upload", format!("/c_scale,w_{}", width).as_str()),
-                        width
-                    )
-                })
-                .collect::<String>();
-            return Ok(tera::to_value(result)?);
+        match Image::try_from(src) {
+            Ok(image) => {
+                let result: String = get_vec_of_usize_arg(args, "breakpoints")
+                    .unwrap()
+                    .iter()
+                    .map(|width| {
+                        let local_image = image.clone().add_transformation(Transformations::Crop(
+                            CropMode::FillByWidth {
+                                width: *width as u32,
+                                ar: None,
+                                gravity: Some(Gravity::AutoClassic),
+                            },
+                        ));
+                        format!("{} {}w", local_image, width)
+                    }).collect::<Vec<String>>()
+                    .join(",");
+                Ok(tera::to_value(result)?)
+            }
+            Err(_) => todo!(),
         }
-        Ok(tera::to_value(())?)
     }
 }
 
