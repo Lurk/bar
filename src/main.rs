@@ -37,15 +37,15 @@ pub struct Config {
     index_tags: Vec<String>,
 }
 
-fn main() -> Result<(), Errors> {
+#[tokio::main]
+async fn main() -> Result<(), Errors> {
     let args = Args::parse();
     let config_path = args.path.clone().join("config.yaml");
     let f = File::open(&config_path).with_context(format!("config file: {:?}", &config_path))?;
     let config: Arc<Config> = Arc::new(serde_yaml::from_reader(f)?);
     let template_path = canonicalize(&args.path.join(&config.template))?;
-    let posts = Arc::new(init_from_path(canonicalize(
-        &args.path.join(&config.content_path),
-    )?)?);
+    let posts =
+        Arc::new(init_from_path(canonicalize(&args.path.join(&config.content_path))?).await?);
     let dist_path = canonicalize(&args.path.join(&config.dist_path))?;
     let site: Arc<Site> = Arc::new(Site::new(dist_path));
     site.add_page(Arc::new(Page::new(

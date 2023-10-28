@@ -109,7 +109,7 @@ fn prepare_srcset_for_cloudinary_image() -> impl Function + 'static {
     move |args: &HashMap<String, Value>| {
         let src = get_url_arg(args, "src").unwrap();
 
-        match Image::try_from(src) {
+        match Image::try_from(src.clone()) {
             Ok(image) => {
                 let result: String = get_vec_of_usize_arg(args, "breakpoints")
                     .unwrap()
@@ -135,17 +135,31 @@ fn prepare_srcset_for_cloudinary_image() -> impl Function + 'static {
 
 fn get_image_url() -> impl Function + 'static {
     move |args: &HashMap<String, Value>| {
-        let width = get_usize_arg(args, "width").unwrap();
+        let crop_mode: CropMode =
+            match (get_usize_arg(args, "width"), get_usize_arg(args, "height")) {
+                (None, None) => return Err(tera::Error::msg("width or height is required")),
+                (None, Some(height)) => CropMode::FillByHeight {
+                    height: height as u32,
+                    ar: None,
+                    gravity: Some(Gravity::AutoClassic),
+                },
+                (Some(width), None) => CropMode::FillByWidth {
+                    width: width as u32,
+                    ar: None,
+                    gravity: Some(Gravity::AutoClassic),
+                },
+                (Some(width), Some(height)) => CropMode::Fill {
+                    width: width as u32,
+                    height: height as u32,
+                    gravity: Some(Gravity::AutoClassic),
+                },
+            };
         let src = get_url_arg(args, "src").unwrap();
         match Image::try_from(src.clone()) {
             Ok(image) => {
-                let result = image.clone().add_transformation(Transformations::Crop(
-                    CropMode::FillByWidth {
-                        width: width as u32,
-                        ar: None,
-                        gravity: Some(Gravity::AutoClassic),
-                    },
-                ));
+                let result = image
+                    .clone()
+                    .add_transformation(Transformations::Crop(crop_mode));
                 Ok(tera::to_value(result.to_string())?)
             }
             Err(_) => Ok(tera::to_value(src.to_string())?),

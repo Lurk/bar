@@ -1,14 +1,22 @@
 use std::{
     collections::{HashMap, HashSet},
-    fs,
     path::PathBuf,
     sync::Arc,
 };
 
-use serde::Serialize;
-use yamd::{deserialize, nodes::yamd::Yamd};
+use cloudinary::{tags::get_tags, transformation::Image};
 
-use crate::error::{ContextExt, Errors};
+use crate::error::Errors;
+use serde::Serialize;
+use tokio::fs::read_to_string;
+use yamd::{
+    deserialize,
+    nodes::{
+        image,
+        image_gallery::{ImageGallery, ImageGalleryNodes},
+        yamd::{Yamd, YamdNodes},
+    },
+};
 
 #[derive(Debug, Serialize)]
 pub struct Post {
@@ -81,14 +89,54 @@ impl Default for Posts {
     }
 }
 
-pub fn init_from_path(path: PathBuf) -> Result<Posts, Errors> {
+pub async fn path_to_yamd(path: PathBuf, should_unwrap_cloudinary: bool) -> Result<Yamd, Errors> {
+    let file_contents = read_to_string(&path)
+        .await
+        .unwrap_or_else(|_| panic!("yamd file: {:?}", &path));
+    let yamd = deserialize(file_contents.as_str()).unwrap();
+    if should_unwrap_cloudinary {
+        let mut nodes: Vec<YamdNodes> = Vec::with_capacity(yamd.nodes.len());
+        for node in yamd.nodes.iter() {
+            match node {
+                YamdNodes::CloudinaryImageGallery(cloudinary) => {
+                    let cloud_name: Arc<str> = cloudinary.cloud_name.clone().into();
+                    let tags = get_tags(cloud_name.clone(), cloudinary.tag.clone().into())
+                        .await
+                        .unwrap();
+                    let images = tags
+                        .resources
+                        .iter()
+                        .map(|resource| {
+                            let mut image =
+                                Image::new(cloud_name.clone(), resource.public_id.clone());
+                            image.set_format(resource.format.as_ref());
+                            ImageGalleryNodes::Image(image::Image::new(
+                                false,
+                                resource.public_id.to_string(),
+                                image.to_string(),
+                            ))
+                        })
+                        .collect::<Vec<ImageGalleryNodes>>();
+                    nodes.push(
+                        ImageGallery::new_with_nodes(cloudinary.consumed_all_input, images).into(),
+                    );
+                }
+                _ => nodes.push(node.clone()),
+            }
+        }
+        return Ok(Yamd::new_with_nodes(Some(yamd.metadata), nodes));
+    }
+    Ok(yamd)
+}
+
+pub async fn init_from_path(path: PathBuf) -> Result<Posts, Errors> {
     let content_paths = std::fs::read_dir(path).unwrap();
     let mut posts_vec: Vec<(String, Yamd)> = Vec::new();
     for path in content_paths {
         let file = path?.path().canonicalize()?;
-        let file_contents =
-            fs::read_to_string(&file).with_context(format!("yamd file: {:?}", &file))?;
-        let yamd = deserialize(file_contents.as_str()).unwrap();
+        // TODO: make this concurrent
+        // TODO: make this configurable
+        let yamd = path_to_yamd(file.clone(), true).await?;
         posts_vec.push((file.file_stem().unwrap().to_str().unwrap().into(), yamd));
     }
     let mut posts = Posts::new();
