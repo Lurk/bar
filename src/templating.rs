@@ -24,7 +24,9 @@ pub fn get_string_arg(args: &HashMap<String, Value>, key: &str) -> Option<String
 
 pub fn get_url_arg(args: &HashMap<String, Value>, key: &str) -> Option<Url> {
     match args.get(key) {
-        Some(value) => value.as_str().map(|string| Url::parse(string).unwrap()),
+        Some(value) => value.as_str().map(|string| {
+            Url::parse(string).unwrap_or_else(|_| panic!("could not parse {string} to url"))
+        }),
         None => None,
     }
 }
@@ -63,7 +65,14 @@ fn add_page(site: Arc<Site>) -> impl Function + 'static {
         let template = get_string_arg(args, "template").unwrap_or("index.html".to_string());
         let title = get_string_arg(args, "title").unwrap_or("".to_string());
         let description = get_string_arg(args, "description").unwrap_or("".to_string());
-        site.add_page(Arc::new(Page::new(path, template, title, description)));
+        let page_num = get_usize_arg(args, "page_num").unwrap_or(0);
+        site.add_page(Arc::new(Page::new(
+            path,
+            template,
+            title,
+            description,
+            page_num,
+        )));
         Ok(tera::to_value(())?)
     }
 }
@@ -76,7 +85,10 @@ fn add_static_file(site: Arc<Site>, config: Arc<Config>) -> impl Function + 'sta
         ) {
             let now = SystemTime::now();
             let since_the_epoch = now.duration_since(UNIX_EPOCH).expect("Time went backwards");
-            site.add_static_file(path.clone(), config.template.join(file_path));
+            site.add_static_file(
+                path.trim().to_string(),
+                config.template.join(file_path.trim()),
+            );
             return Ok(tera::to_value(format!(
                 "{}?cb={}",
                 &path,
@@ -90,16 +102,17 @@ fn add_static_file(site: Arc<Site>, config: Arc<Config>) -> impl Function + 'sta
 fn get_posts_by_tag(posts: Arc<Posts>) -> impl Function + 'static {
     move |args: &HashMap<String, Value>| {
         let tag = get_string_arg(args, "tag").unwrap_or("".to_string());
-        let amount = get_usize_arg(args, "amount").unwrap_or(3);
-        let posts = posts.get_posts_by_tag(tag.as_str(), amount);
+        let limit = get_usize_arg(args, "limit").unwrap_or(3);
+        let offset = get_usize_arg(args, "offset").unwrap_or(0);
+        let posts = posts.get_posts_by_tag(tag.as_str(), limit, offset);
         Ok(tera::to_value(posts)?)
     }
 }
 
 fn get_post_by_path(posts: Arc<Posts>) -> impl Function + 'static {
     move |args: &HashMap<String, Value>| {
-        let path = get_string_arg(args, "path").unwrap();
-        let pid = path.trim_end_matches(".html").trim_start_matches("post/");
+        let path = get_string_arg(args, "path").expect("path is required");
+        let pid = path.trim_end_matches(".html").trim_start_matches("/post/");
         let post = posts.get(pid);
         Ok(tera::to_value(post)?)
     }
@@ -107,8 +120,11 @@ fn get_post_by_path(posts: Arc<Posts>) -> impl Function + 'static {
 
 fn prepare_srcset_for_cloudinary_image() -> impl Function + 'static {
     move |args: &HashMap<String, Value>| {
-        let src = get_url_arg(args, "src").unwrap();
-
+        let src = get_string_arg(args, "src").unwrap();
+        if src.starts_with('/') {
+            return Ok(tera::to_value(src)?);
+        }
+        let src = Url::parse(src.as_str()).expect("parse url from src");
         match Image::try_from(src.clone()) {
             Ok(image) => {
                 let result: String = get_vec_of_usize_arg(args, "breakpoints")
@@ -133,7 +149,7 @@ fn prepare_srcset_for_cloudinary_image() -> impl Function + 'static {
     }
 }
 
-fn get_image_url() -> impl Function + 'static {
+fn get_image_url(site: Arc<Site>, path: Arc<Path>) -> impl Function + 'static {
     move |args: &HashMap<String, Value>| {
         let crop_mode: CropMode =
             match (get_usize_arg(args, "width"), get_usize_arg(args, "height")) {
@@ -154,7 +170,16 @@ fn get_image_url() -> impl Function + 'static {
                     gravity: Some(Gravity::AutoClassic),
                 },
             };
-        let src = get_url_arg(args, "src").unwrap();
+        let src = get_string_arg(args, "src").expect("get url from src");
+        if src.starts_with('/') {
+            site.add_static_file(
+                src.trim().to_string(),
+                path.join(src.trim().trim_start_matches('/')),
+            );
+
+            return Ok(tera::to_value(src)?);
+        }
+        let src = Url::parse(src.as_str()).expect("parse url from src");
         match Image::try_from(src.clone()) {
             Ok(image) => {
                 let result = image
@@ -168,6 +193,7 @@ fn get_image_url() -> impl Function + 'static {
 }
 
 pub fn initialize(
+    path: &Path,
     template_path: &Path,
     config: Arc<Config>,
     posts: Arc<Posts>,
@@ -186,6 +212,6 @@ pub fn initialize(
         prepare_srcset_for_cloudinary_image(),
     );
     tera.register_function("code", code(init()?));
-    tera.register_function("get_image_url", get_image_url());
+    tera.register_function("get_image_url", get_image_url(site, Arc::from(path)));
     Ok(tera)
 }
