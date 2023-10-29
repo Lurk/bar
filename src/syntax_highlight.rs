@@ -16,7 +16,7 @@ use crate::{
 fn map_language(supported: &[Arc<str>], language: Arc<str>) -> Result<Arc<str>, tera::Error> {
     let language: Arc<str> = match language.to_lowercase().as_ref() {
         "js" | "javascript" => "JavaScript".into(),
-        "ts" | "typescript" => "TypeScriptReact".into(),
+        "ts" | "typescript" | "jsx" => "TypeScriptReact".into(),
         "rs" | "rust" => "Rust".into(),
         "bash" | "sh" => "Bourne Again Shell (bash)".into(),
         _ => language,
