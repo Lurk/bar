@@ -8,22 +8,31 @@ use std::{
 
 use crate::error::{ContextExt, Errors};
 
+#[derive(Debug)]
 pub struct Page {
     pub path: String,
     pub content: Option<String>,
     pub template: String,
     pub title: String,
     pub description: String,
+    pub page_num: usize,
 }
 
 impl Page {
-    pub fn new(path: String, template: String, title: String, description: String) -> Self {
+    pub fn new(
+        path: String,
+        template: String,
+        title: String,
+        description: String,
+        page_num: usize,
+    ) -> Self {
         Self {
             path,
             content: None,
             template,
             title,
             description,
+            page_num,
         }
     }
 }
@@ -44,7 +53,9 @@ impl Site {
     }
 
     pub fn add_page(&self, page: Arc<Page>) {
-        self.pages.lock().unwrap().insert(page.path.clone(), page);
+        if page.content.is_some() || !self.pages.lock().unwrap().contains_key(&page.path) {
+            self.pages.lock().unwrap().insert(page.path.clone(), page);
+        }
     }
 
     pub fn next_unrendered_page(&self) -> Option<Arc<Page>> {
@@ -68,6 +79,7 @@ impl Site {
             template: page.template.clone(),
             title: page.title.clone(),
             description: page.description.clone(),
+            page_num: page.page_num,
         }));
     }
 
@@ -111,8 +123,11 @@ impl Site {
             let prefix = static_file_path.parent().unwrap();
             std::fs::create_dir_all(prefix)
                 .with_context(format!("create directory: {}", prefix.display()))?;
-            std::fs::copy(file, &static_file_path)
-                .with_context(format!("copy file: {}", &static_file_path.display()))?;
+            std::fs::copy(file, &static_file_path).with_context(format!(
+                "copy file: {:?} -> {}",
+                file,
+                &static_file_path.display()
+            ))?;
         }
         Ok(())
     }

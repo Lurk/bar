@@ -1,5 +1,5 @@
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{hash_map::Entry, HashMap, HashSet},
     path::PathBuf,
     sync::Arc,
 };
@@ -24,6 +24,14 @@ pub struct Post {
     content: Yamd,
 }
 
+#[derive(Debug, Serialize)]
+pub struct PostPage {
+    posts: Vec<Arc<Post>>,
+    current_page: usize,
+    total_pages: usize,
+    page_size: usize,
+}
+
 impl Post {
     pub fn new(pid: Arc<str>, content: Yamd) -> Self {
         Self { pid, content }
@@ -31,8 +39,9 @@ impl Post {
 }
 
 pub struct Posts {
-    posts: HashMap<Arc<str>, Post>,
+    posts: HashMap<Arc<str>, Arc<Post>>,
     order: Vec<Arc<str>>,
+    tags: HashMap<Arc<str>, Vec<Arc<Post>>>,
 }
 
 impl Posts {
@@ -40,14 +49,23 @@ impl Posts {
         Self {
             posts: HashMap::new(),
             order: Vec::new(),
+            tags: HashMap::new(),
         }
     }
 
     pub fn add(&mut self, key: String, value: Yamd) {
         let pid: Arc<str> = Arc::from(key.as_str());
-        self.posts
-            .insert(pid.clone(), Post::new(pid.clone(), value));
+        let post = Arc::new(Post::new(pid.clone(), value.clone()));
+        self.posts.insert(pid.clone(), post.clone());
         self.order.push(pid.clone());
+        value.metadata.tags.iter().for_each(|tag| {
+            let tag: Arc<str> = Arc::from(tag.as_str());
+            if let Entry::Vacant(e) = self.tags.entry(tag.clone()) {
+                e.insert(vec![post.clone()]);
+            } else {
+                self.tags.get_mut(&tag).unwrap().push(post.clone());
+            }
+        });
     }
 
     pub fn keys(&self) -> &Vec<Arc<str>> {
@@ -55,7 +73,7 @@ impl Posts {
     }
 
     pub fn get(&self, key: &str) -> Option<&Post> {
-        self.posts.get(key)
+        self.posts.get(key).map(|post| post.as_ref())
     }
 
     pub fn get_tags(&self) -> HashSet<String> {
@@ -68,18 +86,24 @@ impl Posts {
         tags
     }
 
-    pub fn get_posts_by_tag(&self, tag: &str, amount: usize) -> Vec<&Post> {
-        let mut posts: Vec<&Post> = Vec::with_capacity(amount);
-        for pid in self.keys() {
-            let post = self.get(pid).unwrap();
+    pub fn get_posts_by_tag(&self, tag: &str, limit: usize, offset: usize) -> PostPage {
+        let mut page: PostPage = PostPage {
+            posts: Vec::new(),
+            current_page: self.order.len() / limit - offset / limit,
+            total_pages: self.order.len() / limit,
+            page_size: limit,
+        };
+
+        let posts = self
+            .tags
+            .get(tag)
+            .unwrap_or_else(|| panic!("{tag} must be present"));
+        for post in posts.iter().skip(offset).take(limit) {
             if post.content.metadata.tags.contains(&tag.to_string()) {
-                posts.push(post);
-            }
-            if posts.len() == amount {
-                break;
+                page.posts.push(post.clone());
             }
         }
-        posts
+        page
     }
 }
 

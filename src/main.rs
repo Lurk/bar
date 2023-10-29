@@ -53,14 +53,23 @@ async fn main() -> Result<(), Errors> {
         "index.html".to_string(),
         config.title.clone(),
         config.description.clone(),
+        0,
     )));
-    let tera = initialize(&template_path, config.clone(), posts.clone(), site.clone())?;
+    let tera = initialize(
+        &args.path,
+        &template_path,
+        config.clone(),
+        posts.clone(),
+        site.clone(),
+    )?;
     while let Some(page) = site.next_unrendered_page() {
+        println!("Rendering page: {}", page.path);
         let mut context = Context::new();
         context.insert("config", &config);
         context.insert("title", &page.title);
         context.insert("description", &page.description);
         context.insert("path", &page.path);
+        context.insert("page_num", &page.page_num);
         let result = tera.render(page.template.as_str(), &context)?;
         site.set_page_content(page.path.as_str(), result);
     }
