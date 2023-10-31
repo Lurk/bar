@@ -122,17 +122,17 @@ pub async fn path_to_yamd(path: PathBuf, should_unwrap_cloudinary: bool) -> Resu
         let mut nodes: Vec<YamdNodes> = Vec::with_capacity(yamd.nodes.len());
         for node in yamd.nodes.iter() {
             match node {
-                YamdNodes::CloudinaryImageGallery(cloudinary) => {
-                    let cloud_name: Arc<str> = cloudinary.cloud_name.clone().into();
-                    let tags = get_tags(cloud_name.clone(), cloudinary.tag.clone().into())
-                        .await
-                        .unwrap();
+                YamdNodes::Embed(embed) if embed.kind == "cloudinary_gallery" => {
+                    let (cloud_name, tag) = embed.args.split_once('&').unwrap_or_else(
+                        || panic!("cloudinary_gallery embed must have two arguments: cloud_name and tag.\n{:?}", path)
+                    );
+                    let tags = get_tags(cloud_name.into(), tag.into()).await.unwrap();
                     let images = tags
                         .resources
                         .iter()
                         .map(|resource| {
                             let mut image =
-                                Image::new(cloud_name.clone(), resource.public_id.clone());
+                                Image::new(cloud_name.into(), resource.public_id.clone());
                             image.set_format(resource.format.as_ref());
                             ImageGalleryNodes::Image(image::Image::new(
                                 false,
@@ -142,7 +142,7 @@ pub async fn path_to_yamd(path: PathBuf, should_unwrap_cloudinary: bool) -> Resu
                         })
                         .collect::<Vec<ImageGalleryNodes>>();
                     nodes.push(
-                        ImageGallery::new_with_nodes(cloudinary.consumed_all_input, images).into(),
+                        ImageGallery::new_with_nodes(embed.consumed_all_input, images).into(),
                     );
                 }
                 _ => nodes.push(node.clone()),
