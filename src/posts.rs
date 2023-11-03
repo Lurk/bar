@@ -58,14 +58,16 @@ impl Posts {
         let post = Arc::new(Post::new(pid.clone(), value.clone()));
         self.posts.insert(pid.clone(), post.clone());
         self.order.push(pid.clone());
-        value.metadata.tags.iter().for_each(|tag| {
-            let tag: Arc<str> = Arc::from(tag.as_str());
-            if let Entry::Vacant(e) = self.tags.entry(tag.clone()) {
-                e.insert(vec![post.clone()]);
-            } else {
-                self.tags.get_mut(&tag).unwrap().push(post.clone());
-            }
-        });
+        if let Some(tags) = value.metadata.tags {
+            tags.iter().for_each(|tag| {
+                let tag: Arc<str> = Arc::from(tag.as_str());
+                if let Entry::Vacant(e) = self.tags.entry(tag.clone()) {
+                    e.insert(vec![post.clone()]);
+                } else {
+                    self.tags.get_mut(&tag).unwrap().push(post.clone());
+                }
+            });
+        }
     }
 
     pub fn keys(&self) -> &Vec<Arc<str>> {
@@ -78,11 +80,10 @@ impl Posts {
 
     pub fn get_tags(&self) -> HashSet<String> {
         let mut tags: HashSet<String> = HashSet::new();
-        for post in self.posts.values() {
-            for tag in post.content.metadata.tags.iter() {
-                tags.insert(tag.clone());
-            }
-        }
+
+        self.tags.keys().for_each(|tag| {
+            tags.insert(tag.to_string());
+        });
         tags
     }
 
@@ -99,9 +100,7 @@ impl Posts {
             .get(tag)
             .unwrap_or_else(|| panic!("{tag} must be present"));
         for post in posts.iter().skip(offset).take(limit) {
-            if post.content.metadata.tags.contains(&tag.to_string()) {
-                page.posts.push(post.clone());
-            }
+            page.posts.push(post.clone());
         }
         page
     }
@@ -135,20 +134,17 @@ pub async fn path_to_yamd(path: PathBuf, should_unwrap_cloudinary: bool) -> Resu
                                 Image::new(cloud_name.into(), resource.public_id.clone());
                             image.set_format(resource.format.as_ref());
                             ImageGalleryNodes::Image(image::Image::new(
-                                false,
                                 resource.public_id.to_string(),
                                 image.to_string(),
                             ))
                         })
                         .collect::<Vec<ImageGalleryNodes>>();
-                    nodes.push(
-                        ImageGallery::new_with_nodes(embed.consumed_all_input, images).into(),
-                    );
+                    nodes.push(ImageGallery::new(images).into());
                 }
                 _ => nodes.push(node.clone()),
             }
         }
-        return Ok(Yamd::new_with_nodes(Some(yamd.metadata), nodes));
+        return Ok(Yamd::new(Some(yamd.metadata), nodes));
     }
     Ok(yamd)
 }
@@ -167,10 +163,10 @@ pub async fn init_from_path(path: PathBuf) -> Result<Posts, Errors> {
 
     posts_vec.sort_by(|a, b| {
         b.1.metadata
-            .timestamp
+            .date
             .as_ref()
             .unwrap()
-            .cmp(a.1.metadata.timestamp.as_ref().unwrap())
+            .cmp(a.1.metadata.date.as_ref().unwrap())
     });
     for post in posts_vec {
         posts.add(post.0, post.1);
