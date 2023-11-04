@@ -25,10 +25,18 @@ pub struct Post {
 }
 
 #[derive(Debug, Serialize)]
+pub struct PageNumber {
+    number: usize,
+    is_current: bool,
+    display: usize,
+}
+
+#[derive(Debug, Serialize)]
 pub struct PostPage {
     posts: Vec<Arc<Post>>,
     current_page: usize,
     total_pages: usize,
+    numbers: Vec<PageNumber>,
     page_size: usize,
 }
 
@@ -88,17 +96,31 @@ impl Posts {
     }
 
     pub fn get_posts_by_tag(&self, tag: &str, limit: usize, offset: usize) -> PostPage {
-        let mut page: PostPage = PostPage {
-            posts: Vec::new(),
-            current_page: self.order.len() / limit - offset / limit,
-            total_pages: self.order.len() / limit,
-            page_size: limit,
-        };
-
         let posts = self
             .tags
             .get(tag)
             .unwrap_or_else(|| panic!("{tag} must be present"));
+
+        let current_page = offset / limit;
+        let total_pages: usize = (posts.len() as f64 / limit as f64).ceil() as usize;
+
+        let mut numbers: Vec<PageNumber> = Vec::with_capacity(total_pages);
+
+        for i in 0..total_pages {
+            numbers.push(PageNumber {
+                number: i,
+                display: i + 1,
+                is_current: i == current_page,
+            });
+        }
+        let mut page: PostPage = PostPage {
+            posts: Vec::with_capacity(limit),
+            current_page,
+            total_pages,
+            page_size: limit,
+            numbers,
+        };
+
         for post in posts.iter().skip(offset).take(limit) {
             page.posts.push(post.clone());
         }
