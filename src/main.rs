@@ -42,7 +42,7 @@ async fn main() -> Result<(), Errors> {
         0,
     )));
     let tera = initialize(
-        &args.path,
+        Arc::from(args.path),
         &template_path,
         config.clone(),
         posts.clone(),

@@ -1,6 +1,6 @@
 use std::{
     collections::{hash_map::Entry, HashMap, HashSet},
-    path::PathBuf,
+    path::{Path, PathBuf},
     sync::Arc,
 };
 
@@ -171,7 +171,7 @@ pub async fn path_to_yamd(path: PathBuf, should_unwrap_cloudinary: &bool) -> Res
     Ok(yamd)
 }
 
-pub async fn init_from_path(path: &PathBuf, config: Arc<Config>) -> Result<Posts, Errors> {
+pub async fn init_from_path(path: &Path, config: Arc<Config>) -> Result<Posts, Errors> {
     let content_path = canonicalize(&path.join(&config.content_path))?;
     let content_paths = std::fs::read_dir(content_path).unwrap();
     let mut posts_vec: Vec<(String, Yamd)> = Vec::new();

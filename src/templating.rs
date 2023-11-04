@@ -8,7 +8,7 @@ use crate::{
 use cloudinary::transformation::{crop_mode::CropMode, gravity::Gravity, Image, Transformations};
 use std::{
     collections::HashMap,
-    path::Path,
+    path::{Path, PathBuf},
     sync::Arc,
     time::{SystemTime, UNIX_EPOCH},
 };
@@ -59,6 +59,13 @@ fn get_vec_of_usize_arg(args: &HashMap<String, Value>, key: &str) -> Option<Vec<
     }
 }
 
+fn get_bool_arg(args: &HashMap<String, Value>, key: &str) -> Option<bool> {
+    match args.get(key) {
+        Some(value) => value.as_bool(),
+        None => None,
+    }
+}
+
 fn add_page(site: Arc<Site>) -> impl Function + 'static {
     move |args: &HashMap<String, Value>| {
         let path = get_string_arg(args, "path").unwrap_or("/".to_string());
@@ -77,18 +84,25 @@ fn add_page(site: Arc<Site>) -> impl Function + 'static {
     }
 }
 
-fn add_static_file(site: Arc<Site>, config: Arc<Config>) -> impl Function + 'static {
+fn add_static_file(
+    site: Arc<Site>,
+    config: Arc<Config>,
+    content_path: Arc<PathBuf>,
+) -> impl Function + 'static {
     move |args: &HashMap<String, Value>| {
         if let (Some(path), Some(file_path)) = (
             get_string_arg(args, "path"),
             get_string_arg(args, "file_path"),
         ) {
+            let is_content = get_bool_arg(args, "is_content").unwrap_or(false);
             let now = SystemTime::now();
             let since_the_epoch = now.duration_since(UNIX_EPOCH).expect("Time went backwards");
-            site.add_static_file(
-                path.trim().to_string(),
-                config.template.join(file_path.trim()),
-            );
+            let static_path = if is_content {
+                content_path.join(file_path.trim())
+            } else {
+                config.template.join(file_path.trim())
+            };
+            site.add_static_file(path.trim().to_string(), static_path);
             return Ok(tera::to_value(format!(
                 "{}?cb={}",
                 &path,
@@ -149,7 +163,7 @@ fn prepare_srcset_for_cloudinary_image() -> impl Function + 'static {
     }
 }
 
-fn get_image_url(site: Arc<Site>, path: Arc<Path>) -> impl Function + 'static {
+fn get_image_url(site: Arc<Site>, path: Arc<PathBuf>) -> impl Function + 'static {
     move |args: &HashMap<String, Value>| {
         let crop_mode: CropMode =
             match (get_usize_arg(args, "width"), get_usize_arg(args, "height")) {
@@ -193,7 +207,7 @@ fn get_image_url(site: Arc<Site>, path: Arc<Path>) -> impl Function + 'static {
 }
 
 pub fn initialize(
-    path: &Path,
+    path: Arc<PathBuf>,
     template_path: &Path,
     config: Arc<Config>,
     posts: Arc<Posts>,
@@ -203,7 +217,7 @@ pub fn initialize(
     tera.register_function("add_page", add_page(site.clone()));
     tera.register_function(
         "add_static_file",
-        add_static_file(site.clone(), config.clone()),
+        add_static_file(site.clone(), config.clone(), path.clone()),
     );
     tera.register_function("get_posts_by_tag", get_posts_by_tag(posts.clone()));
     tera.register_function("get_post_by_path", get_post_by_path(posts.clone()));
@@ -212,6 +226,6 @@ pub fn initialize(
         prepare_srcset_for_cloudinary_image(),
     );
     tera.register_function("code", code(init()?));
-    tera.register_function("get_image_url", get_image_url(site, Arc::from(path)));
+    tera.register_function("get_image_url", get_image_url(site, path.clone()));
     Ok(tera)
 }
