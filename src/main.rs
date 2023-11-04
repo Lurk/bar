@@ -1,3 +1,4 @@
+pub mod config;
 pub mod error;
 pub mod fs;
 pub mod posts;
@@ -6,10 +7,9 @@ pub mod syntax_highlight;
 pub mod templating;
 
 use clap::Parser;
-use error::{ContextExt, Errors};
-use serde::{Deserialize, Serialize};
+use config::Config;
+use error::Errors;
 use site::{Page, Site};
-use std::fs::File;
 use std::path::PathBuf;
 use std::sync::Arc;
 use templating::initialize;
@@ -26,26 +26,12 @@ struct Args {
     path: PathBuf,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct Config {
-    dist_path: PathBuf,
-    content_path: PathBuf,
-    template: PathBuf,
-    domain: String,
-    title: String,
-    description: String,
-    index_tags: Vec<String>,
-}
-
 #[tokio::main]
 async fn main() -> Result<(), Errors> {
     let args = Args::parse();
-    let config_path = args.path.clone().join("config.yaml");
-    let f = File::open(&config_path).with_context(format!("config file: {:?}", &config_path))?;
-    let config: Arc<Config> = Arc::new(serde_yaml::from_reader(f)?);
+    let config: Arc<Config> = Arc::new(Config::try_from(args.path.clone())?);
     let template_path = canonicalize(&args.path.join(&config.template))?;
-    let posts =
-        Arc::new(init_from_path(canonicalize(&args.path.join(&config.content_path))?).await?);
+    let posts = Arc::new(init_from_path(&args.path, config.clone()).await?);
     let dist_path = canonicalize(&args.path.join(&config.dist_path))?;
     let site: Arc<Site> = Arc::new(Site::new(dist_path));
     site.add_page(Arc::new(Page::new(

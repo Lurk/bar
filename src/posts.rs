@@ -6,7 +6,7 @@ use std::{
 
 use cloudinary::{tags::get_tags, transformation::Image};
 
-use crate::error::Errors;
+use crate::{config::Config, error::Errors, fs::canonicalize};
 use serde::Serialize;
 use tokio::fs::read_to_string;
 use yamd::{
@@ -134,12 +134,12 @@ impl Default for Posts {
     }
 }
 
-pub async fn path_to_yamd(path: PathBuf, should_unwrap_cloudinary: bool) -> Result<Yamd, Errors> {
+pub async fn path_to_yamd(path: PathBuf, should_unwrap_cloudinary: &bool) -> Result<Yamd, Errors> {
     let file_contents = read_to_string(&path)
         .await
         .unwrap_or_else(|_| panic!("yamd file: {:?}", &path));
     let yamd = deserialize(file_contents.as_str()).unwrap();
-    if should_unwrap_cloudinary {
+    if *should_unwrap_cloudinary {
         let mut nodes: Vec<YamdNodes> = Vec::with_capacity(yamd.nodes.len());
         for node in yamd.nodes.iter() {
             match node {
@@ -171,14 +171,18 @@ pub async fn path_to_yamd(path: PathBuf, should_unwrap_cloudinary: bool) -> Resu
     Ok(yamd)
 }
 
-pub async fn init_from_path(path: PathBuf) -> Result<Posts, Errors> {
-    let content_paths = std::fs::read_dir(path).unwrap();
+pub async fn init_from_path(path: &PathBuf, config: Arc<Config>) -> Result<Posts, Errors> {
+    let content_path = canonicalize(&path.join(&config.content_path))?;
+    let content_paths = std::fs::read_dir(content_path).unwrap();
     let mut posts_vec: Vec<(String, Yamd)> = Vec::new();
+    let should_unwrap_cloudinary = config
+        .get("should_unpack_cloudinary".into())
+        .map(|v| v.as_bool().unwrap_or(&false))
+        .unwrap_or(&false);
     for path in content_paths {
         let file = path?.path().canonicalize()?;
         // TODO: make this concurrent
-        // TODO: make this configurable
-        let yamd = path_to_yamd(file.clone(), true).await?;
+        let yamd = path_to_yamd(file.clone(), should_unwrap_cloudinary).await?;
         posts_vec.push((file.file_stem().unwrap().to_str().unwrap().into(), yamd));
     }
     let mut posts = Posts::new();
