@@ -1,6 +1,6 @@
 use crate::{
     error::Errors,
-    posts::Posts,
+    pages::Pages,
     site::{Page, Site},
     syntax_highlight::{code, init},
     Config,
@@ -113,22 +113,23 @@ fn add_static_file(
     }
 }
 
-fn get_posts_by_tag(posts: Arc<Posts>) -> impl Function + 'static {
+fn get_pages_by_tag(pages: Arc<Pages>) -> impl Function + 'static {
     move |args: &HashMap<String, Value>| {
         let tag = get_string_arg(args, "tag").unwrap_or("".to_string());
         let limit = get_usize_arg(args, "limit").unwrap_or(3);
         let offset = get_usize_arg(args, "offset").unwrap_or(0);
-        let posts = posts.get_posts_by_tag(tag.as_str(), limit, offset);
-        Ok(tera::to_value(posts)?)
+        let pages = pages.get_posts_by_tag(tag.as_str(), limit, offset);
+        Ok(tera::to_value(pages)?)
     }
 }
 
-fn get_post_by_path(posts: Arc<Posts>) -> impl Function + 'static {
+fn get_page_by_path(pages: Arc<Pages>) -> impl Function + 'static {
     move |args: &HashMap<String, Value>| {
         let path = get_string_arg(args, "path").expect("path is required");
+        // TODO: this part of the code should not know about "/post/" prefix
         let pid = path.trim_end_matches(".html").trim_start_matches("/post/");
-        let post = posts.get(pid);
-        Ok(tera::to_value(post)?)
+        let page = pages.get(pid);
+        Ok(tera::to_value(page)?)
     }
 }
 
@@ -210,7 +211,7 @@ pub fn initialize(
     path: Arc<PathBuf>,
     template_path: &Path,
     config: Arc<Config>,
-    posts: Arc<Posts>,
+    posts: Arc<Pages>,
     site: Arc<Site>,
 ) -> Result<Tera, Errors> {
     let mut tera = Tera::new(format!("{}/**/*.html", template_path.to_str().unwrap()).as_str())?;
@@ -219,8 +220,8 @@ pub fn initialize(
         "add_static_file",
         add_static_file(site.clone(), config.clone(), path.clone()),
     );
-    tera.register_function("get_posts_by_tag", get_posts_by_tag(posts.clone()));
-    tera.register_function("get_post_by_path", get_post_by_path(posts.clone()));
+    tera.register_function("get_pages_by_tag", get_pages_by_tag(posts.clone()));
+    tera.register_function("get_page_by_path", get_page_by_path(posts.clone()));
     tera.register_function(
         "prepare_srcset_for_cloudinary_image",
         prepare_srcset_for_cloudinary_image(),

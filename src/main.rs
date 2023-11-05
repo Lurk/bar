@@ -1,7 +1,7 @@
 pub mod config;
 pub mod error;
 pub mod fs;
-pub mod posts;
+pub mod pages;
 pub mod site;
 pub mod syntax_highlight;
 pub mod templating;
@@ -16,7 +16,7 @@ use templating::initialize;
 use tera::Context;
 
 use crate::fs::canonicalize;
-use crate::posts::init_from_path;
+use crate::pages::init_from_path;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]

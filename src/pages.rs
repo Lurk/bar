@@ -19,43 +19,43 @@ use yamd::{
 };
 
 #[derive(Debug, Serialize)]
-pub struct Post {
+pub struct Page {
     pid: Arc<str>,
     content: Yamd,
 }
 
 #[derive(Debug, Serialize)]
-pub struct PageNumber {
+pub struct SliceNumber {
     number: usize,
     is_current: bool,
     display: usize,
 }
 
 #[derive(Debug, Serialize)]
-pub struct PostPage {
-    posts: Vec<Arc<Post>>,
-    current_page: usize,
-    total_pages: usize,
-    numbers: Vec<PageNumber>,
-    page_size: usize,
+pub struct PagesSlice {
+    pages: Vec<Arc<Page>>,
+    current_slice: usize,
+    total_slices: usize,
+    numbers: Vec<SliceNumber>,
+    slice_size: usize,
 }
 
-impl Post {
+impl Page {
     pub fn new(pid: Arc<str>, content: Yamd) -> Self {
         Self { pid, content }
     }
 }
 
-pub struct Posts {
-    posts: HashMap<Arc<str>, Arc<Post>>,
+pub struct Pages {
+    pages: HashMap<Arc<str>, Arc<Page>>,
     order: Vec<Arc<str>>,
-    tags: HashMap<Arc<str>, Vec<Arc<Post>>>,
+    tags: HashMap<Arc<str>, Vec<Arc<Page>>>,
 }
 
-impl Posts {
+impl Pages {
     pub fn new() -> Self {
         Self {
-            posts: HashMap::new(),
+            pages: HashMap::new(),
             order: Vec::new(),
             tags: HashMap::new(),
         }
@@ -63,8 +63,8 @@ impl Posts {
 
     pub fn add(&mut self, key: String, value: Yamd) {
         let pid: Arc<str> = Arc::from(key.as_str());
-        let post = Arc::new(Post::new(pid.clone(), value.clone()));
-        self.posts.insert(pid.clone(), post.clone());
+        let post = Arc::new(Page::new(pid.clone(), value.clone()));
+        self.pages.insert(pid.clone(), post.clone());
         self.order.push(pid.clone());
         if let Some(tags) = value.metadata.tags {
             tags.iter().for_each(|tag| {
@@ -82,8 +82,8 @@ impl Posts {
         &self.order
     }
 
-    pub fn get(&self, key: &str) -> Option<&Post> {
-        self.posts.get(key).map(|post| post.as_ref())
+    pub fn get(&self, key: &str) -> Option<&Page> {
+        self.pages.get(key).map(|page| page.as_ref())
     }
 
     pub fn get_tags(&self) -> HashSet<String> {
@@ -95,40 +95,40 @@ impl Posts {
         tags
     }
 
-    pub fn get_posts_by_tag(&self, tag: &str, limit: usize, offset: usize) -> PostPage {
-        let posts = self
+    pub fn get_posts_by_tag(&self, tag: &str, limit: usize, offset: usize) -> PagesSlice {
+        let pages = self
             .tags
             .get(tag)
             .unwrap_or_else(|| panic!("{tag} must be present"));
 
-        let current_page = offset / limit;
-        let total_pages: usize = (posts.len() as f64 / limit as f64).ceil() as usize;
+        let current_slice = offset / limit;
+        let total_slices: usize = (pages.len() as f64 / limit as f64).ceil() as usize;
 
-        let mut numbers: Vec<PageNumber> = Vec::with_capacity(total_pages);
+        let mut numbers: Vec<SliceNumber> = Vec::with_capacity(total_slices);
 
-        for i in 0..total_pages {
-            numbers.push(PageNumber {
+        for i in 0..total_slices {
+            numbers.push(SliceNumber {
                 number: i,
                 display: i + 1,
-                is_current: i == current_page,
+                is_current: i == current_slice,
             });
         }
-        let mut page: PostPage = PostPage {
-            posts: Vec::with_capacity(limit),
-            current_page,
-            total_pages,
-            page_size: limit,
+        let mut slice = PagesSlice {
+            pages: Vec::with_capacity(limit),
+            current_slice,
+            total_slices,
+            slice_size: limit,
             numbers,
         };
 
-        for post in posts.iter().skip(offset).take(limit) {
-            page.posts.push(post.clone());
+        for page in pages.iter().skip(offset).take(limit) {
+            slice.pages.push(page.clone());
         }
-        page
+        slice
     }
 }
 
-impl Default for Posts {
+impl Default for Pages {
     fn default() -> Self {
         Self::new()
     }
@@ -171,10 +171,10 @@ pub async fn path_to_yamd(path: PathBuf, should_unwrap_cloudinary: &bool) -> Res
     Ok(yamd)
 }
 
-pub async fn init_from_path(path: &Path, config: Arc<Config>) -> Result<Posts, Errors> {
+pub async fn init_from_path(path: &Path, config: Arc<Config>) -> Result<Pages, Errors> {
     let content_path = canonicalize(&path.join(&config.content_path))?;
     let content_paths = std::fs::read_dir(content_path).unwrap();
-    let mut posts_vec: Vec<(String, Yamd)> = Vec::new();
+    let mut pages_vec: Vec<(String, Yamd)> = Vec::new();
     let should_unwrap_cloudinary = config
         .get("should_unpack_cloudinary".into())
         .map(|v| v.as_bool().unwrap_or(&false))
@@ -183,19 +183,19 @@ pub async fn init_from_path(path: &Path, config: Arc<Config>) -> Result<Posts, E
         let file = path?.path().canonicalize()?;
         // TODO: make this concurrent
         let yamd = path_to_yamd(file.clone(), should_unwrap_cloudinary).await?;
-        posts_vec.push((file.file_stem().unwrap().to_str().unwrap().into(), yamd));
+        pages_vec.push((file.file_stem().unwrap().to_str().unwrap().into(), yamd));
     }
-    let mut posts = Posts::new();
+    let mut pages = Pages::new();
 
-    posts_vec.sort_by(|a, b| {
+    pages_vec.sort_by(|a, b| {
         b.1.metadata
             .date
             .as_ref()
             .unwrap()
             .cmp(a.1.metadata.date.as_ref().unwrap())
     });
-    for post in posts_vec {
-        posts.add(post.0, post.1);
+    for page in pages_vec {
+        pages.add(page.0, page.1);
     }
-    Ok(posts)
+    Ok(pages)
 }
