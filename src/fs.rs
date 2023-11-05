@@ -1,5 +1,7 @@
 use std::path::PathBuf;
 
+use tokio::fs::read_dir;
+
 use crate::error::{ContextExt, Errors};
 
 pub fn canonicalize(path: &PathBuf) -> Result<PathBuf, Errors> {
@@ -8,4 +10,24 @@ pub fn canonicalize(path: &PathBuf) -> Result<PathBuf, Errors> {
     Ok(path
         .canonicalize()
         .with_context(format!("canonicalize path: {}", path.clone().display()))?)
+}
+
+pub async fn get_files_by_ext_deep(path: &PathBuf, ext: &str) -> Result<Vec<PathBuf>, Errors> {
+    let mut files = Vec::new();
+    let mut dirs = Vec::new();
+    dirs.push(path.clone());
+    while let Some(dir) = dirs.pop() {
+        let mut entries = read_dir(dir).await?;
+        {
+            while let Some(entry) = entries.next_entry().await? {
+                let path = entry.path();
+                if path.is_dir() {
+                    dirs.push(path);
+                } else if Some(ext) == path.extension().unwrap_or_default().to_str() {
+                    files.push(path);
+                }
+            }
+        }
+    }
+    Ok(files)
 }

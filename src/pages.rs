@@ -6,7 +6,11 @@ use std::{
 
 use cloudinary::{tags::get_tags, transformation::Image};
 
-use crate::{config::Config, error::Errors, fs::canonicalize};
+use crate::{
+    config::Config,
+    error::Errors,
+    fs::{canonicalize, get_files_by_ext_deep},
+};
 use serde::Serialize;
 use tokio::fs::read_to_string;
 use yamd::{
@@ -20,8 +24,8 @@ use yamd::{
 
 #[derive(Debug, Serialize)]
 pub struct Page {
-    pid: Arc<str>,
-    content: Yamd,
+    pub pid: Arc<str>,
+    pub content: Yamd,
 }
 
 #[derive(Debug, Serialize)]
@@ -143,6 +147,7 @@ pub async fn path_to_yamd(path: PathBuf, should_unwrap_cloudinary: &bool) -> Res
         let mut nodes: Vec<YamdNodes> = Vec::with_capacity(yamd.nodes.len());
         for node in yamd.nodes.iter() {
             match node {
+                // TODO embed also can be part of Accordion Tab
                 YamdNodes::Embed(embed) if embed.kind == "cloudinary_gallery" => {
                     let (cloud_name, tag) = embed.args.split_once('&').unwrap_or_else(
                         || panic!("cloudinary_gallery embed must have two arguments: cloud_name and tag.\n{:?}", path)
@@ -173,17 +178,23 @@ pub async fn path_to_yamd(path: PathBuf, should_unwrap_cloudinary: &bool) -> Res
 
 pub async fn init_from_path(path: &Path, config: Arc<Config>) -> Result<Pages, Errors> {
     let content_path = canonicalize(&path.join(&config.content_path))?;
-    let content_paths = std::fs::read_dir(content_path).unwrap();
     let mut pages_vec: Vec<(String, Yamd)> = Vec::new();
     let should_unwrap_cloudinary = config
         .get("should_unpack_cloudinary".into())
         .map(|v| v.as_bool().unwrap_or(&false))
         .unwrap_or(&false);
-    for path in content_paths {
-        let file = path?.path().canonicalize()?;
+    for path in get_files_by_ext_deep(&content_path, "yamd").await? {
+        let file = path.canonicalize()?;
         // TODO: make this concurrent
         let yamd = path_to_yamd(file.clone(), should_unwrap_cloudinary).await?;
-        pages_vec.push((file.file_stem().unwrap().to_str().unwrap().into(), yamd));
+        pages_vec.push((
+            file.strip_prefix(&content_path)?
+                .with_extension("")
+                .to_str()
+                .unwrap()
+                .into(),
+            yamd,
+        ));
     }
     let mut pages = Pages::new();
 

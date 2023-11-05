@@ -1,6 +1,7 @@
 pub mod config;
 pub mod error;
 pub mod fs;
+pub mod json_feed;
 pub mod pages;
 pub mod site;
 pub mod syntax_highlight;
