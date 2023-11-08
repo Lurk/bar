@@ -1,7 +1,7 @@
 use crate::{
     error::Errors,
     pages::Pages,
-    site::{Page, Site},
+    site::{DynamicPage, Site, StaticPage},
     syntax_highlight::{code, init},
     Config,
 };
@@ -73,13 +73,17 @@ fn add_page(site: Arc<Site>) -> impl Function + 'static {
         let title = get_string_arg(args, "title").unwrap_or("".to_string());
         let description = get_string_arg(args, "description").unwrap_or("".to_string());
         let page_num = get_usize_arg(args, "page_num").unwrap_or(0);
-        site.add_page(Arc::new(Page::new(
-            path,
-            template,
-            title,
-            description,
-            page_num,
-        )));
+        site.add_page(
+            DynamicPage {
+                path: path.into(),
+                template: template.into(),
+                title: title.into(),
+                description: description.into(),
+                page_num,
+                content: None,
+            }
+            .into(),
+        );
         Ok(tera::to_value(())?)
     }
 }
@@ -91,8 +95,8 @@ fn add_static_file(
 ) -> impl Function + 'static {
     move |args: &HashMap<String, Value>| {
         if let (Some(path), Some(file_path)) = (
-            get_string_arg(args, "path"),
-            get_string_arg(args, "file_path"),
+            get_arc_str_arg(args, "path"),
+            get_arc_str_arg(args, "file_path"),
         ) {
             let is_content = get_bool_arg(args, "is_content").unwrap_or(false);
             let now = SystemTime::now();
@@ -102,10 +106,16 @@ fn add_static_file(
             } else {
                 config.template.join(file_path.trim())
             };
-            site.add_static_file(path.trim().to_string(), static_path);
+            site.add_page(
+                StaticPage {
+                    path: path.clone(),
+                    file: static_path,
+                }
+                .into(),
+            );
             return Ok(tera::to_value(format!(
                 "{}?cb={}",
-                &path,
+                path,
                 since_the_epoch.as_millis()
             ))?);
         }
@@ -186,9 +196,12 @@ fn get_image_url(site: Arc<Site>, path: Arc<PathBuf>) -> impl Function + 'static
             };
         let src = get_string_arg(args, "src").expect("get url from src");
         if src.starts_with('/') {
-            site.add_static_file(
-                src.trim().to_string(),
-                path.join(src.trim().trim_start_matches('/')),
+            site.add_page(
+                StaticPage {
+                    path: src.trim().into(),
+                    file: path.join(src.trim().trim_start_matches('/')),
+                }
+                .into(),
             );
 
             return Ok(tera::to_value(src)?);

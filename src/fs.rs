@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use tokio::fs::read_dir;
 
@@ -12,10 +12,10 @@ pub fn canonicalize(path: &PathBuf) -> Result<PathBuf, Errors> {
         .with_context(format!("canonicalize path: {}", path.clone().display()))?)
 }
 
-pub async fn get_files_by_ext_deep(path: &PathBuf, ext: &str) -> Result<Vec<PathBuf>, Errors> {
+pub async fn get_files_by_ext_deep(path: &Path, ext: &str) -> Result<Vec<PathBuf>, Errors> {
     let mut files = Vec::new();
     let mut dirs = Vec::new();
-    dirs.push(path.clone());
+    dirs.push(path.to_path_buf());
     while let Some(dir) = dirs.pop() {
         let mut entries = read_dir(dir).await?;
         {

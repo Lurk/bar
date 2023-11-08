@@ -48,9 +48,9 @@ pub struct Config {
     pub dist_path: PathBuf,
     pub content_path: PathBuf,
     pub template: PathBuf,
-    pub domain: String,
-    pub title: String,
-    pub description: String,
+    pub domain: Arc<str>,
+    pub title: Arc<str>,
+    pub description: Arc<str>,
     pub template_config: HashMap<Arc<str>, TemplateConfigValue>,
 }
 

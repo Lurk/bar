@@ -8,10 +8,7 @@ use syntect::{
 };
 use tera::{Function, Value};
 
-use crate::{
-    error::Errors,
-    templating::{get_arc_str_arg, get_string_arg},
-};
+use crate::{error::Errors, templating::get_arc_str_arg};
 
 fn map_language(supported: &[Arc<str>], language: Arc<str>) -> Result<Arc<str>, tera::Error> {
     let language: Arc<str> = match language.to_lowercase().as_ref() {
@@ -38,12 +35,12 @@ pub fn code(syntax_set: Arc<SyntaxSet>) -> impl Function + 'static {
         .map(|syntax| Arc::from(syntax.name.clone()))
         .collect::<Vec<Arc<str>>>();
     move |args: &HashMap<String, Value>| {
-        let code = get_string_arg(args, "code").unwrap();
+        let code = get_arc_str_arg(args, "code").unwrap();
         let language = map_language(&supported, get_arc_str_arg(args, "language").unwrap())?;
         let sr_rs = syntax_set.find_syntax_by_name(language.as_ref()).unwrap();
         let mut rs_html_generator =
             ClassedHTMLGenerator::new_with_class_style(sr_rs, &syntax_set, ClassStyle::Spaced);
-        for line in LinesWithEndings::from(code.as_str()) {
+        for line in LinesWithEndings::from(code.as_ref()) {
             rs_html_generator
                 .parse_html_for_line_which_includes_newline(line)
                 .unwrap();
