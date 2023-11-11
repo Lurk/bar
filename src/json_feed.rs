@@ -1,23 +1,24 @@
 use std::sync::Arc;
 
 use cloudinary::transformation::{crop_mode::CropMode, gravity::Gravity, Image, Transformations};
+use rss::{Category, Guid, Item, ItemBuilder};
 use serde::Serialize;
 use url::Url;
 
 use crate::pages::Page;
 
 #[derive(Serialize, Debug, Clone)]
-pub struct JsonFeedItem {
+pub struct FeedItem {
     id: Arc<str>,
     title: Arc<str>,
     content_text: Arc<str>,
     url: Url,
     image: Option<Url>,
-    date_published: Arc<str>,
+    pub date_published: Arc<str>,
     tags: Vec<Arc<str>>,
 }
 
-impl JsonFeedItem {
+impl FeedItem {
     pub fn new(page: &Page, base_url: &Url) -> Self {
         let mut url = base_url.clone();
         url.set_path(format!("{}.html", &page.pid).as_str());
@@ -69,6 +70,28 @@ impl JsonFeedItem {
                 .collect(),
         }
     }
+
+    pub fn to_rss_item(&self) -> Item {
+        ItemBuilder::default()
+            .title(Some(self.title.as_ref().into()))
+            .link(Some(self.url.clone().into()))
+            .description(Some(self.content_text.as_ref().into()))
+            .pub_date(Some(self.date_published.as_ref().into()))
+            .guid(Some(Guid {
+                value: self.url.clone().into(),
+                permalink: true,
+            }))
+            .categories(
+                self.tags
+                    .iter()
+                    .map(|tag| Category {
+                        name: tag.as_ref().into(),
+                        domain: None,
+                    })
+                    .collect::<Vec<Category>>(),
+            )
+            .build()
+    }
 }
 
 #[derive(Serialize, Debug)]
@@ -80,7 +103,7 @@ pub struct JsonFeed {
     icon: Option<Url>,
     favicon: Option<Url>,
     language: Arc<str>,
-    items: Vec<JsonFeedItem>,
+    items: Vec<FeedItem>,
 }
 
 pub struct JsonFeedBuilder {
@@ -126,8 +149,7 @@ impl JsonFeed {
         }
     }
 
-    pub fn add_items(&mut self, mut items: Vec<JsonFeedItem>) {
-        items.sort_by(|b, a| a.date_published.cmp(&b.date_published));
+    pub fn add_items(&mut self, items: Vec<FeedItem>) {
         self.items = items;
     }
 
