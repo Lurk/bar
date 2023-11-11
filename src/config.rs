@@ -1,6 +1,7 @@
 use std::{collections::HashMap, fs::File, path::PathBuf, sync::Arc};
 
 use serde::{Deserialize, Serialize};
+use url::Url;
 
 use crate::error::{ContextExt, Errors};
 
@@ -48,7 +49,7 @@ pub struct Config {
     pub dist_path: PathBuf,
     pub content_path: PathBuf,
     pub template: PathBuf,
-    pub domain: Arc<str>,
+    pub domain: Arc<Url>,
     pub title: Arc<str>,
     pub description: Arc<str>,
     pub template_config: HashMap<Arc<str>, TemplateConfigValue>,

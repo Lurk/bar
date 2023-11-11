@@ -5,6 +5,7 @@ use std::{
 };
 
 use cloudinary::{tags::get_tags, transformation::Image};
+use url::Url;
 
 use crate::{
     config::Config,
@@ -48,6 +49,28 @@ impl Page {
     pub fn new(pid: Arc<str>, content: Yamd) -> Self {
         Self { pid, content }
     }
+
+    pub fn get_title(&self) -> String {
+        self.content
+            .metadata
+            .title
+            .clone()
+            .unwrap_or_else(|| "Untitled".into())
+    }
+
+    pub fn get_image(&self, base_url: &Url) -> Option<Url> {
+        if let Some(image) = self.content.metadata.image.clone() {
+            if image.starts_with("http") {
+                let image = Url::parse(image.as_str()).unwrap();
+                return Some(image);
+            }
+
+            let mut url = base_url.clone();
+            url.set_path(image.as_str());
+            return Some(url);
+        }
+        None
+    }
 }
 
 pub struct Pages {
@@ -86,8 +109,8 @@ impl Pages {
         &self.order
     }
 
-    pub fn get(&self, key: &str) -> Option<&Page> {
-        self.pages.get(key).map(|page| page.as_ref())
+    pub fn get(&self, pid: &str) -> Option<&Page> {
+        self.pages.get(pid).map(|page| page.as_ref())
     }
 
     pub fn get_tags(&self) -> HashSet<String> {

@@ -1,14 +1,18 @@
 use std::{
     collections::HashMap,
-    fs::{remove_dir_all, OpenOptions},
-    io::Write,
+    fs::remove_dir_all,
     path::PathBuf,
     sync::{Arc, Mutex},
 };
 
-use crate::error::{ContextExt, Errors};
+use tokio::task::JoinSet;
 
-#[derive(Debug)]
+use crate::{
+    error::{ContextExt, Errors},
+    fs::write_file,
+};
+
+#[derive(Debug, Clone)]
 pub struct DynamicPage {
     pub path: Arc<str>,
     pub template: Arc<str>,
@@ -24,10 +28,44 @@ pub struct StaticPage {
     pub file: PathBuf,
 }
 
+#[derive(Debug, Clone)]
+pub struct Feed {
+    pub path: Arc<str>,
+    pub content: Option<Arc<str>>,
+    pub typ: FeedType,
+}
+
+#[derive(Debug, Clone)]
+pub enum FeedType {
+    Json,
+    Atom,
+}
+
+impl From<&str> for FeedType {
+    fn from(value: &str) -> Self {
+        match value {
+            "json" => Self::Json,
+            "atom" => Self::Atom,
+            _ => panic!("invalid feed type"),
+        }
+    }
+}
+
+impl From<Arc<str>> for FeedType {
+    fn from(value: Arc<str>) -> Self {
+        match value.as_ref() {
+            "json" => Self::Json,
+            "atom" => Self::Atom,
+            _ => panic!("invalid feed type"),
+        }
+    }
+}
+
 #[derive(Debug)]
 pub enum Page {
     Static(StaticPage),
     Dynamic(DynamicPage),
+    Feed(Feed),
 }
 
 impl From<StaticPage> for Page {
@@ -42,11 +80,18 @@ impl From<DynamicPage> for Page {
     }
 }
 
+impl From<Feed> for Page {
+    fn from(value: Feed) -> Self {
+        Page::Feed(value)
+    }
+}
+
 impl Page {
     pub fn get_path(&self) -> Arc<str> {
         match self {
             Self::Static(page) => page.path.clone(),
             Self::Dynamic(page) => page.path.clone(),
+            Self::Feed(page) => page.path.clone(),
         }
     }
 }
@@ -66,18 +111,20 @@ impl Site {
 
     pub fn add_page(&self, page: Page) {
         let path = page.get_path();
-        if !self.pages.lock().unwrap().contains_key(path.as_ref()) {
-            self.pages
-                .lock()
-                .unwrap()
-                .insert(path.clone(), Arc::new(page));
+        let mut pages = self.pages.lock().unwrap();
+        if !pages.contains_key(path.as_ref()) {
+            pages.insert(path.clone(), Arc::new(page));
         }
     }
 
-    pub fn next_unrendered_page(&self) -> Option<Arc<Page>> {
-        self.pages
-            .lock()
-            .unwrap()
+    pub fn get_page(&self, path: &str) -> Option<Arc<Page>> {
+        let pages = self.pages.lock().unwrap();
+        pages.get(path).cloned()
+    }
+
+    pub fn next_unrendered_dynamic_page(&self) -> Option<DynamicPage> {
+        let pages = self.pages.lock().unwrap();
+        let page = pages
             .iter()
             .find(|(_, page)| {
                 if let Page::Dynamic(dynamic) = page.as_ref() {
@@ -86,7 +133,41 @@ impl Site {
                     false
                 }
             })
-            .map(|(_, page)| page.clone())
+            .map(|(_, page)| page.clone());
+
+        if let Some(page) = page {
+            if let Page::Dynamic(dynamic) = page.as_ref() {
+                Some(dynamic.clone())
+            } else {
+                unreachable!()
+            }
+        } else {
+            None
+        }
+    }
+
+    pub fn next_unrendered_feed(&self) -> Option<Feed> {
+        let pages = self.pages.lock().unwrap();
+        let page = pages
+            .iter()
+            .find(|(_, page)| {
+                if let Page::Feed(feed) = page.as_ref() {
+                    feed.content.is_none()
+                } else {
+                    false
+                }
+            })
+            .map(|(_, page)| page.clone());
+
+        if let Some(page) = page {
+            if let Page::Feed(feed) = page.as_ref() {
+                Some(feed.clone())
+            } else {
+                unreachable!()
+            }
+        } else {
+            None
+        }
     }
 
     pub fn set_page_content(&self, path: Arc<str>, content: Arc<str>) {
@@ -105,56 +186,76 @@ impl Site {
                         page_num: dynamic.page_num,
                     }));
                 }
+                Page::Feed(feed) => {
+                    *page = Arc::new(Page::Feed(Feed {
+                        path: feed.path.clone(),
+                        content: Some(content),
+                        typ: feed.typ.clone(),
+                    }));
+                }
             });
     }
 
-    pub fn save(&self) -> Result<(), Errors> {
+    pub async fn save(&self) -> Result<(), Errors> {
         remove_dir_all(&self.dist_folder)
             .with_context(format!("remove directory: {}", self.dist_folder.display()))?;
-        for page in self.pages.lock().unwrap().values() {
-            match page.as_ref() {
-                Page::Static(page) => {
-                    let static_file_path = self.dist_folder.join(page.path.trim_start_matches('/'));
-                    println!(
-                        "copy file: {} to {}",
-                        &page.file.display(),
-                        &static_file_path.display()
-                    );
-                    let prefix = static_file_path.parent().unwrap();
-                    std::fs::create_dir_all(prefix)
-                        .with_context(format!("create directory: {}", prefix.display()))?;
-                    std::fs::copy(page.file.clone(), &static_file_path).with_context(format!(
-                        "copy file: {:?} -> {}",
-                        page.file,
-                        &static_file_path.display()
-                    ))?;
-                }
-                Page::Dynamic(page) => {
-                    if let Some(content) = &page.content {
-                        let page_path = if page.path == "/".into() {
-                            "index.html"
-                        } else {
-                            page.path.trim_start_matches('/')
-                        };
 
-                        let path = self.dist_folder.join(page_path);
-                        println!("write to file: {}", path.clone().display());
-                        let prefix = path.parent().unwrap();
-                        std::fs::create_dir_all(prefix)
-                            .with_context(format!("create directory: {}", prefix.display()))?;
-                        let mut file = OpenOptions::new()
-                            .write(true)
-                            .create(true)
-                            .append(false)
-                            .open(&path)
-                            .with_context(format!("open file: {}", &path.display()))?;
-                        file.write_all(content.as_bytes())
-                            .with_context(format!("write to file: {}", &path.display()))?;
-                    }
-                }
-            };
+        let mut set = JoinSet::new();
+        {
+            let pages = self.pages.lock().unwrap();
+
+            let dist_folder = Arc::new(self.dist_folder.clone());
+            for page in pages.values() {
+                let page = page.clone();
+                let dist_folder = dist_folder.clone();
+                set.spawn(async move { save_page(dist_folder, page).await });
+            }
         }
+
+        while (set.join_next().await).is_some() {}
 
         Ok(())
     }
+}
+
+async fn save_page(dist_folder: Arc<PathBuf>, page: Arc<Page>) -> Result<(), Errors> {
+    match page.as_ref() {
+        Page::Static(page) => {
+            let static_file_path = dist_folder.join(page.path.trim_start_matches('/'));
+            println!(
+                "copy file: {} to {}",
+                &page.file.display(),
+                &static_file_path.display()
+            );
+            let prefix = static_file_path.parent().unwrap();
+            std::fs::create_dir_all(prefix)
+                .with_context(format!("create directory: {}", prefix.display()))?;
+            std::fs::copy(page.file.clone(), &static_file_path).with_context(format!(
+                "copy file: {:?} -> {}",
+                page.file,
+                &static_file_path.display()
+            ))?;
+        }
+        Page::Dynamic(page) => {
+            if let Some(content) = &page.content {
+                let page_path = if page.path == "/".into() {
+                    "index.html"
+                } else {
+                    page.path.trim_start_matches('/')
+                };
+
+                let path = dist_folder.join(page_path);
+                println!("write to file: {}", path.clone().display());
+                write_file(&path, content).await?;
+            }
+        }
+        Page::Feed(page) => {
+            if let Some(content) = &page.content {
+                let path = dist_folder.join(page.path.trim_start_matches('/'));
+                println!("write to file: {}", path.clone().display());
+                write_file(&path, content).await?;
+            }
+        }
+    };
+    Ok(())
 }

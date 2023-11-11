@@ -1,7 +1,7 @@
 use crate::{
     error::Errors,
     pages::Pages,
-    site::{DynamicPage, Site, StaticPage},
+    site::{DynamicPage, Feed, FeedType, Site, StaticPage},
     syntax_highlight::{code, init},
     Config,
 };
@@ -85,6 +85,22 @@ fn add_page(site: Arc<Site>) -> impl Function + 'static {
             .into(),
         );
         Ok(tera::to_value(())?)
+    }
+}
+
+fn add_feed(site: Arc<Site>) -> impl Function + 'static {
+    move |args: &HashMap<String, Value>| {
+        let path = get_arc_str_arg(args, "path").unwrap();
+        let typ: FeedType = get_arc_str_arg(args, "type").unwrap().into();
+        site.add_page(
+            Feed {
+                path: path.clone(),
+                typ,
+                content: None,
+            }
+            .into(),
+        );
+        Ok(tera::to_value(path)?)
     }
 }
 
@@ -239,6 +255,7 @@ pub fn initialize(
         prepare_srcset_for_cloudinary_image(),
     );
     tera.register_function("code", code(init()?));
-    tera.register_function("get_image_url", get_image_url(site, path.clone()));
+    tera.register_function("get_image_url", get_image_url(site.clone(), path.clone()));
+    tera.register_function("add_feed", add_feed(site.clone()));
     Ok(tera)
 }

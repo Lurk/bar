@@ -1,6 +1,12 @@
-use std::path::{Path, PathBuf};
+use std::{
+    path::{Path, PathBuf},
+    sync::Arc,
+};
 
-use tokio::fs::read_dir;
+use tokio::{
+    fs::{create_dir_all, read_dir, OpenOptions},
+    io::AsyncWriteExt,
+};
 
 use crate::error::{ContextExt, Errors};
 
@@ -30,4 +36,17 @@ pub async fn get_files_by_ext_deep(path: &Path, ext: &str) -> Result<Vec<PathBuf
         }
     }
     Ok(files)
+}
+
+pub async fn write_file(path: &Path, content: &Arc<str>) -> Result<(), Errors> {
+    let prefix = path.parent().unwrap();
+    create_dir_all(prefix).await?;
+    let mut file = OpenOptions::new()
+        .write(true)
+        .create(true)
+        .append(false)
+        .open(&path)
+        .await?;
+    file.write_all(content.as_bytes()).await?;
+    Ok(())
 }
