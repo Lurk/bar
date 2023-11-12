@@ -28,7 +28,9 @@ template_config: # hash map to configure template free form, depends on a templa
 
 ## Templates
 
-bar uses [Tera](https://crates.io/crates/tera) templating engine.
+bar uses [Tera](https://crates.io/crates/tera) templating engine. 
+
+Example of bar template: [Hamon](https://github.com/Lurk/Hamon)
 
 ### Functions
 
