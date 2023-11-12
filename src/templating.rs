@@ -152,7 +152,7 @@ fn get_pages_by_tag(pages: Arc<Pages>) -> impl Function + 'static {
 fn get_page_by_path(pages: Arc<Pages>) -> impl Function + 'static {
     move |args: &HashMap<String, Value>| {
         let path = get_string_arg(args, "path").expect("path is required");
-        let pid = path.trim_end_matches(".html");
+        let pid = path.trim_end_matches(".html").trim_start_matches('/');
         let page = pages.get(pid);
         Ok(tera::to_value(page)?)
     }
