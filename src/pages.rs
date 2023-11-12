@@ -13,7 +13,7 @@ use crate::{
     fs::{canonicalize, get_files_by_ext_deep},
 };
 use serde::Serialize;
-use tokio::fs::read_to_string;
+use tokio::{fs::read_to_string, task::JoinSet};
 use yamd::{
     deserialize,
     nodes::{
@@ -175,7 +175,9 @@ pub async fn path_to_yamd(path: PathBuf, should_unwrap_cloudinary: &bool) -> Res
                     let (cloud_name, tag) = embed.args.split_once('&').unwrap_or_else(
                         || panic!("cloudinary_gallery embed must have two arguments: cloud_name and tag.\n{:?}", path)
                     );
-                    let tags = get_tags(cloud_name.into(), tag.into()).await.unwrap();
+                    let tags = get_tags(cloud_name.into(), tag.into())
+                        .await
+                        .unwrap_or_else(|_| panic!("error loading cloudinary tag: {}", tag));
                     let images = tags
                         .resources
                         .iter()
@@ -206,19 +208,32 @@ pub async fn init_from_path(path: &Path, config: Arc<Config>) -> Result<Pages, E
         .get("should_unpack_cloudinary".into())
         .map(|v| v.as_bool().unwrap_or(&false))
         .unwrap_or(&false);
+
+    let mut set = JoinSet::new();
+
     for path in get_files_by_ext_deep(&content_path, "yamd").await? {
         let file = path.canonicalize()?;
-        // TODO: make this concurrent
-        let yamd = path_to_yamd(file.clone(), should_unwrap_cloudinary).await?;
-        pages_vec.push((
-            file.strip_prefix(&content_path)?
+        let content_path = content_path.clone();
+        let should_unwrap_cloudinary = *should_unwrap_cloudinary;
+        set.spawn(async move {
+            let yamd = path_to_yamd(file.clone(), &should_unwrap_cloudinary).await;
+            let pid = file
                 .with_extension("")
                 .to_str()
                 .unwrap()
-                .into(),
-            yamd,
-        ));
+                .trim_start_matches(content_path.to_str().unwrap())
+                .to_string();
+
+            (pid, yamd)
+        });
     }
+
+    while let Some(res) = set.join_next().await {
+        if let (pid, Ok(yamd)) = res.unwrap() {
+            pages_vec.push((pid, yamd));
+        }
+    }
+
     let mut pages = Pages::new();
 
     pages_vec.sort_by(|a, b| {

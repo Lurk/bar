@@ -67,7 +67,7 @@ async fn main() -> Result<(), Errors> {
         context.insert("page_num", &page.page_num);
         let result = tera.render(&page.template, &context)?;
         site.set_page_content(page.path.clone(), result.into());
-        if let Some(page) = pages.get(&page.path.trim_end_matches(".html")) {
+        if let Some(page) = pages.get(page.path.trim_end_matches(".html")) {
             feed_items.push(FeedItem::new(page, config.domain.as_ref()));
         }
     }
