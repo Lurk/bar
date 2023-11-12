@@ -1,4 +1,4 @@
 # Bar
 
-The static web site generator
+Static web site generator
 
