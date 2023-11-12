@@ -10,9 +10,9 @@ bar <path to bar project>
 
 ## bar project configuration
 
-Configuration file `config.toml` should be in root folder of a project.
+Configuration file `config.yaml` should be in root folder of a project.
 
-```toml
+```yaml
 content_path: './content/' # path to folder that contain yamd files
 template: '../hamon/' # path to template
 domain: 'https://blog.com' 
