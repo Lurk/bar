@@ -1,4 +1,7 @@
-use std::sync::Arc;
+use std::{
+    fmt::{Display, Formatter},
+    sync::Arc,
+};
 
 use cloudinary::transformation::{crop_mode::CropMode, gravity::Gravity, Image, Transformations};
 use rss::{Category, Guid, Item, ItemBuilder};
@@ -152,8 +155,10 @@ impl JsonFeed {
     pub fn add_items(&mut self, items: Vec<FeedItem>) {
         self.items = items;
     }
+}
 
-    pub fn to_string(&self) -> String {
-        serde_json::to_string(self).unwrap()
+impl Display for JsonFeed {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", serde_json::to_string(self).unwrap())
     }
 }
