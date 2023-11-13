@@ -1,5 +1,6 @@
 use crate::{
     error::Errors,
+    fs::crc32_checksum,
     pages::Pages,
     site::{DynamicPage, Feed, FeedType, Site, StaticPage},
     syntax_highlight::{code, init},
@@ -10,7 +11,6 @@ use std::{
     collections::HashMap,
     path::{Path, PathBuf},
     sync::Arc,
-    time::{SystemTime, UNIX_EPOCH},
 };
 use tera::{Function, Tera, Value};
 use url::Url;
@@ -115,13 +115,12 @@ fn add_static_file(
             get_arc_str_arg(args, "file_path"),
         ) {
             let is_content = get_bool_arg(args, "is_content").unwrap_or(false);
-            let now = SystemTime::now();
-            let since_the_epoch = now.duration_since(UNIX_EPOCH).expect("Time went backwards");
             let static_path = if is_content {
                 content_path.join(file_path.trim())
             } else {
                 config.template.join(file_path.trim())
             };
+            let hash = crc32_checksum(&static_path).unwrap();
             site.add_page(
                 StaticPage {
                     path: path.clone(),
@@ -129,11 +128,7 @@ fn add_static_file(
                 }
                 .into(),
             );
-            return Ok(tera::to_value(format!(
-                "{}?cb={}",
-                path,
-                since_the_epoch.as_millis()
-            ))?);
+            return Ok(tera::to_value(format!("{}?cb={}", path, hash))?);
         }
         Err(tera::Error::msg("path and file_path are required"))
     }
