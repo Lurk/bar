@@ -201,8 +201,8 @@ pub async fn path_to_yamd(path: PathBuf, should_unwrap_cloudinary: &bool) -> Res
     Ok(yamd)
 }
 
-pub async fn init_from_path(path: &Path, config: Arc<Config>) -> Result<Pages, Errors> {
-    let content_path = canonicalize(&path.join(&config.content_path))?;
+pub async fn init_from_path(path: &Path, config: Arc<Config>) -> Result<Arc<Pages>, Errors> {
+    let content_path = canonicalize(&path.join(&config.content_path)).await?;
     let mut pages_vec: Vec<(String, Yamd)> = Vec::new();
     let should_unwrap_cloudinary = config
         .get("should_unpack_cloudinary".into())
@@ -246,5 +246,5 @@ pub async fn init_from_path(path: &Path, config: Arc<Config>) -> Result<Pages, E
     for page in pages_vec {
         pages.add(page.0, page.1);
     }
-    Ok(pages)
+    Ok(Arc::new(pages))
 }

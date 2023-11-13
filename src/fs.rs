@@ -10,9 +10,8 @@ use tokio::{
 
 use crate::error::{ContextExt, Errors};
 
-pub fn canonicalize(path: &PathBuf) -> Result<PathBuf, Errors> {
-    std::fs::create_dir_all(path)
-        .with_context(format!("create directory: {}", path.clone().display()))?;
+pub async fn canonicalize(path: &PathBuf) -> Result<PathBuf, Errors> {
+    create_dir_all(path).await?;
     Ok(path
         .canonicalize()
         .with_context(format!("canonicalize path: {}", path.clone().display()))?)
