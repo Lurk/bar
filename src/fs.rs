@@ -1,8 +1,11 @@
+use crc32fast::Hasher;
+use data_encoding::BASE64URL_NOPAD;
 use std::{
+    fs::File,
+    io::{BufReader, Read},
     path::{Path, PathBuf},
     sync::Arc,
 };
-
 use tokio::{
     fs::{create_dir_all, read_dir, OpenOptions},
     io::AsyncWriteExt,
@@ -48,4 +51,24 @@ pub async fn write_file(path: &Path, content: &Arc<str>) -> Result<(), Errors> {
         .await?;
     file.write_all(content.as_bytes()).await?;
     Ok(())
+}
+
+pub fn crc32_checksum(path: &PathBuf) -> Result<String, Errors> {
+    let input = File::open(path)?;
+    let mut reader = BufReader::new(input);
+
+    let digest = {
+        let mut hasher = Hasher::new();
+        let mut buffer = [0; 1024];
+        loop {
+            let count = reader.read(&mut buffer)?;
+            if count == 0 {
+                break;
+            }
+            hasher.update(&buffer[..count]);
+        }
+        hasher.finalize()
+    };
+
+    Ok(BASE64URL_NOPAD.encode(digest.to_be_bytes().as_ref()))
 }
