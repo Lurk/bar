@@ -35,7 +35,7 @@ pub struct Feed {
     pub typ: FeedType,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum FeedType {
     Json,
     Atom,
@@ -258,4 +258,15 @@ async fn save_page(dist_folder: Arc<PathBuf>, page: Arc<Page>) -> Result<(), Err
         }
     };
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn feed_type_from_string() {
+        assert_eq!(FeedType::from("json"), FeedType::Json);
+        assert_eq!(FeedType::from("atom"), FeedType::Atom);
+    }
 }
