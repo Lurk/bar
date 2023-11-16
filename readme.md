@@ -1,4 +1,6 @@
-# bar
+[![codecov](https://codecov.io/gh/Lurk/bar/graph/badge.svg?token=YNyVwXX7qn)](https://codecov.io/gh/Lurk/bar)
+
+# BAR
 
 Static web site generator
 
@@ -51,3 +53,6 @@ example:
 
 ```
 
+## Minimal Rust Version
+
+BAR MSRV is 1.70.0
