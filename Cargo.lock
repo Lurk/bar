@@ -302,6 +302,8 @@ checksum = "702fc72eb24e5a1e48ce58027a675bc24edd52096d5397d4aea7c6dd9eca0bd1"
 [[package]]
 name = "cloudinary"
 version = "0.2.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "13e34d0956f5558b0f37e25a000d31213df03a352eda79d853f77b8b729f897c"
 dependencies = [
  "anyhow",
  "chrono",
@@ -1124,9 +1126,9 @@ dependencies = [
 
 [[package]]
 name = "openssl-src"
-version = "300.1.5+3.1.3"
+version = "300.1.6+3.1.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "559068e4c12950d7dcaa1857a61725c0d38d4fc03ff8e070ab31a75d6e316491"
+checksum = "439fac53e092cd7442a3660c85dde4643ab3b5bd39040912388dcdabf6b88085"
 dependencies = [
  "cc",
 ]
@@ -1139,7 +1141,7 @@ checksum = "db4d56a4c0478783083cfafcc42493dd4a981d41669da64b4572a2a089b51b1d"
 dependencies = [
  "cc",
  "libc",
- "openssl-src 300.1.5+3.1.3",
+ "openssl-src 300.1.6+3.1.4",
  "pkg-config",
  "vcpkg",
 ]
@@ -1909,9 +1911,9 @@ dependencies = [
 
 [[package]]
 name = "tokio-util"
-version = "0.7.9"
+version = "0.7.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1d68074620f57a0b21594d9735eb2e98ab38b17f80d3fcb189fca266771ca60d"
+checksum = "5419f34732d9eb6ee4c3578b7989078579b7f039cbbb9ca2c4da015749371e15"
 dependencies = [
  "bytes",
  "futures-core",
@@ -2313,6 +2315,8 @@ dependencies = [
 [[package]]
 name = "yamd"
 version = "0.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "41ec621e4cf93bbe031cb67b051ef9ffcd7b04fdd919168d524452b64c17b5ab"
 dependencies = [
  "chrono",
  "serde",
