@@ -12,7 +12,7 @@ use crate::{
     fs::write_file,
 };
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct DynamicPage {
     pub path: Arc<str>,
     pub template: Arc<str>,
@@ -22,13 +22,13 @@ pub struct DynamicPage {
     pub page_num: usize,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct StaticPage {
     pub path: Arc<str>,
     pub file: PathBuf,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Feed {
     pub path: Arc<str>,
     pub content: Option<Arc<str>>,
@@ -61,7 +61,7 @@ impl From<Arc<str>> for FeedType {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum Page {
     Static(StaticPage),
     Dynamic(DynamicPage),
@@ -268,5 +268,15 @@ mod tests {
     fn feed_type_from_string() {
         assert_eq!(FeedType::from("json"), FeedType::Json);
         assert_eq!(FeedType::from("atom"), FeedType::Atom);
+    }
+
+    #[test]
+    fn static_page() {
+        let page = StaticPage {
+            path: "/static".into(),
+            file: "/".into(),
+        };
+        assert_eq!(Page::from(page.clone()), Page::Static(page.clone()));
+        assert_eq!(Page::from(page.clone()).get_path(), Arc::from("/static"));
     }
 }
