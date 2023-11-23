@@ -26,6 +26,7 @@ pub enum Errors {
     BinErr(bincode::Error),
     StripPrefixError(StripPrefixError),
     ParseError(ParseError),
+    Str(String),
 }
 
 impl From<io::Error> for Errors {
@@ -76,6 +77,18 @@ impl From<ParseError> for Errors {
     }
 }
 
+impl From<String> for Errors {
+    fn from(err: String) -> Self {
+        Errors::Str(err)
+    }
+}
+
+impl From<&str> for Errors {
+    fn from(err: &str) -> Self {
+        Errors::Str(err.to_string())
+    }
+}
+
 impl Display for Errors {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -88,6 +101,7 @@ impl Display for Errors {
             Errors::BinErr(err) => write!(f, "Bincode error:\n {:?}", err),
             Errors::StripPrefixError(err) => write!(f, "Strip prefix error:\n {:?}", err),
             Errors::ParseError(err) => write!(f, "Parse error:\n {:?}", err),
+            Errors::Str(err) => write!(f, "{}", err),
         }
     }
 }
@@ -104,6 +118,7 @@ impl Debug for Errors {
             Errors::BinErr(err) => write!(f, "Bincode error:\n {:#?}", err),
             Errors::StripPrefixError(err) => write!(f, "Strip prefix error:\n {:#?}", err),
             Errors::ParseError(err) => write!(f, "Parse error:\n {:#?}", err),
+            Errors::Str(err) => write!(f, "{}", err),
         }
     }
 }

@@ -4,6 +4,7 @@ use std::{
     sync::Arc,
 };
 
+use async_recursion::async_recursion;
 use cloudinary::{tags::get_tags, transformation::Image};
 use url::Url;
 
@@ -17,6 +18,8 @@ use tokio::{fs::read_to_string, task::JoinSet};
 use yamd::{
     deserialize,
     nodes::{
+        collapsible::{Collapsible, CollapsibleNodes},
+        embed::Embed,
         image,
         image_gallery::{ImageGallery, ImageGalleryNodes},
         yamd::{Yamd, YamdNodes},
@@ -161,42 +164,77 @@ impl Default for Pages {
     }
 }
 
+async fn cloudinary_gallery_to_image_gallery(embed: &Embed) -> Result<ImageGallery, Errors> {
+    if let Some((cloud_name, tag)) = embed.args.split_once('&') {
+        let tags = get_tags(cloud_name.into(), tag.into())
+            .await
+            .unwrap_or_else(|_| panic!("error loading cloudinary tag: {}", tag));
+        let images = tags
+            .resources
+            .iter()
+            .map(|resource| {
+                let mut image = Image::new(cloud_name.into(), resource.public_id.clone());
+                image.set_format(resource.format.as_ref());
+                ImageGalleryNodes::Image(image::Image::new(
+                    resource.public_id.to_string(),
+                    image.to_string(),
+                ))
+            })
+            .collect::<Vec<ImageGalleryNodes>>();
+        return Ok(ImageGallery::new(images));
+    }
+    Err("cloudinary_gallery embed must have two arguments: cloud_name and tag.".into())
+}
+
+#[async_recursion]
+async fn process_collapsible(collapsible: &Collapsible) -> Result<Collapsible, Errors> {
+    let mut nodes_vec: Vec<CollapsibleNodes> = Vec::with_capacity(collapsible.nodes.len());
+    for node in collapsible.nodes.iter() {
+        match node {
+            CollapsibleNodes::Embed(embed) if embed.kind == "cloudinary_gallery" => {
+                nodes_vec.push(cloudinary_gallery_to_image_gallery(embed).await?.into());
+            }
+            CollapsibleNodes::Collapsible(collapsible) => {
+                nodes_vec.push(process_collapsible(collapsible).await?.into());
+            }
+            _ => nodes_vec.push(node.clone()),
+        }
+    }
+    Ok(Collapsible::new(collapsible.title.clone(), nodes_vec))
+}
+
+async fn unwrap_cloudinary(yamd: &Yamd) -> Result<Yamd, Errors> {
+    let mut nodes: Vec<YamdNodes> = Vec::with_capacity(yamd.nodes.len());
+    for node in yamd.nodes.iter() {
+        match node {
+            YamdNodes::Embed(embed) if embed.kind == "cloudinary_gallery" => {
+                nodes.push(cloudinary_gallery_to_image_gallery(embed).await?.into());
+            }
+            YamdNodes::Collapsible(collapsible) => {
+                nodes.push(process_collapsible(collapsible).await?.into());
+            }
+            _ => nodes.push(node.clone()),
+        }
+    }
+    Ok(Yamd::new(Some(yamd.metadata.clone()), nodes))
+}
+
 pub async fn path_to_yamd(path: PathBuf, should_unwrap_cloudinary: &bool) -> Result<Yamd, Errors> {
     let file_contents = read_to_string(&path)
         .await
         .unwrap_or_else(|_| panic!("yamd file: {:?}", &path));
     let yamd = deserialize(file_contents.as_str()).unwrap();
     if *should_unwrap_cloudinary {
-        let mut nodes: Vec<YamdNodes> = Vec::with_capacity(yamd.nodes.len());
-        for node in yamd.nodes.iter() {
-            match node {
-                // TODO embed also can be part of Accordion Tab
-                YamdNodes::Embed(embed) if embed.kind == "cloudinary_gallery" => {
-                    let (cloud_name, tag) = embed.args.split_once('&').unwrap_or_else(
-                        || panic!("cloudinary_gallery embed must have two arguments: cloud_name and tag.\n{:?}", path)
-                    );
-                    let tags = get_tags(cloud_name.into(), tag.into())
-                        .await
-                        .unwrap_or_else(|_| panic!("error loading cloudinary tag: {}", tag));
-                    let images = tags
-                        .resources
-                        .iter()
-                        .map(|resource| {
-                            let mut image =
-                                Image::new(cloud_name.into(), resource.public_id.clone());
-                            image.set_format(resource.format.as_ref());
-                            ImageGalleryNodes::Image(image::Image::new(
-                                resource.public_id.to_string(),
-                                image.to_string(),
-                            ))
-                        })
-                        .collect::<Vec<ImageGalleryNodes>>();
-                    nodes.push(ImageGallery::new(images).into());
-                }
-                _ => nodes.push(node.clone()),
+        match unwrap_cloudinary(&yamd).await {
+            Ok(yamd) => return Ok(yamd),
+            Err(e) => {
+                return Err(format!(
+                    "error unwrapping cloudinary embeds in file: {:?}\nerror: {}",
+                    &path, e
+                )
+                .into());
             }
         }
-        return Ok(Yamd::new(Some(yamd.metadata), nodes));
     }
     Ok(yamd)
 }
@@ -229,9 +267,15 @@ pub async fn init_from_path(path: &Path, config: Arc<Config>) -> Result<Arc<Page
     }
 
     while let Some(res) = set.join_next().await {
-        if let (pid, Ok(yamd)) = res.unwrap() {
-            if !yamd.metadata.is_draft.unwrap_or(false) {
-                pages_vec.push((pid, yamd));
+        let (pid, yamd) = res.unwrap();
+        match yamd {
+            Ok(yamd) => {
+                if !yamd.metadata.is_draft.unwrap_or(false) {
+                    pages_vec.push((pid, yamd));
+                }
+            }
+            Err(e) => {
+                return Err(e);
             }
         }
     }
@@ -249,4 +293,29 @@ pub async fn init_from_path(path: &Path, config: Arc<Config>) -> Result<Arc<Page
         pages.add(page.0, page.1);
     }
     Ok(Arc::new(pages))
+}
+
+#[cfg(test)]
+mod test {
+    use std::{
+        path::{Path, PathBuf},
+        sync::Arc,
+    };
+
+    use crate::{config::Config, pages::init_from_path};
+
+    #[tokio::test]
+    async fn init_from_path_test() {
+        let config_path = Path::new("./test/fixtures/");
+        let pages = init_from_path(
+            &config_path,
+            Arc::new(
+                Config::try_from(<&std::path::Path as Into<PathBuf>>::into(config_path)).unwrap(),
+            ),
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(pages.keys().len(), 2);
+    }
 }
