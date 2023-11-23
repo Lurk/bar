@@ -230,7 +230,9 @@ pub async fn init_from_path(path: &Path, config: Arc<Config>) -> Result<Arc<Page
 
     while let Some(res) = set.join_next().await {
         if let (pid, Ok(yamd)) = res.unwrap() {
-            pages_vec.push((pid, yamd));
+            if !yamd.metadata.is_draft.unwrap_or(false) {
+                pages_vec.push((pid, yamd));
+            }
         }
     }
 
