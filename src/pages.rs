@@ -255,6 +255,7 @@ pub async fn init_from_path(path: &Path, config: Arc<Config>) -> Result<Arc<Page
         let should_unwrap_cloudinary = *should_unwrap_cloudinary;
         set.spawn(async move {
             let yamd = path_to_yamd(file.clone(), &should_unwrap_cloudinary).await;
+            println!("yamd: {:#?}", yamd);
             let pid = file
                 .with_extension("")
                 .to_str()
