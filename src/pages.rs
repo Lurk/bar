@@ -222,7 +222,8 @@ async fn unwrap_cloudinary(yamd: &Yamd) -> Result<Yamd, Errors> {
 pub async fn path_to_yamd(path: PathBuf, should_unwrap_cloudinary: &bool) -> Result<Yamd, Errors> {
     let file_contents = read_to_string(&path)
         .await
-        .unwrap_or_else(|_| panic!("yamd file: {:?}", &path));
+        .unwrap_or_else(|_| panic!("yamd file: {:?}", &path))
+        .replace("\r\n", "\n"); // TODO: fix this in yamd crate
     let yamd = deserialize(file_contents.as_str()).unwrap();
     if *should_unwrap_cloudinary {
         match unwrap_cloudinary(&yamd).await {
