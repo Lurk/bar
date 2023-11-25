@@ -10,4 +10,3 @@ template_config:
   svg_icon: './public/icon.svg'
   apple_touch_icon: './public/icon.png'
   webmanifest: './public/site.webmanifest'
-
