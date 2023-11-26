@@ -13,6 +13,7 @@ use crate::{
     error::Errors,
     fs::{canonicalize, get_files_by_ext_deep},
 };
+use numeric_sort::cmp;
 use serde::Serialize;
 use tokio::{fs::read_to_string, task::JoinSet};
 use yamd::{
@@ -166,9 +167,13 @@ impl Default for Pages {
 
 async fn cloudinary_gallery_to_image_gallery(embed: &Embed) -> Result<ImageGallery, Errors> {
     if let Some((cloud_name, tag)) = embed.args.split_once('&') {
-        let tags = get_tags(cloud_name.into(), tag.into())
+        let mut tags = get_tags(cloud_name.into(), tag.into())
             .await
             .unwrap_or_else(|_| panic!("error loading cloudinary tag: {}", tag));
+
+        tags.resources
+            .sort_by(|a, b| cmp(&a.public_id, &b.public_id));
+
         let images = tags
             .resources
             .iter()

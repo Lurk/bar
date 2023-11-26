@@ -21,3 +21,4 @@ tera = { version = "1.19.1", features = ["builtins"] }
 url = { version = "2.5.0", features = ["serde"] }
 tokio = { version = "1.34.0", features = ["full"] }
 rss = "2.0.6"
+numeric-sort = "0.1.0"
