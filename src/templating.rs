@@ -6,7 +6,14 @@ use crate::{
     syntax_highlight::{code, init},
     Config,
 };
-use cloudinary::transformation::{crop_mode::CropMode, gravity::Gravity, Image, Transformations};
+use cloudinary::transformation::{
+    aspect_ratio::AspectRatio,
+    background::{Auto, AutoModes, Direction, Number},
+    crop_mode::CropMode,
+    gravity::Gravity,
+    pad_mode::PadMode,
+    Image, Transformations,
+};
 use std::{
     collections::HashMap,
     path::{Path, PathBuf},
@@ -166,11 +173,21 @@ fn prepare_srcset_for_cloudinary_image() -> impl Function + 'static {
                     .unwrap()
                     .iter()
                     .map(|width| {
-                        let local_image = image.clone().add_transformation(Transformations::Crop(
-                            CropMode::FillByWidth {
+                        let local_image = image.clone().add_transformation(Transformations::Pad(
+                            PadMode::PadByWidth {
                                 width: *width as u32,
-                                ar: None,
-                                gravity: Some(Gravity::AutoClassic),
+                                // TODO control aspect_ratio from template
+                                ar: Some(AspectRatio::Sides(16, 9)),
+                                gravity: Some(Gravity::Center),
+                                background: Some(
+                                    Auto {
+                                        mode: Some(AutoModes::BorderGradient),
+                                        number: Some(Number::Four),
+                                        direction: Some(Direction::Vertical),
+                                        palette: None,
+                                    }
+                                    .into(),
+                                ),
                             },
                         ));
                         format!("{} {}w", local_image, width)
