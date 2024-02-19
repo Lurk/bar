@@ -21,12 +21,25 @@ domain: 'https://blog.com'
 title: 'this is the blog'
 description: 'blog'
 dist_path: './dist' # destination
+robots_txt: './public/robots.txt' # Optional. Check 'robots.txt' part in this document for more info
 template_config: # hash map to configure template free form, depends on a template 
   favicon: './public/favicon.ico'
   svg_icon: './public/icon.svg'
   apple_touch_icon: './public/icon.png'
   webmanifest: './public/site.webmanifest'
 ```
+
+### robots.txt
+
+If present will be copied to the destination folder.
+
+If not present default `robots.txt` will be generated:
+
+```text
+User-agent: *
+Allow: /
+```
+
 
 ## Templates
 
@@ -52,6 +65,9 @@ example:
 {{ add_page(path = '/',template = 'index.html', title = config.title, description = config.description, page_num = 0) }}
 
 ```
+
+
+
 
 ## Minimal Rust Version
 

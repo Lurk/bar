@@ -30,17 +30,18 @@ struct Args {
 #[tokio::main]
 async fn main() -> Result<(), Errors> {
     let args = Args::parse();
+    let path: &'static PathBuf = Box::leak(Box::new(args.path.clone()));
     let config: Arc<Config> = Arc::new(Config::try_from(args.path.clone())?);
     let template_path = args.path.join(&config.template);
     let dist_path = args.path.join(&config.dist_path);
     if let (Ok(template_path), Ok(dist_path), Ok(pages)) = tokio::join!(
         canonicalize(&template_path),
         canonicalize(&dist_path),
-        init_from_path(&args.path, config.clone()),
+        init_from_path(&path, config.clone()),
     ) {
-        let site: Arc<Site> = Arc::new(Site::new(dist_path));
+        let site: Arc<Site> = Arc::new(Site::new(dist_path.clone()));
         let tera = initialize(
-            Arc::from(args.path),
+            &path,
             &template_path,
             config.clone(),
             pages.clone(),
@@ -62,6 +63,12 @@ async fn main() -> Result<(), Errors> {
         render(site.clone(), &config, &tera, &pages)?;
 
         site.save().await?;
+
+        if let Some(robots) = config.robots_txt.as_ref() {
+            tokio::fs::copy(&path.join(robots), &dist_path.join("robots.txt")).await?;
+        } else {
+            tokio::fs::write(&dist_path.join("robots.txt"), "User-agent: *\nAllow: /").await?;
+        }
     }
     Ok(())
 }

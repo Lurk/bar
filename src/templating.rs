@@ -114,7 +114,7 @@ fn add_feed(site: Arc<Site>) -> impl Function + 'static {
 fn add_static_file(
     site: Arc<Site>,
     config: Arc<Config>,
-    content_path: Arc<PathBuf>,
+    content_path: &'static PathBuf,
 ) -> impl Function + 'static {
     move |args: &HashMap<String, Value>| {
         if let (Some(path), Some(file_path)) = (
@@ -201,7 +201,7 @@ fn prepare_srcset_for_cloudinary_image() -> impl Function + 'static {
     }
 }
 
-fn get_image_url(site: Arc<Site>, path: Arc<PathBuf>) -> impl Function + 'static {
+fn get_image_url(site: Arc<Site>, path: &'static PathBuf) -> impl Function + 'static {
     move |args: &HashMap<String, Value>| {
         let crop_mode: CropMode =
             match (get_usize_arg(args, "width"), get_usize_arg(args, "height")) {
@@ -248,7 +248,7 @@ fn get_image_url(site: Arc<Site>, path: Arc<PathBuf>) -> impl Function + 'static
 }
 
 pub fn initialize(
-    path: Arc<PathBuf>,
+    path: &'static PathBuf,
     template_path: &Path,
     config: Arc<Config>,
     posts: Arc<Pages>,
@@ -258,7 +258,7 @@ pub fn initialize(
     tera.register_function("add_page", add_page(site.clone()));
     tera.register_function(
         "add_static_file",
-        add_static_file(site.clone(), config.clone(), path.clone()),
+        add_static_file(site.clone(), config.clone(), &path),
     );
     tera.register_function("get_pages_by_tag", get_pages_by_tag(posts.clone()));
     tera.register_function("get_page_by_path", get_page_by_path(posts.clone()));
@@ -267,7 +267,7 @@ pub fn initialize(
         prepare_srcset_for_cloudinary_image(),
     );
     tera.register_function("code", code(init()?));
-    tera.register_function("get_image_url", get_image_url(site.clone(), path.clone()));
+    tera.register_function("get_image_url", get_image_url(site.clone(), &path));
     tera.register_function("add_feed", add_feed(site.clone()));
     Ok(tera)
 }
