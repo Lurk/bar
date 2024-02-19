@@ -40,7 +40,6 @@ User-agent: *
 Allow: /
 ```
 
-
 ## Templates
 
 bar uses [Tera](https://crates.io/crates/tera) templating engine. 
