@@ -21,7 +21,7 @@ domain: 'https://blog.com'
 title: 'this is the blog'
 description: 'blog'
 dist_path: './dist' # destination
-robots_txt: './public/robots.txt' # Optional. Check 'robots.txt' part in this document for more info
+robots_txt: './public/robots.txt' # Optional. Check 'robots_txt' part in this document for more info
 template_config: # hash map to configure template free form, depends on a template 
   favicon: './public/favicon.ico'
   svg_icon: './public/icon.svg'
@@ -29,7 +29,7 @@ template_config: # hash map to configure template free form, depends on a templa
   webmanifest: './public/site.webmanifest'
 ```
 
-### robots.txt
+### robots_txt
 
 If present will be copied to the destination folder.
 
