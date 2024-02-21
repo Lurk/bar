@@ -12,7 +12,7 @@ use clap::Parser;
 use config::Config;
 use error::Errors;
 use renderer::render;
-use site::{DynamicPage, Site};
+use site::{DynamicPage, Site, StaticPage};
 use std::path::PathBuf;
 use std::sync::Arc;
 use templating::initialize;
@@ -59,16 +59,24 @@ async fn main() -> Result<(), Errors> {
             }
             .into(),
         );
+        let page = if let Some(robots) = config.robots_txt.as_ref() {
+            StaticPage {
+                destination: Arc::from("robots.txt"),
+                source: Some(robots.to_path_buf()),
+                fallback: None,
+            }
+        } else {
+            StaticPage {
+                destination: Arc::from("robots.txt"),
+                source: None,
+                fallback: Some("User-agent: *\nAllow: /".into()),
+            }
+        };
+        site.add_page(page.into());
 
         render(site.clone(), &config, &tera, &pages)?;
 
         site.save().await?;
-
-        if let Some(robots) = config.robots_txt.as_ref() {
-            tokio::fs::copy(&path.join(robots), &dist_path.join("robots.txt")).await?;
-        } else {
-            tokio::fs::write(&dist_path.join("robots.txt"), "User-agent: *\nAllow: /").await?;
-        }
     }
     Ok(())
 }
