@@ -37,11 +37,11 @@ async fn main() -> Result<(), Errors> {
     if let (Ok(template_path), Ok(dist_path), Ok(pages)) = tokio::join!(
         canonicalize(&template_path),
         canonicalize(&dist_path),
-        init_from_path(&path, config.clone()),
+        init_from_path(path, config.clone()),
     ) {
         let site: Arc<Site> = Arc::new(Site::new(dist_path.clone()));
         let tera = initialize(
-            &path,
+            path,
             &template_path,
             config.clone(),
             pages.clone(),

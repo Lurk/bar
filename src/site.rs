@@ -24,8 +24,8 @@ pub struct DynamicPage {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct StaticPage {
-    pub path: Arc<str>,
-    pub file: PathBuf,
+    pub destination: Arc<str>,
+    pub source: PathBuf,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -89,7 +89,7 @@ impl From<Feed> for Page {
 impl Page {
     pub fn get_path(&self) -> Arc<str> {
         match self {
-            Self::Static(page) => page.path.clone(),
+            Self::Static(page) => page.destination.clone(),
             Self::Dynamic(page) => page.path.clone(),
             Self::Feed(page) => page.path.clone(),
         }
@@ -221,19 +221,19 @@ impl Site {
 async fn save_page(dist_folder: Arc<PathBuf>, page: Arc<Page>) -> Result<(), Errors> {
     match page.as_ref() {
         Page::Static(page) => {
-            let static_file_path = dist_folder.join(page.path.trim_start_matches('/'));
+            let destination = dist_folder.join(page.destination.trim_start_matches('/'));
             println!(
                 "copy file: {} to {}",
-                &page.file.display(),
-                &static_file_path.display()
+                &page.source.display(),
+                &destination.display()
             );
-            let prefix = static_file_path.parent().unwrap();
+            let prefix = destination.parent().unwrap();
             std::fs::create_dir_all(prefix)
                 .with_context(format!("create directory: {}", prefix.display()))?;
-            std::fs::copy(page.file.clone(), &static_file_path).with_context(format!(
+            std::fs::copy(page.source.clone(), &destination).with_context(format!(
                 "copy file: {:?} -> {}",
-                page.file,
-                &static_file_path.display()
+                page.source,
+                &destination.display()
             ))?;
         }
         Page::Dynamic(page) => {
@@ -273,8 +273,8 @@ mod tests {
     #[test]
     fn static_page() {
         let page = StaticPage {
-            path: "/static".into(),
-            file: "/".into(),
+            destination: "/static".into(),
+            source: "/".into(),
         };
         assert_eq!(Page::from(page.clone()), Page::Static(page.clone()));
         assert_eq!(Page::from(page.clone()).get_path(), Arc::from("/static"));
