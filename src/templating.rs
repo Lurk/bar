@@ -127,7 +127,8 @@ fn add_static_file(
             site.add_page(
                 StaticPage {
                     destination: path.clone(),
-                    source: static_path,
+                    source: Some(static_path),
+                    fallback: None,
                 }
                 .into(),
             );
@@ -223,7 +224,8 @@ fn get_image_url(site: Arc<Site>, path: &'static Path) -> impl Function + 'stati
             site.add_page(
                 StaticPage {
                     destination: src.trim().into(),
-                    source: path.join(src.trim().trim_start_matches('/')),
+                    source: Some(path.join(src.trim().trim_start_matches('/'))),
+                    fallback: None,
                 }
                 .into(),
             );

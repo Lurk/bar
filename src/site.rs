@@ -25,7 +25,8 @@ pub struct DynamicPage {
 #[derive(Debug, Clone, PartialEq)]
 pub struct StaticPage {
     pub destination: Arc<str>,
-    pub source: PathBuf,
+    pub source: Option<PathBuf>,
+    pub fallback: Option<Arc<str>>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -222,19 +223,26 @@ async fn save_page(dist_folder: Arc<PathBuf>, page: Arc<Page>) -> Result<(), Err
     match page.as_ref() {
         Page::Static(page) => {
             let destination = dist_folder.join(page.destination.trim_start_matches('/'));
-            println!(
-                "copy file: {} to {}",
-                &page.source.display(),
-                &destination.display()
-            );
-            let prefix = destination.parent().unwrap();
-            std::fs::create_dir_all(prefix)
-                .with_context(format!("create directory: {}", prefix.display()))?;
-            std::fs::copy(page.source.clone(), &destination).with_context(format!(
-                "copy file: {:?} -> {}",
-                page.source,
-                &destination.display()
-            ))?;
+            if let (None, Some(fallback)) = (page.source.as_ref(), page.fallback.as_ref()) {
+                println!("write fallback data to file: {}", destination.display());
+                write_file(&destination, fallback).await?;
+            } else if let Some(source) = &page.source {
+                println!(
+                    "copy file: {} to {}",
+                    source.display(),
+                    &destination.display()
+                );
+                let prefix = destination.parent().unwrap();
+                std::fs::create_dir_all(prefix)
+                    .with_context(format!("create directory: {}", prefix.display()))?;
+                std::fs::copy(source, &destination).with_context(format!(
+                    "copy file: {:?} -> {}",
+                    source,
+                    &destination.display()
+                ))?;
+            } else {
+                panic!("source or fallback is required");
+            }
         }
         Page::Dynamic(page) => {
             if let Some(content) = &page.content {
@@ -274,7 +282,8 @@ mod tests {
     fn static_page() {
         let page = StaticPage {
             destination: "/static".into(),
-            source: "/".into(),
+            source: Some("/".into()),
+            fallback: None,
         };
         assert_eq!(Page::from(page.clone()), Page::Static(page.clone()));
         assert_eq!(Page::from(page.clone()).get_path(), Arc::from("/static"));
