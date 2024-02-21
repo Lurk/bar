@@ -323,5 +323,8 @@ mod test {
         .unwrap();
 
         assert_eq!(pages.keys().len(), 2);
+        assert_eq!(pages.get("/test").unwrap().get_title(), "test 1".to_string());
+        assert_eq!(pages.get("/test2").unwrap().get_title(), "test 2".to_string());
+        assert_eq!(pages.get_tags().len(), 4);
     }
 }

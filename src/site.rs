@@ -279,6 +279,12 @@ mod tests {
     }
 
     #[test]
+    fn feed_type_from_arc_str() {
+        assert_eq!(FeedType::from(Arc::from("json")), FeedType::Json);
+        assert_eq!(FeedType::from(Arc::from("atom")), FeedType::Atom);
+    }
+
+    #[test]
     fn static_page() {
         let page = StaticPage {
             destination: "/static".into(),
@@ -287,5 +293,19 @@ mod tests {
         };
         assert_eq!(Page::from(page.clone()), Page::Static(page.clone()));
         assert_eq!(Page::from(page.clone()).get_path(), Arc::from("/static"));
+    }
+
+    #[test]
+    fn dynamic_page() {
+        let page = DynamicPage {
+            path: "/".into(),
+            template: "index.html".into(),
+            title: "title".into(),
+            description: "description".into(),
+            content: None,
+            page_num: 0,
+        };
+        assert_eq!(Page::from(page.clone()), Page::Dynamic(page.clone()));
+        assert_eq!(Page::from(page.clone()).get_path(), Arc::from("/"));
     }
 }
