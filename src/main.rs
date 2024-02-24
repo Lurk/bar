@@ -12,7 +12,7 @@ use clap::Parser;
 use config::Config;
 use error::Errors;
 use renderer::render;
-use site::{DynamicPage, Site};
+use site::{DynamicPage, Site, StaticPage};
 use std::path::PathBuf;
 use std::sync::Arc;
 use templating::initialize;
@@ -30,17 +30,18 @@ struct Args {
 #[tokio::main]
 async fn main() -> Result<(), Errors> {
     let args = Args::parse();
+    let path: &'static PathBuf = Box::leak(Box::new(args.path.clone()));
     let config: Arc<Config> = Arc::new(Config::try_from(args.path.clone())?);
     let template_path = args.path.join(&config.template);
     let dist_path = args.path.join(&config.dist_path);
     if let (Ok(template_path), Ok(dist_path), Ok(pages)) = tokio::join!(
         canonicalize(&template_path),
         canonicalize(&dist_path),
-        init_from_path(&args.path, config.clone()),
+        init_from_path(path, config.clone()),
     ) {
-        let site: Arc<Site> = Arc::new(Site::new(dist_path));
+        let site: Arc<Site> = Arc::new(Site::new(dist_path.clone()));
         let tera = initialize(
-            Arc::from(args.path),
+            path,
             &template_path,
             config.clone(),
             pages.clone(),
@@ -58,6 +59,20 @@ async fn main() -> Result<(), Errors> {
             }
             .into(),
         );
+        let page = if let Some(robots) = config.robots_txt.as_ref() {
+            StaticPage {
+                destination: Arc::from("robots.txt"),
+                source: Some(robots.to_path_buf()),
+                fallback: None,
+            }
+        } else {
+            StaticPage {
+                destination: Arc::from("robots.txt"),
+                source: None,
+                fallback: Some("User-agent: *\nAllow: /".into()),
+            }
+        };
+        site.add_page(page.into());
 
         render(site.clone(), &config, &tera, &pages)?;
 

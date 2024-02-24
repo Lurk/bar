@@ -24,8 +24,9 @@ pub struct DynamicPage {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct StaticPage {
-    pub path: Arc<str>,
-    pub file: PathBuf,
+    pub destination: Arc<str>,
+    pub source: Option<PathBuf>,
+    pub fallback: Option<Arc<str>>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -89,7 +90,7 @@ impl From<Feed> for Page {
 impl Page {
     pub fn get_path(&self) -> Arc<str> {
         match self {
-            Self::Static(page) => page.path.clone(),
+            Self::Static(page) => page.destination.clone(),
             Self::Dynamic(page) => page.path.clone(),
             Self::Feed(page) => page.path.clone(),
         }
@@ -221,20 +222,27 @@ impl Site {
 async fn save_page(dist_folder: Arc<PathBuf>, page: Arc<Page>) -> Result<(), Errors> {
     match page.as_ref() {
         Page::Static(page) => {
-            let static_file_path = dist_folder.join(page.path.trim_start_matches('/'));
-            println!(
-                "copy file: {} to {}",
-                &page.file.display(),
-                &static_file_path.display()
-            );
-            let prefix = static_file_path.parent().unwrap();
-            std::fs::create_dir_all(prefix)
-                .with_context(format!("create directory: {}", prefix.display()))?;
-            std::fs::copy(page.file.clone(), &static_file_path).with_context(format!(
-                "copy file: {:?} -> {}",
-                page.file,
-                &static_file_path.display()
-            ))?;
+            let destination = dist_folder.join(page.destination.trim_start_matches('/'));
+            if let (None, Some(fallback)) = (page.source.as_ref(), page.fallback.as_ref()) {
+                println!("write fallback data to file: {}", destination.display());
+                write_file(&destination, fallback).await?;
+            } else if let Some(source) = &page.source {
+                println!(
+                    "copy file: {} to {}",
+                    source.display(),
+                    &destination.display()
+                );
+                let prefix = destination.parent().unwrap();
+                std::fs::create_dir_all(prefix)
+                    .with_context(format!("create directory: {}", prefix.display()))?;
+                std::fs::copy(source, &destination).with_context(format!(
+                    "copy file: {:?} -> {}",
+                    source,
+                    &destination.display()
+                ))?;
+            } else {
+                panic!("source or fallback is required");
+            }
         }
         Page::Dynamic(page) => {
             if let Some(content) = &page.content {
@@ -271,12 +279,33 @@ mod tests {
     }
 
     #[test]
+    fn feed_type_from_arc_str() {
+        assert_eq!(FeedType::from(Arc::from("json")), FeedType::Json);
+        assert_eq!(FeedType::from(Arc::from("atom")), FeedType::Atom);
+    }
+
+    #[test]
     fn static_page() {
         let page = StaticPage {
-            path: "/static".into(),
-            file: "/".into(),
+            destination: "/static".into(),
+            source: Some("/".into()),
+            fallback: None,
         };
         assert_eq!(Page::from(page.clone()), Page::Static(page.clone()));
         assert_eq!(Page::from(page.clone()).get_path(), Arc::from("/static"));
+    }
+
+    #[test]
+    fn dynamic_page() {
+        let page = DynamicPage {
+            path: "/".into(),
+            template: "index.html".into(),
+            title: "title".into(),
+            description: "description".into(),
+            content: None,
+            page_num: 0,
+        };
+        assert_eq!(Page::from(page.clone()), Page::Dynamic(page.clone()));
+        assert_eq!(Page::from(page.clone()).get_path(), Arc::from("/"));
     }
 }

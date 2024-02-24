@@ -266,7 +266,8 @@ pub async fn init_from_path(path: &Path, config: Arc<Config>) -> Result<Arc<Page
                 .to_str()
                 .unwrap()
                 .trim_start_matches(content_path.to_str().unwrap())
-                .to_string();
+                .to_string()
+                .replace('\\', "/");
 
             (pid, yamd)
         });
@@ -323,5 +324,14 @@ mod test {
         .unwrap();
 
         assert_eq!(pages.keys().len(), 2);
+        assert_eq!(
+            pages.get("/test").unwrap().get_title(),
+            "test 1".to_string()
+        );
+        assert_eq!(
+            pages.get("/test2").unwrap().get_title(),
+            "test 2".to_string()
+        );
+        assert_eq!(pages.get_tags().len(), 4);
     }
 }

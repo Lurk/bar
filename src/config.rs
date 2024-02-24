@@ -53,6 +53,7 @@ pub struct Config {
     pub title: Arc<str>,
     pub description: Arc<str>,
     pub template_config: HashMap<Arc<str>, TemplateConfigValue>,
+    pub robots_txt: Option<PathBuf>,
 }
 
 impl TryFrom<PathBuf> for Config {
