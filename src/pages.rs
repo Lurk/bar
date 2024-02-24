@@ -266,7 +266,8 @@ pub async fn init_from_path(path: &Path, config: Arc<Config>) -> Result<Arc<Page
                 .to_str()
                 .unwrap()
                 .trim_start_matches(content_path.to_str().unwrap())
-                .to_string();
+                .to_string()
+                .replace('\\', "/");
 
             (pid, yamd)
         });
