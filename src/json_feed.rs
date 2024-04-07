@@ -48,8 +48,10 @@ impl FeedItem {
             content_text: page
                 .content
                 .metadata
-                .clone()
+                .as_ref()
+                .expect("page should always have a metadata")
                 .preview
+                .clone()
                 .unwrap_or("".into())
                 .into(),
 
@@ -57,6 +59,8 @@ impl FeedItem {
             date_published: page
                 .content
                 .metadata
+                .as_ref()
+                .expect("page should always have a metadata")
                 .date
                 .unwrap()
                 .format("%+")
@@ -65,6 +69,8 @@ impl FeedItem {
             tags: page
                 .content
                 .metadata
+                .as_ref()
+                .expect("page should always have a metadata")
                 .tags
                 .clone()
                 .unwrap_or_default()

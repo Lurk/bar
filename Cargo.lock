@@ -2321,8 +2321,6 @@ dependencies = [
 [[package]]
 name = "yamd"
 version = "0.12.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9c7a4ae139f546a0a07df9ae9260fe9ac2419b86ab475ae01bcbe219a8f04e42"
 dependencies = [
  "chrono",
  "serde",
