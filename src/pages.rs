@@ -57,13 +57,22 @@ impl Page {
     pub fn get_title(&self) -> String {
         self.content
             .metadata
+            .as_ref()
+            .expect("page should always have a metadata")
             .title
             .clone()
             .unwrap_or_else(|| "Untitled".into())
     }
 
     pub fn get_image(&self, base_url: &Url) -> Option<Url> {
-        if let Some(image) = self.content.metadata.image.clone() {
+        if let Some(image) = self
+            .content
+            .metadata
+            .as_ref()
+            .expect("page should always have a metadata")
+            .image
+            .clone()
+        {
             if image.starts_with("http") {
                 let image = Url::parse(image.as_str()).unwrap();
                 return Some(image);
@@ -97,7 +106,11 @@ impl Pages {
         let post = Arc::new(Page::new(pid.clone(), value.clone()));
         self.pages.insert(pid.clone(), post.clone());
         self.order.push(pid.clone());
-        if let Some(tags) = value.metadata.tags {
+        if let Some(tags) = value
+            .metadata
+            .expect("page should always have a metadata")
+            .tags
+        {
             tags.iter().for_each(|tag| {
                 let tag: Arc<str> = Arc::from(tag.as_str());
                 if let Entry::Vacant(e) = self.tags.entry(tag.clone()) {
@@ -221,7 +234,7 @@ async fn unwrap_cloudinary(yamd: &Yamd) -> Result<Yamd, Errors> {
             _ => nodes.push(node.clone()),
         }
     }
-    Ok(Yamd::new(Some(yamd.metadata.clone()), nodes))
+    Ok(Yamd::new(yamd.metadata.clone(), nodes))
 }
 
 pub async fn path_to_yamd(path: PathBuf, should_unwrap_cloudinary: &bool) -> Result<Yamd, Errors> {
@@ -277,7 +290,13 @@ pub async fn init_from_path(path: &Path, config: Arc<Config>) -> Result<Arc<Page
         let (pid, yamd) = res.unwrap();
         match yamd {
             Ok(yamd) => {
-                if !yamd.metadata.is_draft.unwrap_or(false) {
+                if !yamd
+                    .metadata
+                    .as_ref()
+                    .expect("page should always have a metadata")
+                    .is_draft
+                    .unwrap_or(false)
+                {
                     pages_vec.push((pid, yamd));
                 }
             }
@@ -291,10 +310,19 @@ pub async fn init_from_path(path: &Path, config: Arc<Config>) -> Result<Arc<Page
 
     pages_vec.sort_by(|a, b| {
         b.1.metadata
+            .as_ref()
+            .expect("page should always have a metadata")
             .date
             .as_ref()
             .unwrap()
-            .cmp(a.1.metadata.date.as_ref().unwrap())
+            .cmp(
+                a.1.metadata
+                    .as_ref()
+                    .expect("page should always have a metadata")
+                    .date
+                    .as_ref()
+                    .unwrap(),
+            )
     });
     for page in pages_vec {
         pages.add(page.0, page.1);

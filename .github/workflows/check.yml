@@ -98,7 +98,7 @@ jobs:
     # https://docs.github.com/en/actions/learn-github-actions/contexts#context-availability
     strategy:
       matrix:
-        msrv: ["1.70.0"] # Due to Clap 4.4.8
+        msrv: ["1.74.0"] # Due to clap_derive v4.5.4
     name: ubuntu / ${{ matrix.msrv }}
     steps:
       - uses: actions/checkout@v4

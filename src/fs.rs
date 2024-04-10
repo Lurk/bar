@@ -46,7 +46,7 @@ pub async fn write_file(path: &Path, content: &Arc<str>) -> Result<(), Errors> {
     let mut file = OpenOptions::new()
         .write(true)
         .create(true)
-        .append(false)
+        .truncate(true)
         .open(&path)
         .await?;
     file.write_all(content.as_bytes()).await?;
