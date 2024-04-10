@@ -22,7 +22,7 @@ title: 'this is the blog'
 description: 'blog'
 dist_path: './dist' # destination
 robots_txt: './public/robots.txt' # Optional. Check 'robots_txt' part in this document for more info
-template_config: # hash map to configure template free form, depends on a template 
+template_config: # hash map to configure template free form, depends on a template
   favicon: './public/favicon.ico'
   svg_icon: './public/icon.svg'
   apple_touch_icon: './public/icon.png'
@@ -42,7 +42,7 @@ Allow: /
 
 ## Templates
 
-bar uses [Tera](https://crates.io/crates/tera) templating engine. 
+bar uses [Tera](https://crates.io/crates/tera) templating engine.
 
 Example of bar template: [Hamon](https://github.com/Lurk/Hamon)
 
@@ -65,9 +65,6 @@ example:
 
 ```
 
-
-
-
 ## Minimal Rust Version
 
-BAR MSRV is 1.70.0
+BAR MSRV is 1.74.0
