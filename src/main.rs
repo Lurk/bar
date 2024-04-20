@@ -1,3 +1,4 @@
+pub mod r#async;
 pub mod config;
 pub mod error;
 pub mod fs;
@@ -16,8 +17,9 @@ use site::{DynamicPage, Site, StaticPage};
 use std::path::PathBuf;
 use std::sync::Arc;
 use templating::initialize;
+use tokio::{fs::canonicalize, join};
 
-use crate::fs::canonicalize;
+use crate::fs::canonicalize_and_ensure_path;
 use crate::pages::init_from_path;
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -34,9 +36,9 @@ async fn main() -> Result<(), Errors> {
     let config: Arc<Config> = Arc::new(Config::try_from(args.path.clone())?);
     let template_path = args.path.join(&config.template);
     let dist_path = args.path.join(&config.dist_path);
-    if let (Ok(template_path), Ok(dist_path), Ok(pages)) = tokio::join!(
+    if let (Ok(template_path), Ok(dist_path), Ok(pages)) = join!(
         canonicalize(&template_path),
-        canonicalize(&dist_path),
+        canonicalize_and_ensure_path(&dist_path),
         init_from_path(path, config.clone()),
     ) {
         let site: Arc<Site> = Arc::new(Site::new(dist_path.clone()));

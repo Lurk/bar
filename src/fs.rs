@@ -7,17 +7,15 @@ use std::{
     sync::Arc,
 };
 use tokio::{
-    fs::{create_dir_all, read_dir, OpenOptions},
+    fs::{canonicalize, create_dir_all, read_dir, OpenOptions},
     io::AsyncWriteExt,
 };
 
-use crate::error::{ContextExt, Errors};
+use crate::error::Errors;
 
-pub async fn canonicalize(path: &PathBuf) -> Result<PathBuf, Errors> {
+pub async fn canonicalize_and_ensure_path(path: &PathBuf) -> Result<PathBuf, Errors> {
     create_dir_all(path).await?;
-    Ok(path
-        .canonicalize()
-        .with_context(format!("canonicalize path: {}", path.clone().display()))?)
+    Ok(canonicalize(path).await?)
 }
 
 pub async fn get_files_by_ext_deep(path: &Path, ext: &str) -> Result<Vec<PathBuf>, Errors> {

@@ -8,14 +8,10 @@ use async_recursion::async_recursion;
 use cloudinary::{tags::get_tags, transformation::Image};
 use url::Url;
 
-use crate::{
-    config::Config,
-    error::Errors,
-    fs::{canonicalize, get_files_by_ext_deep},
-};
+use crate::{config::Config, error::Errors, fs::get_files_by_ext_deep, r#async::try_map};
 use numeric_sort::cmp;
 use serde::Serialize;
-use tokio::{fs::read_to_string, task::JoinSet};
+use tokio::fs::{canonicalize, read_to_string};
 use yamd::{
     deserialize,
     nodes::{
@@ -237,76 +233,43 @@ async fn unwrap_cloudinary(yamd: &Yamd) -> Result<Yamd, Errors> {
     Ok(Yamd::new(yamd.metadata.clone(), nodes))
 }
 
-pub async fn path_to_yamd(path: PathBuf, should_unwrap_cloudinary: &bool) -> Result<Yamd, Errors> {
-    let file_contents = read_to_string(&path)
-        .await
-        .unwrap_or_else(|_| panic!("yamd file: {:?}", &path))
-        .replace("\r\n", "\n"); // TODO: fix this in yamd crate
-    let yamd = deserialize(file_contents.as_str()).unwrap();
-    if *should_unwrap_cloudinary {
-        match unwrap_cloudinary(&yamd).await {
-            Ok(yamd) => return Ok(yamd),
-            Err(e) => {
-                return Err(format!(
-                    "error unwrapping cloudinary embeds in file: {:?}\nerror: {}",
-                    &path, e
-                )
-                .into());
-            }
-        }
+async fn path_to_yamd(
+    (path, content_path, should_unwrap_cloudinary): (PathBuf, Arc<PathBuf>, bool),
+) -> Result<(String, Yamd), Errors> {
+    let path = canonicalize(&path).await?;
+    // TODO: remove 'replace' when yamd supports windows line endings https://github.com/Lurk/yamd/issues/58
+    let file_contents = read_to_string(&path).await?.replace("\r\n", "\n");
+
+    let mut yamd = deserialize(file_contents.as_str()).unwrap();
+    if should_unwrap_cloudinary {
+        yamd = unwrap_cloudinary(&yamd).await?;
     }
-    Ok(yamd)
+
+    let pid = path
+        .with_extension("")
+        .to_str()
+        .unwrap()
+        .trim_start_matches(content_path.to_str().unwrap())
+        .to_string()
+        .replace('\\', "/");
+
+    Ok((pid, yamd))
 }
 
 pub async fn init_from_path(path: &Path, config: Arc<Config>) -> Result<Arc<Pages>, Errors> {
-    let content_path = canonicalize(&path.join(&config.content_path)).await?;
-    let mut pages_vec: Vec<(String, Yamd)> = Vec::new();
+    let content_path = Arc::new(canonicalize(&path.join(&config.content_path)).await?);
     let should_unwrap_cloudinary = config
         .get("should_unpack_cloudinary".into())
         .map(|v| v.as_bool().unwrap_or(&false))
         .unwrap_or(&false);
 
-    let mut set = JoinSet::new();
+    let input = get_files_by_ext_deep(&content_path, "yamd")
+        .await?
+        .into_iter()
+        .map(|path| (path, content_path.clone(), should_unwrap_cloudinary.clone()))
+        .collect();
 
-    for path in get_files_by_ext_deep(&content_path, "yamd").await? {
-        let file = path.canonicalize()?;
-        let content_path = content_path.clone();
-        let should_unwrap_cloudinary = *should_unwrap_cloudinary;
-        set.spawn(async move {
-            let yamd = path_to_yamd(file.clone(), &should_unwrap_cloudinary).await;
-            let pid = file
-                .with_extension("")
-                .to_str()
-                .unwrap()
-                .trim_start_matches(content_path.to_str().unwrap())
-                .to_string()
-                .replace('\\', "/");
-
-            (pid, yamd)
-        });
-    }
-
-    while let Some(res) = set.join_next().await {
-        let (pid, yamd) = res.unwrap();
-        match yamd {
-            Ok(yamd) => {
-                if !yamd
-                    .metadata
-                    .as_ref()
-                    .expect("page should always have a metadata")
-                    .is_draft
-                    .unwrap_or(false)
-                {
-                    pages_vec.push((pid, yamd));
-                }
-            }
-            Err(e) => {
-                return Err(e);
-            }
-        }
-    }
-
-    let mut pages = Pages::new();
+    let mut pages_vec = try_map(input, path_to_yamd).await?;
 
     pages_vec.sort_by(|a, b| {
         b.1.metadata
@@ -324,6 +287,8 @@ pub async fn init_from_path(path: &Path, config: Arc<Config>) -> Result<Arc<Page
                     .unwrap(),
             )
     });
+
+    let mut pages = Pages::new();
     for page in pages_vec {
         pages.add(page.0, page.1);
     }
