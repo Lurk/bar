@@ -4,6 +4,7 @@ use std::{
     path::StripPrefixError,
 };
 
+use tokio::task::JoinError;
 use url::ParseError;
 
 pub struct Context<V, E>(V, E);
@@ -27,6 +28,7 @@ pub enum Errors {
     StripPrefixError(StripPrefixError),
     ParseError(ParseError),
     Str(String),
+    JoinError(JoinError),
 }
 
 impl From<io::Error> for Errors {
@@ -89,6 +91,12 @@ impl From<&str> for Errors {
     }
 }
 
+impl From<JoinError> for Errors {
+    fn from(err: JoinError) -> Self {
+        Errors::JoinError(err)
+    }
+}
+
 impl Display for Errors {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -102,6 +110,7 @@ impl Display for Errors {
             Errors::StripPrefixError(err) => write!(f, "Strip prefix error:\n {:?}", err),
             Errors::ParseError(err) => write!(f, "Parse error:\n {:?}", err),
             Errors::Str(err) => write!(f, "{}", err),
+            Errors::JoinError(err) => write!(f, "Join error:\n {:?}", err),
         }
     }
 }
@@ -119,6 +128,7 @@ impl Debug for Errors {
             Errors::StripPrefixError(err) => write!(f, "Strip prefix error:\n {:#?}", err),
             Errors::ParseError(err) => write!(f, "Parse error:\n {:#?}", err),
             Errors::Str(err) => write!(f, "{}", err),
+            Errors::JoinError(err) => write!(f, "Join error:\n {:#?}", err),
         }
     }
 }

@@ -1,15 +1,15 @@
 use std::{
     collections::HashMap,
-    fs::remove_dir_all,
     path::PathBuf,
     sync::{Arc, Mutex},
 };
 
-use tokio::task::JoinSet;
+use tokio::fs::{copy, create_dir_all, remove_dir_all};
 
 use crate::{
     error::{ContextExt, Errors},
     fs::write_file,
+    r#async::try_for_each,
 };
 
 #[derive(Debug, Clone, PartialEq)]
@@ -199,27 +199,26 @@ impl Site {
 
     pub async fn save(&self) -> Result<(), Errors> {
         remove_dir_all(&self.dist_folder)
+            .await
             .with_context(format!("remove directory: {}", self.dist_folder.display()))?;
 
-        let mut set = JoinSet::new();
-        {
-            let pages = self.pages.lock().unwrap();
+        let dist_folder = Arc::new(self.dist_folder.clone());
+        let input = self
+            .pages
+            .lock()
+            .unwrap()
+            .values()
+            .cloned()
+            .map(|page| (dist_folder.clone(), page))
+            .collect();
 
-            let dist_folder = Arc::new(self.dist_folder.clone());
-            for page in pages.values() {
-                let page = page.clone();
-                let dist_folder = dist_folder.clone();
-                set.spawn(async move { save_page(dist_folder, page).await });
-            }
-        }
-
-        while (set.join_next().await).is_some() {}
+        try_for_each(input, save_page).await?;
 
         Ok(())
     }
 }
 
-async fn save_page(dist_folder: Arc<PathBuf>, page: Arc<Page>) -> Result<(), Errors> {
+async fn save_page((dist_folder, page): (Arc<PathBuf>, Arc<Page>)) -> Result<(), Errors> {
     match page.as_ref() {
         Page::Static(page) => {
             let destination = dist_folder.join(page.destination.trim_start_matches('/'));
@@ -233,9 +232,10 @@ async fn save_page(dist_folder: Arc<PathBuf>, page: Arc<Page>) -> Result<(), Err
                     &destination.display()
                 );
                 let prefix = destination.parent().unwrap();
-                std::fs::create_dir_all(prefix)
+                create_dir_all(prefix)
+                    .await
                     .with_context(format!("create directory: {}", prefix.display()))?;
-                std::fs::copy(source, &destination).with_context(format!(
+                copy(source, &destination).await.with_context(format!(
                     "copy file: {:?} -> {}",
                     source,
                     &destination.display()
