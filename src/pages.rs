@@ -263,7 +263,7 @@ pub async fn init_from_path(path: &Path, config: Arc<Config>) -> Result<Arc<Page
         .map(|v| v.as_bool().unwrap_or(&false))
         .unwrap_or(&false);
 
-    let input = get_files_by_ext_deep(&content_path, "yamd")
+    let input = get_files_by_ext_deep(&content_path, &["yamd"])
         .await?
         .into_iter()
         .map(|path| (path, content_path.clone(), should_unwrap_cloudinary.clone()))

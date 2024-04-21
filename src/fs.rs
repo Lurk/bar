@@ -18,20 +18,25 @@ pub async fn canonicalize_and_ensure_path(path: &PathBuf) -> Result<PathBuf, Err
     Ok(canonicalize(path).await?)
 }
 
-pub async fn get_files_by_ext_deep(path: &Path, ext: &str) -> Result<Vec<PathBuf>, Errors> {
+/// Get all files with given extensions in the given directory and its subdirectories.
+/// The extension should not include the dot.
+pub async fn get_files_by_ext_deep(path: &Path, ext: &[&str]) -> Result<Vec<PathBuf>, Errors> {
     let mut files = Vec::new();
-    let mut dirs = Vec::new();
-    dirs.push(path.to_path_buf());
+    let mut dirs = vec![path.to_path_buf()];
     while let Some(dir) = dirs.pop() {
         let mut entries = read_dir(dir).await?;
-        {
-            while let Some(entry) = entries.next_entry().await? {
-                let path = entry.path();
-                if path.is_dir() {
-                    dirs.push(path);
-                } else if Some(ext) == path.extension().unwrap_or_default().to_str() {
-                    files.push(path);
-                }
+        while let Some(entry) = entries.next_entry().await? {
+            let path = entry.path();
+            if path.is_dir() {
+                dirs.push(path);
+            } else if ext.contains(
+                &path
+                    .extension()
+                    .unwrap_or_default()
+                    .to_str()
+                    .expect("file extension to be valid UTF-8"),
+            ) {
+                files.push(path);
             }
         }
     }
