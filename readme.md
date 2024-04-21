@@ -45,7 +45,7 @@ BAR will gather static files from:
 
 1. Path specified in `config.static_source_path`
 2. `static` directory in template
-3. Defaults from BAR (check out [robots.txt](#robots.txt) section)
+3. Defaults from BAR (check out [robots.txt](#robotstxt) section)
 
 If file exists source it will be not overwritten with file from template or BAR. If however you want to overwrite file
 from template with your own version. For example if you want custom CSS, you can add it to the static folder of source. 
