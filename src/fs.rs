@@ -11,11 +11,19 @@ use tokio::{
     io::AsyncWriteExt,
 };
 
-use crate::error::Errors;
+use crate::error::{ContextExt, Errors};
+
+pub async fn canonicalize_with_context(path: &PathBuf) -> Result<PathBuf, Errors> {
+    Ok(canonicalize(path)
+        .await
+        .with_context(format!("canonicalize: {}", path.display()))?)
+}
 
 pub async fn canonicalize_and_ensure_path(path: &PathBuf) -> Result<PathBuf, Errors> {
-    create_dir_all(path).await?;
-    Ok(canonicalize(path).await?)
+    create_dir_all(path)
+        .await
+        .with_context(format!("create_dir_all: {}", path.display()))?;
+    canonicalize_with_context(path).await
 }
 
 /// Get all files with given extensions in the given directory and its subdirectories.

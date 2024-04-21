@@ -1,17 +1,21 @@
+use crate::{
+    config::Config,
+    error::Errors,
+    fs::{canonicalize_with_context, get_files_by_ext_deep},
+    r#async::try_map,
+};
+
+use async_recursion::async_recursion;
+use cloudinary::{tags::get_tags, transformation::Image};
+use numeric_sort::cmp;
+use serde::Serialize;
 use std::{
     collections::{hash_map::Entry, HashMap, HashSet},
     path::{Path, PathBuf},
     sync::Arc,
 };
-
-use async_recursion::async_recursion;
-use cloudinary::{tags::get_tags, transformation::Image};
+use tokio::fs::read_to_string;
 use url::Url;
-
-use crate::{config::Config, error::Errors, fs::get_files_by_ext_deep, r#async::try_map};
-use numeric_sort::cmp;
-use serde::Serialize;
-use tokio::fs::{canonicalize, read_to_string};
 use yamd::{
     deserialize,
     nodes::{
@@ -236,7 +240,7 @@ async fn unwrap_cloudinary(yamd: &Yamd) -> Result<Yamd, Errors> {
 async fn path_to_yamd(
     (path, content_path, should_unwrap_cloudinary): (PathBuf, Arc<PathBuf>, bool),
 ) -> Result<(String, Yamd), Errors> {
-    let path = canonicalize(&path).await?;
+    let path = canonicalize_with_context(&path).await?;
     // TODO: remove 'replace' when yamd supports windows line endings https://github.com/Lurk/yamd/issues/58
     let file_contents = read_to_string(&path).await?.replace("\r\n", "\n");
 
@@ -256,8 +260,8 @@ async fn path_to_yamd(
     Ok((pid, yamd))
 }
 
-pub async fn init_from_path(path: &Path, config: Arc<Config>) -> Result<Arc<Pages>, Errors> {
-    let content_path = Arc::new(canonicalize(&path.join(&config.content_path)).await?);
+pub async fn init_pages(path: &Path, config: Arc<Config>) -> Result<Arc<Pages>, Errors> {
+    let content_path = Arc::new(canonicalize_with_context(&path.join(&config.content_path)).await?);
     let should_unwrap_cloudinary = config
         .get("should_unpack_cloudinary".into())
         .map(|v| v.as_bool().unwrap_or(&false))
@@ -302,12 +306,12 @@ mod test {
         sync::Arc,
     };
 
-    use crate::{config::Config, pages::init_from_path};
+    use crate::{config::Config, pages::init_pages};
 
     #[tokio::test]
     async fn init_from_path_test() {
         let config_path = Path::new("./test/fixtures/");
-        let pages = init_from_path(
+        let pages = init_pages(
             &config_path,
             Arc::new(
                 Config::try_from(<&std::path::Path as Into<PathBuf>>::into(config_path)).unwrap(),
