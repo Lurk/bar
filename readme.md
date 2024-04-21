@@ -33,10 +33,37 @@ domain: 'https://blog.com'
 title: 'this is the blog'
 description: 'blog'
 # hash map to configure template free form, depends on a template
+# will be provided to template
 template_config: 
   # if set to true BAR will fetch data from Cloudinary on a build time. 
   should_unpack_cloudinary: false 
 ```
+
+## Static files
+
+BAR will gather static files from:
+
+1. Path specified in `config.static_source_path`
+2. `static` directory in template
+3. Defaults from BAR (check out [robots.txt](#robots.txt) section)
+
+If file exists source it will be not overwritten with file from template or BAR. If however you want to overwrite file
+from template with your own version. For example if you want custom CSS, you can add it to the static folder of source. 
+
+Only files with allowed extensions will be copied. Default list of extensions: 
+
+- css
+- js
+- png
+- jpg
+- jpeg
+- gif
+- svg
+- webmanifest
+- ico
+- txt
+
+It can be customized with `config.static_files_extensions` param.
 
 ## robots.txt
 
