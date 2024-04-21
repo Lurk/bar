@@ -266,7 +266,7 @@ pub async fn init_from_path(path: &Path, config: Arc<Config>) -> Result<Arc<Page
     let input = get_files_by_ext_deep(&content_path, &["yamd"])
         .await?
         .into_iter()
-        .map(|path| (path, content_path.clone(), should_unwrap_cloudinary.clone()))
+        .map(|path| (path, content_path.clone(), *should_unwrap_cloudinary))
         .collect();
 
     let mut pages_vec = try_map(input, path_to_yamd).await?;
