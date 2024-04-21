@@ -2,9 +2,8 @@ use crate::{
     error::Errors,
     fs::crc32_checksum,
     pages::Pages,
-    site::{DynamicPage, Feed, FeedType, Site, StaticPage},
+    site::{DynamicPage, Feed, FeedType, Page, Site, StaticPage},
     syntax_highlight::{code, init},
-    Config,
 };
 use cloudinary::transformation::{
     aspect_ratio::AspectRatio,
@@ -62,13 +61,6 @@ fn get_vec_of_usize_arg(args: &HashMap<String, Value>, key: &str) -> Option<Vec<
     }
 }
 
-fn get_bool_arg(args: &HashMap<String, Value>, key: &str) -> Option<bool> {
-    match args.get(key) {
-        Some(value) => value.as_bool(),
-        None => None,
-    }
-}
-
 fn add_page(site: Arc<Site>) -> impl Function + 'static {
     move |args: &HashMap<String, Value>| {
         let path = get_string_arg(args, "path").unwrap_or("/".to_string());
@@ -107,34 +99,28 @@ fn add_feed(site: Arc<Site>) -> impl Function + 'static {
     }
 }
 
-fn add_static_file(
-    site: Arc<Site>,
-    config: Arc<Config>,
-    content_path: &'static Path,
-) -> impl Function + 'static {
+fn get_static_file(site: Arc<Site>) -> impl Function + 'static {
     move |args: &HashMap<String, Value>| {
-        if let (Some(path), Some(file_path)) = (
-            get_arc_str_arg(args, "path"),
-            get_arc_str_arg(args, "file_path"),
-        ) {
-            let is_content = get_bool_arg(args, "is_content").unwrap_or(false);
-            let static_path = if is_content {
-                content_path.join(file_path.trim())
-            } else {
-                config.template.join(file_path.trim())
-            };
-            let hash = crc32_checksum(&static_path).unwrap();
-            site.add_page(
-                StaticPage {
-                    destination: path.clone(),
-                    source: Some(static_path),
-                    fallback: None,
+        if let Some(path) = get_string_arg(args, "path") {
+            if let Some(page) = site.get_page(path.trim_start_matches('/')) {
+                if let Page::Static(inner) = page.as_ref() {
+                    let hash = crc32_checksum(
+                        inner
+                            .source
+                            .as_ref()
+                            .expect("source of static file to be present"),
+                    )
+                    .unwrap();
+                    return Ok(tera::to_value(format!("{}?cb={}", path, hash))?);
                 }
-                .into(),
-            );
-            return Ok(tera::to_value(format!("{}?cb={}", path, hash))?);
+                return Err(tera::Error::msg(format!(
+                    "{} is not a path to static resource",
+                    path
+                )));
+            }
+            return Err(tera::Error::msg(format!("{} not found", path)));
         }
-        Err(tera::Error::msg("path and file_path are required"))
+        Err(tera::Error::msg("path is required"))
     }
 }
 
@@ -248,16 +234,12 @@ fn get_image_url(site: Arc<Site>, path: &'static Path) -> impl Function + 'stati
 pub fn initialize(
     path: &'static Path,
     template_path: &Path,
-    config: Arc<Config>,
     posts: Arc<Pages>,
     site: Arc<Site>,
 ) -> Result<Tera, Errors> {
     let mut tera = Tera::new(format!("{}/**/*.html", template_path.to_str().unwrap()).as_str())?;
     tera.register_function("add_page", add_page(site.clone()));
-    tera.register_function(
-        "add_static_file",
-        add_static_file(site.clone(), config.clone(), path),
-    );
+    tera.register_function("get_static_file", get_static_file(site.clone()));
     tera.register_function("get_pages_by_tag", get_pages_by_tag(posts.clone()));
     tera.register_function("get_page_by_path", get_page_by_path(posts.clone()));
     tera.register_function(

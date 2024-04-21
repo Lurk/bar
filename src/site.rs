@@ -1,14 +1,15 @@
 use std::{
     collections::HashMap,
-    path::PathBuf,
+    path::{Path, PathBuf},
     sync::{Arc, Mutex},
 };
 
 use tokio::fs::{copy, create_dir_all, remove_dir_all};
 
 use crate::{
+    config::Config,
     error::{ContextExt, Errors},
-    fs::write_file,
+    fs::{canonicalize_with_context, get_files_by_ext_deep, write_file},
     r#async::try_for_each,
 };
 
@@ -266,6 +267,83 @@ async fn save_page((dist_folder, page): (Arc<PathBuf>, Arc<Page>)) -> Result<(),
         }
     };
     Ok(())
+}
+
+fn create_destination_path(source: &Path, prefix: &PathBuf) -> String {
+    source
+        .strip_prefix(prefix)
+        .unwrap()
+        .to_str()
+        .unwrap()
+        .replace('\\', "/")
+}
+
+/// Initialize the site with static files and entry point.
+/// The function will scan the source and template directories for files with the given extensions.
+///
+/// Static files priories:
+/// 1. Source files
+/// 2. Template files
+/// 3. BAR defaults
+pub async fn init_site(path: &Path, config: Arc<Config>) -> Result<Arc<Site>, Errors> {
+    let site = Arc::new(Site::new(path.join(&config.dist_path)));
+    let source_path = path.join(&config.static_source_path);
+    let template_path = path.join(&config.template).join("static/");
+    let (source_path, template_path) = tokio::try_join!(
+        canonicalize_with_context(&source_path),
+        canonicalize_with_context(&template_path)
+    )?;
+
+    let extensions = config
+        .static_files_extensions
+        .iter()
+        .map(|s| s.as_str())
+        .collect::<Vec<&str>>();
+
+    for file in get_files_by_ext_deep(&source_path, &extensions).await? {
+        site.add_page(
+            StaticPage {
+                destination: Arc::from(create_destination_path(&file, &source_path)),
+                source: Some(file),
+                fallback: None,
+            }
+            .into(),
+        );
+    }
+
+    for file in get_files_by_ext_deep(&template_path, &extensions).await? {
+        site.add_page(
+            StaticPage {
+                destination: Arc::from(create_destination_path(&file, &template_path)),
+                source: Some(file),
+                fallback: None,
+            }
+            .into(),
+        );
+    }
+
+    site.add_page(
+        StaticPage {
+            destination: Arc::from("robots.txt"),
+            source: None,
+            fallback: Some("User-agent: *\nAllow: /".into()),
+        }
+        .into(),
+    );
+
+    site.add_page(
+        DynamicPage {
+            path: "/".into(),
+            template: "index.html".into(),
+            title: config.title.clone(),
+            description: config.description.clone(),
+            content: None,
+            page_num: 0,
+        }
+        .into(),
+    );
+
+    Ok(site)
 }
 
 #[cfg(test)]

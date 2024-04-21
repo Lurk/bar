@@ -44,10 +44,32 @@ impl TemplateConfigValue {
     }
 }
 
+fn default_extension() -> Vec<String> {
+    vec![
+        "css".to_string(),
+        "js".to_string(),
+        "png".to_string(),
+        "jpg".to_string(),
+        "jpeg".to_string(),
+        "gif".to_string(),
+        "svg".to_string(),
+        "webmanifest".to_string(),
+        "ico".to_string(),
+        "txt".to_string(),
+    ]
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Config {
     pub dist_path: PathBuf,
     pub content_path: PathBuf,
+    /// The path to the directory with static files. Relative to the config file.
+    pub static_source_path: PathBuf,
+    /// White list of file extensions to be copied to the dist directory.
+    /// The extensions should not include the dot.
+    /// Default: ["css", "js", "png", "jpg", "jpeg", "gif", "svg", "webmanifest", "ico", "txt"]
+    #[serde(default = "default_extension")]
+    pub static_files_extensions: Vec<String>,
     pub template: PathBuf,
     pub domain: Arc<Url>,
     pub title: Arc<str>,

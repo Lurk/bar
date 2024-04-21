@@ -15,25 +15,59 @@ bar <path to bar project>
 Configuration file `config.yaml` should be in root folder of a project.
 
 ```yaml
-content_path: './content/' # path to folder that contain yamd files
-template: '../hamon/' # path to template
+# destination
+dist_path: './dist'
+# path to folder that contain yamd files
+content_path: './content/' 
+#path from where get static files
+static_source_path: './static' 
+# Non required filed with white list of allowed file extensions. 
+# Defaults to ["css", "js", "png", "jpg", "jpeg", "gif", "svg", "webmanifest", "ico", "txt"]
+static_files_extensions: 
+  - txt
+  - jpg
+  - png
+# path to template
+template: '../hamon/' 
 domain: 'https://blog.com' 
 title: 'this is the blog'
 description: 'blog'
-dist_path: './dist' # destination
-robots_txt: './public/robots.txt' # Optional. Check 'robots_txt' part in this document for more info
-template_config: # hash map to configure template free form, depends on a template
-  favicon: './public/favicon.ico'
-  svg_icon: './public/icon.svg'
-  apple_touch_icon: './public/icon.png'
-  webmanifest: './public/site.webmanifest'
+# hash map to configure template free form, depends on a template
+# will be provided to template
+template_config: 
+  # if set to true BAR will fetch data from Cloudinary on a build time. 
+  should_unpack_cloudinary: false 
 ```
 
-### robots_txt
+## Static files
 
-If present will be copied to the destination folder.
+BAR will gather static files from:
 
-If not present default `robots.txt` will be generated:
+1. Path specified in `config.static_source_path`
+2. `static` directory in template
+3. Defaults from BAR (check out [robots.txt](#robotstxt) section)
+
+If file exists source it will be not overwritten with file from template or BAR. If however you want to overwrite file
+from template with your own version. For example if you want custom CSS, you can add it to the static folder of source. 
+
+Only files with allowed extensions will be copied. Default list of extensions: 
+
+- css
+- js
+- png
+- jpg
+- jpeg
+- gif
+- svg
+- webmanifest
+- ico
+- txt
+
+It can be customized with `config.static_files_extensions` param.
+
+## robots.txt
+
+If source or template does not provide the `robots.txt` static file, BAR will generate default one:
 
 ```text
 User-agent: *
@@ -42,7 +76,7 @@ Allow: /
 
 ## Templates
 
-bar uses [Tera](https://crates.io/crates/tera) templating engine.
+BAR uses [Tera](https://crates.io/crates/tera) templating engine.
 
 Example of bar template: [Hamon](https://github.com/Lurk/Hamon)
 
@@ -58,11 +92,25 @@ Takes 5 arguments
 - description
 - page_num
 
-example:
+Example:
 
 ```htmldjango
 {{ add_page(path = '/',template = 'index.html', title = config.title, description = config.description, page_num = 0) }}
 
+```
+
+#### get_static_file
+
+Takes one argument
+
+- path
+
+Returns relative url with cache buster. Cache buster is crc32 of a file content.
+
+example:
+
+```htmldjango
+{{ get_static_file( path='/favicon.ico' )}}
 ```
 
 ## Minimal Rust Version

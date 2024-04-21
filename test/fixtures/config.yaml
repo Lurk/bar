@@ -1,12 +1,9 @@
-content_path: './'
+dist_path: './dist'
+content_path: './content'
+static_source_path: './static/'
 template: '../template/'
 domain: 'https://test.com'
 title: 'test'
 description: 'blog'
-dist_path: './dist'
 template_config:
   should_unpack_cloudinary: false
-  favicon: './public/favicon.ico'
-  svg_icon: './public/icon.svg'
-  apple_touch_icon: './public/icon.png'
-  webmanifest: './public/site.webmanifest'
