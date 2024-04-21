@@ -16,7 +16,7 @@ serde = { version = "1.0.197", features = ["derive", "rc"] }
 serde_yaml = "0.9.34"
 syntect = { version = "5.2.0", features = ["dump-load"] }
 serde_json = "1.0.115"
-yamd = { version = "0.13.2" }
+yamd = { version = "0.13.3" }
 tera = { version = "1.19.1", features = ["builtins"] }
 url = { version = "2.5.0", features = ["serde"] }
 tokio = { version = "1.37.0", features = ["full"] }
