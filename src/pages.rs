@@ -58,7 +58,7 @@ impl Page {
         self.content
             .metadata
             .as_ref()
-            .expect("page should always have a metadata")
+            .expect(format!("page should always have a metadata: {}", self.pid).as_str())
             .title
             .clone()
             .unwrap_or_else(|| "Untitled".into())
@@ -69,7 +69,7 @@ impl Page {
             .content
             .metadata
             .as_ref()
-            .expect("page should always have a metadata")
+            .expect(format!("page should always have a metadata: {}", self.pid).as_str())
             .image
             .clone()
         {
@@ -108,7 +108,7 @@ impl Pages {
         self.order.push(pid.clone());
         if let Some(tags) = value
             .metadata
-            .expect("page should always have a metadata")
+            .expect(format!("page should always have a metadata: {}", pid).as_str())
             .tags
         {
             tags.iter().for_each(|tag| {
@@ -278,14 +278,14 @@ pub async fn init_pages(path: &Path, config: Arc<Config>) -> Result<Arc<Pages>, 
     pages_vec.sort_by(|a, b| {
         b.1.metadata
             .as_ref()
-            .expect("page should always have a metadata")
+            .expect(format!("page should always have a metadata: {}", b.0).as_str())
             .date
             .as_ref()
             .unwrap()
             .cmp(
                 a.1.metadata
                     .as_ref()
-                    .expect("page should always have a metadata")
+                    .expect(format!("page should always have a metadata: {}", a.0).as_str())
                     .date
                     .as_ref()
                     .unwrap(),
