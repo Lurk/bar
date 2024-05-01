@@ -80,6 +80,10 @@ BAR uses [Tera](https://crates.io/crates/tera) templating engine.
 
 Example of bar template: [Hamon](https://github.com/Lurk/Hamon)
 
+### 404 page
+
+If bar template has `./404.html` it will be rendered to the `config.dest_path` + `404.html`
+
 ### Functions
 
 #### add_page

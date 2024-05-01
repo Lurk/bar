@@ -83,3 +83,28 @@ pub fn crc32_checksum(path: &PathBuf) -> Result<String, Errors> {
 
     Ok(BASE64URL_NOPAD.encode(digest.to_be_bytes().as_ref()))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn get_files_happy_path() -> Result<(), Errors> {
+        let files = get_files_by_ext_deep(&PathBuf::from("./test/"), &["yamd"]).await?;
+        assert_eq!(
+            files,
+            vec![
+                PathBuf::from("./test/fixtures/content/test.yamd"),
+                PathBuf::from("./test/fixtures/content/test2.yamd")
+            ]
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn get_crc32_happy_path() -> Result<(), Errors> {
+        let checksum = crc32_checksum(&PathBuf::from("./test/fixtures/content/test.yamd"))?;
+        assert_eq!(checksum, String::from("GlnPfQ"));
+        Ok(())
+    }
+}

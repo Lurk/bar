@@ -288,10 +288,10 @@ fn create_destination_path(source: &Path, prefix: &PathBuf) -> String {
 pub async fn init_site(path: &Path, config: Arc<Config>) -> Result<Arc<Site>, Errors> {
     let site = Arc::new(Site::new(path.join(&config.dist_path)));
     let source_path = path.join(&config.static_source_path);
-    let template_path = path.join(&config.template).join("static/");
-    let (source_path, template_path) = tokio::try_join!(
+    let template_static_path = path.join(&config.template).join("static/");
+    let (source_path, template_static_path) = tokio::try_join!(
         canonicalize_with_context(&source_path),
-        canonicalize_with_context(&template_path)
+        canonicalize_with_context(&template_static_path)
     )?;
 
     let extensions = config
@@ -311,10 +311,10 @@ pub async fn init_site(path: &Path, config: Arc<Config>) -> Result<Arc<Site>, Er
         );
     }
 
-    for file in get_files_by_ext_deep(&template_path, &extensions).await? {
+    for file in get_files_by_ext_deep(&template_static_path, &extensions).await? {
         site.add_page(
             StaticPage {
-                destination: Arc::from(create_destination_path(&file, &template_path)),
+                destination: Arc::from(create_destination_path(&file, &template_static_path)),
                 source: Some(file),
                 fallback: None,
             }
@@ -342,6 +342,20 @@ pub async fn init_site(path: &Path, config: Arc<Config>) -> Result<Arc<Site>, Er
         }
         .into(),
     );
+
+    if config.template.join("404.html").exists() {
+        site.add_page(
+            DynamicPage {
+                path: "/404.html".into(),
+                template: "404.html".into(),
+                title: config.title.clone(),
+                description: config.description.clone(),
+                content: None,
+                page_num: 0,
+            }
+            .into(),
+        );
+    }
 
     Ok(site)
 }
