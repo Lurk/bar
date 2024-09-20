@@ -2,15 +2,16 @@ use crate::{
     config::Config,
     error::Errors,
     fs::{canonicalize_with_context, get_files_by_ext_deep},
+    metadata::Metadata,
     r#async::try_map,
 };
 
 use async_recursion::async_recursion;
-use cloudinary::{tags::get_tags, transformation::Image};
+use cloudinary::{tags::get_tags, transformation::Image as CloudinaryImage};
 use numeric_sort::cmp;
 use serde::Serialize;
 use std::{
-    collections::{hash_map::Entry, HashMap, HashSet},
+    collections::{hash_map::Entry, BTreeSet, HashMap, HashSet},
     path::{Path, PathBuf},
     sync::Arc,
 };
@@ -18,19 +19,29 @@ use tokio::fs::read_to_string;
 use url::Url;
 use yamd::{
     deserialize,
-    nodes::{
-        collapsible::{Collapsible, CollapsibleNodes},
-        embed::Embed,
-        image,
-        image_gallery::{ImageGallery, ImageGalleryNodes},
-        yamd::{Yamd, YamdNodes},
-    },
+    nodes::{Collapsible, Embed, Image, Images, Yamd, YamdNodes},
 };
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, PartialEq, Eq)]
 pub struct Page {
     pub pid: Arc<str>,
     pub content: Yamd,
+    pub metadata: Metadata,
+}
+
+impl PartialOrd for Page {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        self.metadata
+            .date
+            .partial_cmp(&other.metadata.date)
+            .map(|o| o.reverse())
+    }
+}
+
+impl Ord for Page {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.metadata.date.cmp(&other.metadata.date).reverse()
+    }
 }
 
 #[derive(Debug, Serialize)]
@@ -42,7 +53,7 @@ pub struct SliceNumber {
 
 #[derive(Debug, Serialize)]
 pub struct PagesSlice {
-    pages: Vec<Arc<Page>>,
+    pages: BTreeSet<Arc<Page>>,
     current_slice: usize,
     total_slices: usize,
     numbers: Vec<SliceNumber>,
@@ -50,80 +61,77 @@ pub struct PagesSlice {
 }
 
 impl Page {
-    pub fn new(pid: Arc<str>, content: Yamd) -> Self {
-        Self { pid, content }
+    pub fn new(pid: Arc<str>, content: Yamd, metadata: Metadata) -> Self {
+        Self {
+            pid,
+            content,
+            metadata,
+        }
     }
 
     pub fn get_title(&self) -> String {
-        self.content
-            .metadata
-            .as_ref()
-            .expect(format!("page should always have a metadata: {}", self.pid).as_str())
-            .title
-            .clone()
-            .unwrap_or_else(|| "Untitled".into())
+        self.metadata.title.clone()
     }
 
     pub fn get_image(&self, base_url: &Url) -> Option<Url> {
-        if let Some(image) = self
-            .content
-            .metadata
-            .as_ref()
-            .expect(format!("page should always have a metadata: {}", self.pid).as_str())
-            .image
-            .clone()
-        {
+        self.metadata.image.as_ref().map(|image| {
             if image.starts_with("http") {
                 let image = Url::parse(image.as_str()).unwrap();
-                return Some(image);
+                return image;
             }
 
             let mut url = base_url.clone();
             url.set_path(image.as_str());
-            return Some(url);
-        }
-        None
+
+            url
+        })
     }
 }
 
 pub struct Pages {
     pages: HashMap<Arc<str>, Arc<Page>>,
-    order: Vec<Arc<str>>,
-    tags: HashMap<Arc<str>, Vec<Arc<Page>>>,
+    tags: HashMap<Arc<str>, BTreeSet<Arc<Page>>>,
 }
 
 impl Pages {
     pub fn new() -> Self {
         Self {
             pages: HashMap::new(),
-            order: Vec::new(),
             tags: HashMap::new(),
         }
     }
 
     pub fn add(&mut self, key: String, value: Yamd) {
         let pid: Arc<str> = Arc::from(key.as_str());
-        let post = Arc::new(Page::new(pid.clone(), value.clone()));
+
+        let post = Arc::new(Page::new(
+            pid.clone(),
+            value.clone(),
+            serde_yaml::from_str(
+                value
+                    .metadata
+                    .expect(format!("{pid} to have metadata").as_str())
+                    .as_str(),
+            )
+            .expect(format!("{pid} to have valid yaml metadata\n").as_str()),
+        ));
         self.pages.insert(pid.clone(), post.clone());
-        self.order.push(pid.clone());
-        if let Some(tags) = value
-            .metadata
-            .expect(format!("page should always have a metadata: {}", pid).as_str())
-            .tags
-        {
+        if let Some(tags) = &post.metadata.tags {
             tags.iter().for_each(|tag| {
                 let tag: Arc<str> = Arc::from(tag.as_str());
                 if let Entry::Vacant(e) = self.tags.entry(tag.clone()) {
-                    e.insert(vec![post.clone()]);
+                    let mut val = BTreeSet::new();
+                    val.insert(post.clone());
+                    e.insert(val);
                 } else {
-                    self.tags.get_mut(&tag).unwrap().push(post.clone());
+                    self.tags.get_mut(&tag).unwrap().insert(post.clone());
                 }
             });
         }
     }
 
-    pub fn keys(&self) -> &Vec<Arc<str>> {
-        &self.order
+    pub fn keys(&self) -> Vec<Arc<str>> {
+        self.pages.keys().map(|k| k.clone()).collect()
     }
 
     pub fn get(&self, pid: &str) -> Option<&Page> {
@@ -158,7 +166,7 @@ impl Pages {
             });
         }
         let mut slice = PagesSlice {
-            pages: Vec::with_capacity(limit),
+            pages: BTreeSet::new(),
             current_slice,
             total_slices,
             slice_size: limit,
@@ -166,7 +174,7 @@ impl Pages {
         };
 
         for page in pages.iter().skip(offset).take(limit) {
-            slice.pages.push(page.clone());
+            slice.pages.insert(page.clone());
         }
         slice
     }
@@ -178,7 +186,7 @@ impl Default for Pages {
     }
 }
 
-async fn cloudinary_gallery_to_image_gallery(embed: &Embed) -> Result<ImageGallery, Errors> {
+async fn cloudinary_gallery_to_image_gallery(embed: &Embed) -> Result<Images, Errors> {
     if let Some((cloud_name, tag)) = embed.args.split_once('&') {
         let mut tags = get_tags(cloud_name.into(), tag.into())
             .await
@@ -191,28 +199,25 @@ async fn cloudinary_gallery_to_image_gallery(embed: &Embed) -> Result<ImageGalle
             .resources
             .iter()
             .map(|resource| {
-                let mut image = Image::new(cloud_name.into(), resource.public_id.clone());
+                let mut image = CloudinaryImage::new(cloud_name.into(), resource.public_id.clone());
                 image.set_format(resource.format.as_ref());
-                ImageGalleryNodes::Image(image::Image::new(
-                    resource.public_id.to_string(),
-                    image.to_string(),
-                ))
+                Image::new(resource.public_id.to_string(), image.to_string())
             })
-            .collect::<Vec<ImageGalleryNodes>>();
-        return Ok(ImageGallery::new(images));
+            .collect::<Vec<Image>>();
+        return Ok(Images::new(images));
     }
     Err("cloudinary_gallery embed must have two arguments: cloud_name and tag.".into())
 }
 
 #[async_recursion]
 async fn process_collapsible(collapsible: &Collapsible) -> Result<Collapsible, Errors> {
-    let mut nodes_vec: Vec<CollapsibleNodes> = Vec::with_capacity(collapsible.nodes.len());
-    for node in collapsible.nodes.iter() {
+    let mut nodes_vec: Vec<YamdNodes> = Vec::with_capacity(collapsible.body.len());
+    for node in collapsible.body.iter() {
         match node {
-            CollapsibleNodes::Embed(embed) if embed.kind == "cloudinary_gallery" => {
+            YamdNodes::Embed(embed) if embed.kind == "cloudinary_gallery" => {
                 nodes_vec.push(cloudinary_gallery_to_image_gallery(embed).await?.into());
             }
-            CollapsibleNodes::Collapsible(collapsible) => {
+            YamdNodes::Collapsible(collapsible) => {
                 nodes_vec.push(process_collapsible(collapsible).await?.into());
             }
             _ => nodes_vec.push(node.clone()),
@@ -222,8 +227,8 @@ async fn process_collapsible(collapsible: &Collapsible) -> Result<Collapsible, E
 }
 
 async fn unwrap_cloudinary(yamd: &Yamd) -> Result<Yamd, Errors> {
-    let mut nodes: Vec<YamdNodes> = Vec::with_capacity(yamd.nodes.len());
-    for node in yamd.nodes.iter() {
+    let mut nodes: Vec<YamdNodes> = Vec::with_capacity(yamd.body.len());
+    for node in yamd.body.iter() {
         match node {
             YamdNodes::Embed(embed) if embed.kind == "cloudinary_gallery" => {
                 nodes.push(cloudinary_gallery_to_image_gallery(embed).await?.into());
@@ -244,7 +249,7 @@ async fn path_to_yamd(
     // TODO: remove 'replace' when yamd supports windows line endings https://github.com/Lurk/yamd/issues/58
     let file_contents = read_to_string(&path).await?.replace("\r\n", "\n");
 
-    let mut yamd = deserialize(file_contents.as_str()).unwrap();
+    let mut yamd = deserialize(file_contents.as_str());
     if should_unwrap_cloudinary {
         yamd = unwrap_cloudinary(&yamd).await?;
     }
@@ -273,24 +278,7 @@ pub async fn init_pages(path: &Path, config: Arc<Config>) -> Result<Arc<Pages>, 
         .map(|path| (path, content_path.clone(), *should_unwrap_cloudinary))
         .collect();
 
-    let mut pages_vec = try_map(input, path_to_yamd).await?;
-
-    pages_vec.sort_by(|a, b| {
-        b.1.metadata
-            .as_ref()
-            .expect(format!("page should always have a metadata: {}", b.0).as_str())
-            .date
-            .as_ref()
-            .unwrap()
-            .cmp(
-                a.1.metadata
-                    .as_ref()
-                    .expect(format!("page should always have a metadata: {}", a.0).as_str())
-                    .date
-                    .as_ref()
-                    .unwrap(),
-            )
-    });
+    let pages_vec = try_map(input, path_to_yamd).await?;
 
     let mut pages = Pages::new();
     for page in pages_vec {
