@@ -3,6 +3,7 @@ pub mod config;
 pub mod error;
 pub mod fs;
 pub mod json_feed;
+mod metadata;
 pub mod pages;
 pub mod renderer;
 pub mod site;

@@ -45,32 +45,12 @@ impl FeedItem {
             id: page.pid.clone(),
             title: page.get_title().into(),
             image,
-            content_text: page
-                .content
-                .metadata
-                .as_ref()
-                .expect("page should always have a metadata")
-                .preview
-                .clone()
-                .unwrap_or("".into())
-                .into(),
+            content_text: page.metadata.preview.clone().unwrap_or("".into()).into(),
 
             url,
-            date_published: page
-                .content
-                .metadata
-                .as_ref()
-                .expect("page should always have a metadata")
-                .date
-                .unwrap()
-                .format("%+")
-                .to_string()
-                .into(),
+            date_published: page.metadata.date.format("%+").to_string().into(),
             tags: page
-                .content
                 .metadata
-                .as_ref()
-                .expect("page should always have a metadata")
                 .tags
                 .clone()
                 .unwrap_or_default()

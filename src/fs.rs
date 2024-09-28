@@ -48,6 +48,7 @@ pub async fn get_files_by_ext_deep(path: &Path, ext: &[&str]) -> Result<Vec<Path
             }
         }
     }
+    files.sort();
     Ok(files)
 }
 
@@ -103,8 +104,8 @@ mod tests {
 
     #[tokio::test]
     async fn get_crc32_happy_path() -> Result<(), Errors> {
-        let checksum = crc32_checksum(&PathBuf::from("./test/fixtures/content/test.yamd"))?;
-        assert_eq!(checksum, String::from("GlnPfQ"));
+        let checksum = crc32_checksum(&PathBuf::from("./test/fixtures/static/1.png"))?;
+        assert_eq!(checksum, String::from("jBiXwg"));
         Ok(())
     }
 }
