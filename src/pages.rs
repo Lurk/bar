@@ -2,7 +2,7 @@ use crate::{
     config::Config,
     error::Errors,
     fs::{canonicalize_with_context, get_files_by_ext_deep},
-    metadata::Metadata,
+    metadata::{self, Metadata},
     r#async::try_map,
 };
 
@@ -103,18 +103,17 @@ impl Pages {
 
     pub fn add(&mut self, key: String, value: Yamd) {
         let pid: Arc<str> = Arc::from(key.as_str());
+        let metadata = serde_yaml::from_str(
+            value
+                .metadata
+                .as_ref()
+                .expect(format!("{pid} to have metadata").as_str())
+                .as_str(),
+        )
+        .expect(format!("{pid} to have valid yaml metadata\n").as_str());
 
-        let post = Arc::new(Page::new(
-            pid.clone(),
-            value.clone(),
-            serde_yaml::from_str(
-                value
-                    .metadata
-                    .expect(format!("{pid} to have metadata").as_str())
-                    .as_str(),
-            )
-            .expect(format!("{pid} to have valid yaml metadata\n").as_str()),
-        ));
+        let post = Arc::new(Page::new(pid.clone(), value, metadata));
+
         self.pages.insert(pid.clone(), post.clone());
         if let Some(tags) = &post.metadata.tags {
             tags.iter().for_each(|tag| {
