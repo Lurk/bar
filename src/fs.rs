@@ -48,6 +48,7 @@ pub async fn get_files_by_ext_deep(path: &Path, ext: &[&str]) -> Result<Vec<Path
             }
         }
     }
+    files.sort();
     Ok(files)
 }
 
