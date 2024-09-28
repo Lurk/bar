@@ -2,7 +2,7 @@ use crate::{
     config::Config,
     error::Errors,
     fs::{canonicalize_with_context, get_files_by_ext_deep},
-    metadata::{self, Metadata},
+    metadata::Metadata,
     r#async::try_map,
 };
 
@@ -31,10 +31,7 @@ pub struct Page {
 
 impl PartialOrd for Page {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        self.metadata
-            .date
-            .partial_cmp(&other.metadata.date)
-            .map(|o| o.reverse())
+        Some(self.cmp(other))
     }
 }
 
@@ -107,10 +104,10 @@ impl Pages {
             value
                 .metadata
                 .as_ref()
-                .expect(format!("{pid} to have metadata").as_str())
+                .unwrap_or_else(|| panic!("{pid} to have metadata"))
                 .as_str(),
         )
-        .expect(format!("{pid} to have valid yaml metadata\n").as_str());
+        .unwrap_or_else(|_| panic!("{pid} to have valid yaml metadata"));
 
         let post = Arc::new(Page::new(pid.clone(), value, metadata));
 
@@ -130,7 +127,7 @@ impl Pages {
     }
 
     pub fn keys(&self) -> Vec<Arc<str>> {
-        self.pages.keys().map(|k| k.clone()).collect()
+        self.pages.keys().cloned().collect()
     }
 
     pub fn get(&self, pid: &str) -> Option<&Page> {
