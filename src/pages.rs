@@ -246,8 +246,7 @@ async fn path_to_yamd(
     (path, content_path, should_unwrap_cloudinary): (PathBuf, Arc<PathBuf>, bool),
 ) -> Result<(String, Yamd), Errors> {
     let path = canonicalize_with_context(&path).await?;
-    // TODO: remove 'replace' when yamd supports windows line endings https://github.com/Lurk/yamd/issues/58
-    let file_contents = read_to_string(&path).await?.replace("\r\n", "\n");
+    let file_contents = read_to_string(&path).await?;
 
     let mut yamd = deserialize(file_contents.as_str());
     if should_unwrap_cloudinary {
