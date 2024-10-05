@@ -295,7 +295,7 @@ mod test {
     async fn init_from_path_test() {
         let config_path = Path::new("./test/fixtures/");
         let pages = init_pages(
-            &config_path,
+            config_path,
             Arc::new(
                 Config::try_from(<&std::path::Path as Into<PathBuf>>::into(config_path)).unwrap(),
             ),
