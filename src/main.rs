@@ -48,7 +48,7 @@ async fn main() -> Result<(), Errors> {
     subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
 
     let path: &'static PathBuf = Box::leak(Box::new(args.path.clone()));
-    let config: Arc<Config> = Arc::new(Config::try_from(args.path.clone())?);
+    let config: Arc<Config> = Arc::new(Config::try_from(path)?);
     let template_path = args.path.join(&config.template);
 
     let (template_path, pages, site) = try_join!(

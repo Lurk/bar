@@ -1,6 +1,7 @@
 use std::{collections::HashMap, fs::File, path::PathBuf, sync::Arc};
 
 use serde::{Deserialize, Serialize};
+use tracing::{debug, info};
 use url::Url;
 
 use crate::error::{ContextExt, Errors};
@@ -77,10 +78,12 @@ pub struct Config {
     pub template_config: HashMap<Arc<str>, TemplateConfigValue>,
 }
 
-impl TryFrom<PathBuf> for Config {
+impl TryFrom<&PathBuf> for Config {
     type Error = Errors;
-    fn try_from(value: PathBuf) -> Result<Self, Errors> {
+    fn try_from(value: &PathBuf) -> Result<Self, Errors> {
         let config_path = value.join("config.yaml");
+        info!("initializing config");
+        debug!("reading config at: {:?}", config_path);
         let f =
             File::open(&config_path).with_context(format!("config file: {:?}", &config_path))?;
         Ok(serde_yaml::from_reader(f)?)
