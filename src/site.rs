@@ -5,6 +5,7 @@ use std::{
 };
 
 use tokio::fs::{copy, create_dir_all, remove_dir_all};
+use tracing::debug;
 
 use crate::{
     config::Config,
@@ -224,10 +225,10 @@ async fn save_page((dist_folder, page): (Arc<PathBuf>, Arc<Page>)) -> Result<(),
         Page::Static(page) => {
             let destination = dist_folder.join(page.destination.trim_start_matches('/'));
             if let (None, Some(fallback)) = (page.source.as_ref(), page.fallback.as_ref()) {
-                println!("write fallback data to file: {}", destination.display());
+                debug!("write fallback data to file: {}", destination.display());
                 write_file(&destination, fallback).await?;
             } else if let Some(source) = &page.source {
-                println!(
+                debug!(
                     "copy file: {} to {}",
                     source.display(),
                     &destination.display()
@@ -254,14 +255,14 @@ async fn save_page((dist_folder, page): (Arc<PathBuf>, Arc<Page>)) -> Result<(),
                 };
 
                 let path = dist_folder.join(page_path);
-                println!("write to file: {}", path.clone().display());
+                debug!("write to file: {}", path.clone().display());
                 write_file(&path, content).await?;
             }
         }
         Page::Feed(page) => {
             if let Some(content) = &page.content {
                 let path = dist_folder.join(page.path.trim_start_matches('/'));
-                println!("write to file: {}", path.clone().display());
+                debug!("write to file: {}", path.clone().display());
                 write_file(&path, content).await?;
             }
         }
