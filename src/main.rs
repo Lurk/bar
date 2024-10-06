@@ -11,6 +11,7 @@ pub mod syntax_highlight;
 pub mod templating;
 
 use clap::Parser;
+use clap_verbosity_flag::Verbosity;
 use config::Config;
 use error::Errors;
 use renderer::render;
@@ -19,6 +20,9 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use templating::initialize;
 use tokio::try_join;
+use tracing::subscriber;
+use tracing_log::AsTrace;
+use tracing_subscriber::FmtSubscriber;
 
 use crate::fs::canonicalize_with_context;
 use crate::pages::init_pages;
@@ -29,11 +33,20 @@ struct Args {
     /// path to the project directory
     #[clap(default_value = ".")]
     path: PathBuf,
+    #[command(flatten)]
+    verbose: Verbosity,
 }
 
 #[tokio::main]
 async fn main() -> Result<(), Errors> {
     let args = Args::parse();
+
+    let subscriber = FmtSubscriber::builder()
+        .with_max_level(args.verbose.log_level_filter().as_trace())
+        .finish();
+
+    subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
+
     let path: &'static PathBuf = Box::leak(Box::new(args.path.clone()));
     let config: Arc<Config> = Arc::new(Config::try_from(args.path.clone())?);
     let template_path = args.path.join(&config.template);
