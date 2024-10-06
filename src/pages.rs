@@ -16,6 +16,7 @@ use std::{
     sync::Arc,
 };
 use tokio::fs::read_to_string;
+use tracing::info;
 use url::Url;
 use yamd::{
     deserialize,
@@ -222,7 +223,7 @@ async fn process_collapsible(collapsible: &Collapsible) -> Result<Collapsible, E
     Ok(Collapsible::new(collapsible.title.clone(), nodes_vec))
 }
 
-async fn unwrap_cloudinary(yamd: &Yamd) -> Result<Yamd, Errors> {
+async fn unwrap_cloudinary((pid, yamd): (String, Yamd)) -> Result<(String, Yamd), Errors> {
     let mut nodes: Vec<YamdNodes> = Vec::with_capacity(yamd.body.len());
     for node in yamd.body.iter() {
         match node {
@@ -235,19 +236,16 @@ async fn unwrap_cloudinary(yamd: &Yamd) -> Result<Yamd, Errors> {
             _ => nodes.push(node.clone()),
         }
     }
-    Ok(Yamd::new(yamd.metadata.clone(), nodes))
+    Ok((pid, Yamd::new(yamd.metadata.clone(), nodes)))
 }
 
 async fn path_to_yamd(
-    (path, content_path, should_unwrap_cloudinary): (PathBuf, Arc<PathBuf>, bool),
+    (path, content_path): (PathBuf, Arc<PathBuf>),
 ) -> Result<(String, Yamd), Errors> {
     let path = canonicalize_with_context(&path).await?;
     let file_contents = read_to_string(&path).await?;
 
-    let mut yamd = deserialize(file_contents.as_str());
-    if should_unwrap_cloudinary {
-        yamd = unwrap_cloudinary(&yamd).await?;
-    }
+    let yamd = deserialize(file_contents.as_str());
 
     let pid = path
         .with_extension("")
@@ -262,6 +260,7 @@ async fn path_to_yamd(
 
 pub async fn init_pages(path: &Path, config: Arc<Config>) -> Result<Arc<Pages>, Errors> {
     let content_path = Arc::new(canonicalize_with_context(&path.join(&config.content_path)).await?);
+    info!("processing YAMD from {:?}", content_path);
     let should_unwrap_cloudinary = config
         .get("should_unpack_cloudinary".into())
         .map(|v| v.as_bool().unwrap_or(&false))
@@ -270,15 +269,23 @@ pub async fn init_pages(path: &Path, config: Arc<Config>) -> Result<Arc<Pages>, 
     let input = get_files_by_ext_deep(&content_path, &["yamd"])
         .await?
         .into_iter()
-        .map(|path| (path, content_path.clone(), *should_unwrap_cloudinary))
+        .map(|path| (path, content_path.clone()))
         .collect();
 
-    let pages_vec = try_map(input, path_to_yamd).await?;
+    let mut pages_vec = try_map(input, path_to_yamd).await?;
+    info!("processing YAMD complete");
+
+    if *should_unwrap_cloudinary {
+        info!("unwrapping cloudinary");
+        pages_vec = try_map(pages_vec, unwrap_cloudinary).await?;
+        info!("unwrapping cloudinary complete");
+    }
 
     let mut pages = Pages::new();
     for page in pages_vec {
         pages.add(page.0, page.1);
     }
+
     Ok(Arc::new(pages))
 }
 
@@ -295,9 +302,9 @@ mod test {
     async fn init_from_path_test() {
         let config_path = Path::new("./test/fixtures/");
         let pages = init_pages(
-            &config_path,
+            config_path,
             Arc::new(
-                Config::try_from(<&std::path::Path as Into<PathBuf>>::into(config_path)).unwrap(),
+                Config::try_from(&<&std::path::Path as Into<PathBuf>>::into(config_path)).unwrap(),
             ),
         )
         .await
