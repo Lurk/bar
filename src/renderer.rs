@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use rss::{ChannelBuilder, Item};
 use tera::{Context, Tera};
-use tracing::debug;
+use tracing::{debug, info};
 
 use crate::{
     config::Config,
@@ -13,6 +13,7 @@ use crate::{
 };
 
 pub fn render(site: Arc<Site>, config: &Config, tera: &Tera, pages: &Pages) -> Result<(), Errors> {
+    info!("render dynamic pages and feeds");
     let mut feed_items: Vec<FeedItem> = vec![];
 
     while let Some(page) = site.next_unrendered_dynamic_page() {
@@ -86,6 +87,7 @@ pub fn render(site: Arc<Site>, config: &Config, tera: &Tera, pages: &Pages) -> R
             }
         }
     }
+    info!("render dynamic pages and feeds complete");
 
     Ok(())
 }

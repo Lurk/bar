@@ -5,7 +5,7 @@ use std::{
 };
 
 use tokio::fs::{copy, create_dir_all, remove_dir_all};
-use tracing::debug;
+use tracing::{debug, info};
 
 use crate::{
     config::Config,
@@ -200,6 +200,7 @@ impl Site {
     }
 
     pub async fn save(&self) -> Result<(), Errors> {
+        info!("writing data");
         remove_dir_all(&self.dist_folder)
             .await
             .with_context(format!("remove directory: {}", self.dist_folder.display()))?;
@@ -215,7 +216,7 @@ impl Site {
             .collect();
 
         try_for_each(input, save_page).await?;
-
+        info!("writing data complete");
         Ok(())
     }
 }
@@ -287,6 +288,7 @@ fn create_destination_path(source: &Path, prefix: &PathBuf) -> String {
 /// 2. Template files
 /// 3. BAR defaults
 pub async fn init_site(path: &Path, config: Arc<Config>) -> Result<Arc<Site>, Errors> {
+    info!("init static files");
     let site = Arc::new(Site::new(path.join(&config.dist_path)));
     let source_path = path.join(&config.static_source_path);
     let template_static_path = path.join(&config.template).join("static/");
@@ -358,6 +360,7 @@ pub async fn init_site(path: &Path, config: Arc<Config>) -> Result<Arc<Site>, Er
         );
     }
 
+    info!("static files initialization complete");
     Ok(site)
 }
 

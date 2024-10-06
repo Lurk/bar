@@ -15,6 +15,7 @@ use cloudinary::transformation::{
 };
 use std::{collections::HashMap, path::Path, sync::Arc};
 use tera::{Function, Tera, Value};
+use tracing::info;
 use url::Url;
 
 pub fn get_string_arg(args: &HashMap<String, Value>, key: &str) -> Option<String> {
@@ -237,7 +238,9 @@ pub fn initialize(
     posts: Arc<Pages>,
     site: Arc<Site>,
 ) -> Result<Tera, Errors> {
-    let mut tera = Tera::new(format!("{}/**/*.html", template_path.to_str().unwrap()).as_str())?;
+    let templates = format!("{}/**/*.html", template_path.to_str().unwrap());
+    info!("initialize teplates: {}", templates);
+    let mut tera = Tera::new(&templates)?;
     tera.register_function("add_page", add_page(site.clone()));
     tera.register_function("get_static_file", get_static_file(site.clone()));
     tera.register_function("get_pages_by_tag", get_pages_by_tag(posts.clone()));
@@ -249,5 +252,6 @@ pub fn initialize(
     tera.register_function("code", code(init()?));
     tera.register_function("get_image_url", get_image_url(site.clone(), path));
     tera.register_function("add_feed", add_feed(site.clone()));
+    info!("template initialization complete");
     Ok(tera)
 }
