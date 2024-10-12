@@ -110,21 +110,29 @@ impl Pages {
         )
         .unwrap_or_else(|_| panic!("{pid} to have valid yaml metadata"));
 
-        let post = Arc::new(Page::new(pid.clone(), value, metadata));
+        self.push(Page::new(pid.clone(), value, metadata));
+    }
 
-        self.pages.insert(pid.clone(), post.clone());
-        if let Some(tags) = &post.metadata.tags {
-            tags.iter().for_each(|tag| {
-                let tag: Arc<str> = Arc::from(tag.as_str());
-                if let Entry::Vacant(e) = self.tags.entry(tag.clone()) {
-                    let mut val = BTreeSet::new();
-                    val.insert(post.clone());
-                    e.insert(val);
-                } else {
-                    self.tags.get_mut(&tag).unwrap().insert(post.clone());
-                }
-            });
-        }
+    pub fn push(&mut self, page: Page) {
+        let page = Arc::new(page);
+
+        self.pages.insert(page.pid.clone(), page.clone());
+
+        let Some(tags) = &page.metadata.tags else {
+            return;
+        };
+
+        tags.iter().for_each(|tag| {
+            let tag: Arc<str> = Arc::from(tag.as_str());
+            if let Entry::Vacant(entry) = self.tags.entry(tag.clone()) {
+                entry.insert(BTreeSet::from([page.clone()]));
+            } else {
+                self.tags
+                    .get_mut(&tag)
+                    .expect("entry to exist")
+                    .insert(page.clone());
+            }
+        });
     }
 
     pub fn keys(&self) -> Vec<Arc<str>> {
@@ -174,6 +182,50 @@ impl Pages {
             slice.pages.insert(page.clone());
         }
         slice
+    }
+
+    pub fn get_similar(&self, pid: &str, max: usize) -> Vec<Arc<str>> {
+        let Some(page) = self.get(pid) else {
+            return vec![];
+        };
+
+        let Some(tags) = page.metadata.tags.as_ref() else {
+            return vec![];
+        };
+
+        let mut leaderboard: HashMap<Arc<str>, usize> = HashMap::new();
+
+        for tag in tags.iter() {
+            for other in self
+                .tags
+                .get(&Arc::from(tag.as_str()))
+                .unwrap_or_else(|| panic!("{tag} must be present"))
+            {
+                if page.pid == other.pid {
+                    continue;
+                }
+
+                let Some(other_tags) = other.metadata.tags.as_ref() else {
+                    continue;
+                };
+
+                leaderboard.entry(other.pid.clone()).or_insert_with(|| {
+                    other_tags
+                        .iter()
+                        .filter(|other_tag| tags.contains(other_tag))
+                        .count()
+                });
+            }
+        }
+
+        let mut leaderboard: Vec<(&Arc<str>, &usize)> = leaderboard.iter().collect();
+        leaderboard.sort_by(|(_, left), (_, right)| right.cmp(left));
+
+        leaderboard
+            .iter()
+            .take(max)
+            .map(|(pid, _)| (*pid).clone())
+            .collect()
     }
 }
 
@@ -296,7 +348,12 @@ mod test {
         sync::Arc,
     };
 
-    use crate::{config::Config, pages::init_pages};
+    use chrono::prelude::*;
+    use yamd::Yamd;
+
+    use crate::{config::Config, metadata::Metadata, pages::init_pages};
+
+    use super::{Page, Pages};
 
     #[tokio::test]
     async fn init_from_path_test() {
@@ -320,5 +377,98 @@ mod test {
             "test 2".to_string()
         );
         assert_eq!(pages.get_tags().len(), 4);
+    }
+
+    #[test]
+    fn get_similar() {
+        let mut pages = Pages::new();
+        pages.push(Page::new(
+            "1".into(),
+            Yamd::new(None, vec![]),
+            Metadata {
+                title: "1".to_string(),
+                date: Utc::now().into(),
+                image: None,
+                preview: None,
+                tags: Some(vec![
+                    "t1".to_string(),
+                    "t2".to_string(),
+                    "t3".to_string(),
+                    "t4".to_string(),
+                ]),
+                is_draft: None,
+            },
+        ));
+        pages.push(Page::new(
+            "2".into(),
+            Yamd::new(None, vec![]),
+            Metadata {
+                title: "2".to_string(),
+                date: Utc::now().into(),
+                image: None,
+                preview: None,
+                tags: Some(vec!["t1".to_string(), "t7".to_string()]),
+                is_draft: None,
+            },
+        ));
+        pages.push(Page::new(
+            "3".into(),
+            Yamd::new(None, vec![]),
+            Metadata {
+                title: "3".to_string(),
+                date: Utc::now().into(),
+                image: None,
+                preview: None,
+                tags: Some(vec!["t2".to_string(), "t3".to_string(), "t4".to_string()]),
+                is_draft: None,
+            },
+        ));
+        pages.push(Page::new(
+            "4".into(),
+            Yamd::new(None, vec![]),
+            Metadata {
+                title: "4".to_string(),
+                date: Utc::now().into(),
+                image: None,
+                preview: None,
+                tags: Some(vec!["t5".to_string()]),
+                is_draft: None,
+            },
+        ));
+        pages.push(Page::new(
+            "5".into(),
+            Yamd::new(None, vec![]),
+            Metadata {
+                title: "5".to_string(),
+                date: Utc::now().into(),
+                image: None,
+                preview: None,
+                tags: Some(vec![
+                    "t1".to_string(),
+                    "t2".to_string(),
+                    "t3".to_string(),
+                    "t4".to_string(),
+                    "t5".to_string(),
+                ]),
+                is_draft: None,
+            },
+        ));
+        pages.push(Page::new(
+            "6".into(),
+            Yamd::new(None, vec![]),
+            Metadata {
+                title: "6".to_string(),
+                date: Utc::now().into(),
+                image: None,
+                preview: None,
+                tags: Some(vec!["t1".to_string(), "t3".to_string(), "t5".to_string()]),
+                is_draft: None,
+            },
+        ));
+
+        assert_eq!(
+            pages.get_similar("1", 3),
+            vec!["5".into(), "3".into(), "6".into()]
+        );
     }
 }

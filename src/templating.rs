@@ -135,11 +135,27 @@ fn get_pages_by_tag(pages: Arc<Pages>) -> impl Function + 'static {
     }
 }
 
+fn get_similar(pages: Arc<Pages>) -> impl Function + 'static {
+    move |args: &HashMap<String, Value>| {
+        let pid = get_string_arg(args, "pid").expect("pid is required");
+        let limit = get_usize_arg(args, "limit").unwrap_or(3);
+        Ok(tera::to_value(pages.get_similar(&pid, limit))?)
+    }
+}
+
 fn get_page_by_path(pages: Arc<Pages>) -> impl Function + 'static {
     move |args: &HashMap<String, Value>| {
         let path = get_string_arg(args, "path").expect("path is required");
         let pid = path.trim_end_matches(".html");
         let page = pages.get(pid);
+        Ok(tera::to_value(page)?)
+    }
+}
+
+fn get_page_by_pid(pages: Arc<Pages>) -> impl Function + 'static {
+    move |args: &HashMap<String, Value>| {
+        let pid = get_string_arg(args, "pid").expect("pid is required");
+        let page = pages.get(&pid);
         Ok(tera::to_value(page)?)
     }
 }
@@ -245,6 +261,8 @@ pub fn initialize(
     tera.register_function("get_static_file", get_static_file(site.clone()));
     tera.register_function("get_pages_by_tag", get_pages_by_tag(posts.clone()));
     tera.register_function("get_page_by_path", get_page_by_path(posts.clone()));
+    tera.register_function("get_page_by_pid", get_page_by_pid(posts.clone()));
+    tera.register_function("get_similar", get_similar(posts.clone()));
     tera.register_function(
         "prepare_srcset_for_cloudinary_image",
         prepare_srcset_for_cloudinary_image(),
@@ -252,6 +270,7 @@ pub fn initialize(
     tera.register_function("code", code(init()?));
     tera.register_function("get_image_url", get_image_url(site.clone(), path));
     tera.register_function("add_feed", add_feed(site.clone()));
+
     info!("template initialization complete");
     Ok(tera)
 }
