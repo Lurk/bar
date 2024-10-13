@@ -74,8 +74,7 @@ impl Page {
     pub fn get_image(&self, base_url: &Url) -> Option<Url> {
         self.metadata.image.as_ref().map(|image| {
             if image.starts_with("http") {
-                let image = Url::parse(image.as_str()).unwrap();
-                return image;
+                return Url::parse(image.as_str()).unwrap();
             }
 
             let mut url = base_url.clone();
@@ -123,12 +122,11 @@ impl Pages {
         };
 
         tags.iter().for_each(|tag| {
-            let tag: Arc<str> = Arc::from(tag.as_str());
             if let Entry::Vacant(entry) = self.tags.entry(tag.clone()) {
                 entry.insert(BTreeSet::from([page.clone()]));
             } else {
                 self.tags
-                    .get_mut(&tag)
+                    .get_mut(&tag.clone())
                     .expect("entry to exist")
                     .insert(page.clone());
             }
@@ -143,11 +141,11 @@ impl Pages {
         self.pages.get(pid).map(|page| page.as_ref())
     }
 
-    pub fn get_tags(&self) -> HashSet<String> {
-        let mut tags: HashSet<String> = HashSet::new();
+    pub fn get_tags(&self) -> HashSet<Arc<str>> {
+        let mut tags: HashSet<Arc<str>> = HashSet::new();
 
         self.tags.keys().for_each(|tag| {
-            tags.insert(tag.to_string());
+            tags.insert(tag.clone());
         });
         tags
     }
@@ -198,7 +196,7 @@ impl Pages {
         for tag in tags.iter() {
             for other in self
                 .tags
-                .get(&Arc::from(tag.as_str()))
+                .get(tag)
                 .unwrap_or_else(|| panic!("{tag} must be present"))
             {
                 if page.pid == other.pid {
@@ -386,16 +384,11 @@ mod test {
             "1".into(),
             Yamd::new(None, vec![]),
             Metadata {
-                title: "1".to_string(),
+                title: "1".into(),
                 date: Utc::now().into(),
                 image: None,
                 preview: None,
-                tags: Some(vec![
-                    "t1".to_string(),
-                    "t2".to_string(),
-                    "t3".to_string(),
-                    "t4".to_string(),
-                ]),
+                tags: Some(vec!["t1".into(), "t2".into(), "t3".into(), "t4".into()]),
                 is_draft: None,
             },
         ));
@@ -403,11 +396,11 @@ mod test {
             "2".into(),
             Yamd::new(None, vec![]),
             Metadata {
-                title: "2".to_string(),
+                title: "2".into(),
                 date: Utc::now().into(),
                 image: None,
                 preview: None,
-                tags: Some(vec!["t1".to_string(), "t7".to_string()]),
+                tags: Some(vec!["t1".into(), "t7".into()]),
                 is_draft: None,
             },
         ));
@@ -415,11 +408,11 @@ mod test {
             "3".into(),
             Yamd::new(None, vec![]),
             Metadata {
-                title: "3".to_string(),
+                title: "3".into(),
                 date: Utc::now().into(),
                 image: None,
                 preview: None,
-                tags: Some(vec!["t2".to_string(), "t3".to_string(), "t4".to_string()]),
+                tags: Some(vec!["t2".into(), "t3".into(), "t4".into()]),
                 is_draft: None,
             },
         ));
@@ -427,11 +420,11 @@ mod test {
             "4".into(),
             Yamd::new(None, vec![]),
             Metadata {
-                title: "4".to_string(),
+                title: "4".into(),
                 date: Utc::now().into(),
                 image: None,
                 preview: None,
-                tags: Some(vec!["t5".to_string()]),
+                tags: Some(vec!["t5".into()]),
                 is_draft: None,
             },
         ));
@@ -439,16 +432,16 @@ mod test {
             "5".into(),
             Yamd::new(None, vec![]),
             Metadata {
-                title: "5".to_string(),
+                title: "5".into(),
                 date: Utc::now().into(),
                 image: None,
                 preview: None,
                 tags: Some(vec![
-                    "t1".to_string(),
-                    "t2".to_string(),
-                    "t3".to_string(),
-                    "t4".to_string(),
-                    "t5".to_string(),
+                    "t1".into(),
+                    "t2".into(),
+                    "t3".into(),
+                    "t4".into(),
+                    "t5".into(),
                 ]),
                 is_draft: None,
             },
@@ -457,11 +450,11 @@ mod test {
             "6".into(),
             Yamd::new(None, vec![]),
             Metadata {
-                title: "6".to_string(),
+                title: "6".into(),
                 date: Utc::now().into(),
                 image: None,
                 preview: None,
-                tags: Some(vec!["t1".to_string(), "t3".to_string(), "t5".to_string()]),
+                tags: Some(vec!["t1".into(), "t3".into(), "t5".into()]),
                 is_draft: None,
             },
         ));
