@@ -203,24 +203,34 @@ fn prepare_srcset_for_cloudinary_image() -> impl Function + 'static {
 
 fn get_image_url(site: Arc<Site>, path: &'static Path) -> impl Function + 'static {
     move |args: &HashMap<String, Value>| {
-        let crop_mode: CropMode =
+        let transformation: Transformations =
             match (get_usize_arg(args, "width"), get_usize_arg(args, "height")) {
                 (None, None) => return Err(tera::Error::msg("width or height is required")),
-                (None, Some(height)) => CropMode::FillByHeight {
+                (None, Some(height)) => Transformations::Crop(CropMode::FillByHeight {
                     height: height as u32,
                     ar: None,
                     gravity: Some(Gravity::AutoClassic),
-                },
-                (Some(width), None) => CropMode::FillByWidth {
+                }),
+                (Some(width), None) => Transformations::Pad(PadMode::PadByWidth {
                     width: width as u32,
-                    ar: None,
-                    gravity: Some(Gravity::AutoClassic),
-                },
-                (Some(width), Some(height)) => CropMode::Fill {
+                    // TODO control aspect_ratio from template
+                    ar: Some(AspectRatio::Sides(16, 9)),
+                    gravity: Some(Gravity::Center),
+                    background: Some(
+                        Auto {
+                            mode: Some(AutoModes::BorderGradient),
+                            number: Some(Number::Four),
+                            direction: Some(Direction::Vertical),
+                            palette: None,
+                        }
+                        .into(),
+                    ),
+                }),
+                (Some(width), Some(height)) => Transformations::Crop(CropMode::Fill {
                     width: width as u32,
                     height: height as u32,
                     gravity: Some(Gravity::AutoClassic),
-                },
+                }),
             };
         let src = get_string_arg(args, "src").expect("get url from src");
         if src.starts_with('/') {
@@ -238,9 +248,7 @@ fn get_image_url(site: Arc<Site>, path: &'static Path) -> impl Function + 'stati
         let src = Url::parse(src.as_str()).expect("parse url from src");
         match Image::try_from(src.clone()) {
             Ok(image) => {
-                let result = image
-                    .clone()
-                    .add_transformation(Transformations::Crop(crop_mode));
+                let result = image.clone().add_transformation(transformation);
                 Ok(tera::to_value(result.to_string())?)
             }
             Err(_) => Ok(tera::to_value(src.to_string())?),
