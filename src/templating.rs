@@ -50,18 +50,6 @@ fn get_usize_arg(args: &HashMap<String, Value>, key: &str) -> Option<usize> {
     }
 }
 
-fn get_vec_of_usize_arg(args: &HashMap<String, Value>, key: &str) -> Option<Vec<usize>> {
-    match args.get(key) {
-        Some(value) => value.as_array().map(|array| {
-            array
-                .iter()
-                .map(|number| number.as_u64().unwrap() as usize)
-                .collect()
-        }),
-        None => None,
-    }
-}
-
 fn add_page(site: Arc<Site>) -> impl Function + 'static {
     move |args: &HashMap<String, Value>| {
         let path = get_string_arg(args, "path").unwrap_or("/".to_string());
@@ -160,47 +148,6 @@ fn get_page_by_pid(pages: Arc<Pages>) -> impl Function + 'static {
     }
 }
 
-fn prepare_srcset_for_cloudinary_image() -> impl Function + 'static {
-    move |args: &HashMap<String, Value>| {
-        let src = get_string_arg(args, "src").unwrap();
-        if src.starts_with('/') {
-            return Ok(tera::to_value(src)?);
-        }
-        let src = Url::parse(src.as_str()).expect("parse url from src");
-        match Image::try_from(src.clone()) {
-            Ok(image) => {
-                let result: String = get_vec_of_usize_arg(args, "breakpoints")
-                    .unwrap()
-                    .iter()
-                    .map(|width| {
-                        let local_image = image.clone().add_transformation(Transformations::Pad(
-                            PadMode::PadByWidth {
-                                width: *width as u32,
-                                // TODO control aspect_ratio from template
-                                ar: Some(AspectRatio::Sides(16, 9)),
-                                gravity: Some(Gravity::Center),
-                                background: Some(
-                                    Auto {
-                                        mode: Some(AutoModes::BorderGradient),
-                                        number: Some(Number::Four),
-                                        direction: Some(Direction::Vertical),
-                                        palette: None,
-                                    }
-                                    .into(),
-                                ),
-                            },
-                        ));
-                        format!("{} {}w", local_image, width)
-                    })
-                    .collect::<Vec<String>>()
-                    .join(",");
-                Ok(tera::to_value(result)?)
-            }
-            Err(_) => todo!(),
-        }
-    }
-}
-
 fn get_image_url(site: Arc<Site>, path: &'static Path) -> impl Function + 'static {
     move |args: &HashMap<String, Value>| {
         let transformation: Transformations =
@@ -271,10 +218,6 @@ pub fn initialize(
     tera.register_function("get_page_by_path", get_page_by_path(posts.clone()));
     tera.register_function("get_page_by_pid", get_page_by_pid(posts.clone()));
     tera.register_function("get_similar", get_similar(posts.clone()));
-    tera.register_function(
-        "prepare_srcset_for_cloudinary_image",
-        prepare_srcset_for_cloudinary_image(),
-    );
     tera.register_function("code", code(init()?));
     tera.register_function("get_image_url", get_image_url(site.clone(), path));
     tera.register_function("add_feed", add_feed(site.clone()));
