@@ -311,11 +311,6 @@ async fn path_to_yamd(
 pub async fn init_pages(path: &Path, config: Arc<Config>) -> Result<Arc<Pages>, Errors> {
     let content_path = Arc::new(canonicalize_with_context(&path.join(&config.content_path)).await?);
     info!("processing YAMD from {:?}", content_path);
-    let should_unwrap_cloudinary = config
-        .get("should_unpack_cloudinary".into())
-        .map(|v| v.as_bool().unwrap_or(&false))
-        .unwrap_or(&false);
-
     let input = get_files_by_ext_deep(&content_path, &["yamd"])
         .await?
         .into_iter()
@@ -325,7 +320,7 @@ pub async fn init_pages(path: &Path, config: Arc<Config>) -> Result<Arc<Pages>, 
     let mut pages_vec = try_map(input, path_to_yamd).await?;
     info!("processing YAMD complete");
 
-    if *should_unwrap_cloudinary {
+    if config.yamd_processors.convert_cloudinary_embed {
         info!("unwrapping cloudinary");
         pages_vec = try_map(pages_vec, unwrap_cloudinary).await?;
         info!("unwrapping cloudinary complete");

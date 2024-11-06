@@ -61,6 +61,13 @@ fn default_extension() -> Vec<String> {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+pub struct YamdProcessors {
+    /// converts cloudinary embed to image gallery
+    #[serde(default)]
+    pub convert_cloudinary_embed: bool,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Config {
     pub dist_path: PathBuf,
     pub content_path: PathBuf,
@@ -76,6 +83,8 @@ pub struct Config {
     pub title: Arc<str>,
     pub description: Arc<str>,
     pub template_config: HashMap<Arc<str>, TemplateConfigValue>,
+    /// pre render yamd transformations
+    pub yamd_processors: YamdProcessors,
 }
 
 impl TryFrom<&PathBuf> for Config {
