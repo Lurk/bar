@@ -5,5 +5,7 @@ template: '../template/'
 domain: 'https://test.com'
 title: 'test'
 description: 'blog'
+yamd_processors:
+  unwrap_cloudinary_embed: false
 template_config:
-  should_unpack_cloudinary: false
+
