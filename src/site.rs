@@ -200,11 +200,13 @@ impl Site {
     }
 
     pub async fn save(&self) -> Result<(), Errors> {
-        info!("writing data");
+        info!("clean up dist folder");
         remove_dir_all(&self.dist_folder)
             .await
             .with_context(format!("remove directory: {}", self.dist_folder.display()))?;
+        info!("cleanup complete");
 
+        info!("writing data");
         let dist_folder = Arc::new(self.dist_folder.clone());
         let input = self
             .pages
