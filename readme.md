@@ -18,25 +18,28 @@ Configuration file `config.yaml` should be in root folder of a project.
 # destination
 dist_path: './dist'
 # path to folder that contain yamd files
-content_path: './content/' 
+content_path: './content/'
 #path from where get static files
-static_source_path: './static' 
-# Non required filed with white list of allowed file extensions. 
+static_source_path: './static'
+# Non required filed with white list of allowed file extensions.
 # Defaults to ["css", "js", "png", "jpg", "jpeg", "gif", "svg", "webmanifest", "ico", "txt"]
-static_files_extensions: 
+static_files_extensions:
   - txt
   - jpg
   - png
 # path to template
-template: '../hamon/' 
-domain: 'https://blog.com' 
+template: '../hamon/'
+domain: 'https://blog.com'
 title: 'this is the blog'
 description: 'blog'
+yamd_processors:
+  # if set to true BAR will convert Cloudinary [Embed](https://docs.rs/yamd/latest/yamd/nodes/struct.Embed.html)
+  # to [Images](https://docs.rs/yamd/latest/yamd/nodes/struct.Images.html)
+  convert_cloudinary_embed: true
 # hash map to configure template free form, depends on a template
 # will be provided to template
-template_config: 
-  # if set to true BAR will fetch data from Cloudinary on a build time. 
-  should_unpack_cloudinary: false 
+template_config:
+  should_unpack_cloudinary: false
 ```
 
 ## Static files
@@ -48,9 +51,9 @@ BAR will gather static files from:
 3. Defaults from BAR (check out [robots.txt](#robotstxt) section)
 
 If file exists source it will be not overwritten with file from template or BAR. If however you want to overwrite file
-from template with your own version. For example if you want custom CSS, you can add it to the static folder of source. 
+from template with your own version. For example if you want custom CSS, you can add it to the static folder of source.
 
-Only files with allowed extensions will be copied. Default list of extensions: 
+Only files with allowed extensions will be copied. Default list of extensions:
 
 - css
 - js
