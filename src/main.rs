@@ -1,4 +1,5 @@
 pub mod r#async;
+mod cloudinary;
 pub mod config;
 pub mod error;
 pub mod fs;
