@@ -9,7 +9,8 @@ use crate::{
 
 use serde::Serialize;
 use std::{
-    collections::{hash_map::Entry, BTreeSet, HashMap, HashSet},
+    cmp::Ordering,
+    collections::{BTreeSet, HashMap, HashSet},
     path::{Path, PathBuf},
     sync::Arc,
 };
@@ -33,7 +34,13 @@ impl PartialOrd for Page {
 
 impl Ord for Page {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.metadata.date.cmp(&other.metadata.date).reverse()
+        // newest first
+        match self.metadata.date.cmp(&other.metadata.date).reverse() {
+            Ordering::Less => Ordering::Less,
+            // if time is the same sort by pid
+            Ordering::Equal => self.pid.cmp(&other.pid),
+            Ordering::Greater => Ordering::Greater,
+        }
     }
 }
 
@@ -117,14 +124,12 @@ impl Pages {
         };
 
         tags.iter().for_each(|tag| {
-            if let Entry::Vacant(entry) = self.tags.entry(tag.clone()) {
-                entry.insert(BTreeSet::from([page.clone()]));
-            } else {
-                self.tags
-                    .get_mut(&tag.clone())
-                    .expect("entry to exist")
-                    .insert(page.clone());
-            }
+            self.tags
+                .entry(tag.clone())
+                .and_modify(|pages| {
+                    pages.insert(page.clone());
+                })
+                .or_insert(BTreeSet::from([page.clone()]));
         });
     }
 
@@ -397,5 +402,67 @@ mod test {
             pages.get_similar("1", 3),
             vec!["5".into(), "3".into(), "6".into()]
         );
+    }
+
+    #[test]
+    fn cmp_for_page_with_different_times() {
+        let one = Page::new(
+            "1".into(),
+            Yamd::new(None, vec![]),
+            Metadata {
+                title: "1".into(),
+                date: Utc::now().into(),
+                image: None,
+                preview: None,
+                tags: Some(vec!["t1".into(), "t2".into(), "t3".into(), "t4".into()]),
+                is_draft: None,
+            },
+        );
+        let two = Page::new(
+            "2".into(),
+            Yamd::new(None, vec![]),
+            Metadata {
+                title: "2".into(),
+                date: Utc::now().into(),
+                image: None,
+                preview: None,
+                tags: Some(vec!["t1".into(), "t2".into(), "t3".into(), "t4".into()]),
+                is_draft: None,
+            },
+        );
+
+        assert!(one > two);
+    }
+
+    #[test]
+    fn cmp_for_page_with_same_time() {
+        let time = Utc::now();
+
+        let one = Page::new(
+            "1".into(),
+            Yamd::new(None, vec![]),
+            Metadata {
+                title: "1".into(),
+                date: time.into(),
+                image: None,
+                preview: None,
+                tags: Some(vec!["t1".into(), "t2".into(), "t3".into(), "t4".into()]),
+                is_draft: None,
+            },
+        );
+        let two = Page::new(
+            "2".into(),
+            Yamd::new(None, vec![]),
+            Metadata {
+                title: "2".into(),
+                date: time.into(),
+                image: None,
+                preview: None,
+                tags: Some(vec!["t1".into(), "t2".into(), "t3".into(), "t4".into()]),
+                is_draft: None,
+            },
+        );
+
+        assert!(one < two);
     }
 }
