@@ -201,6 +201,10 @@ impl Site {
 
     pub async fn save(&self) -> Result<(), Errors> {
         info!("clean up dist folder");
+        create_dir_all(&self.dist_folder)
+            .await
+            .with_context(format!("create directory: {}", self.dist_folder.display()))?;
+
         remove_dir_all(&self.dist_folder)
             .await
             .with_context(format!("remove directory: {}", self.dist_folder.display()))?;
