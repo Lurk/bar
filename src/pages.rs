@@ -258,8 +258,7 @@ pub async fn init_pages(path: &Path, config: Arc<Config>) -> Result<Arc<Pages>, 
     let input = get_files_by_ext_deep(&content_path, &["yamd"])
         .await?
         .into_iter()
-        .map(|path| (path, content_path.clone()))
-        .collect();
+        .map(|path| (path, content_path.clone()));
 
     let mut pages_vec = try_map(input, path_to_yamd).await?;
     info!("processing YAMD complete");

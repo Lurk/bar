@@ -212,13 +212,13 @@ impl Site {
 
         info!("writing data");
         let dist_folder = Arc::new(self.dist_folder.clone());
-        let input = self
+        let input: Vec<(Arc<PathBuf>, Arc<Page>)> = self
             .pages
             .lock()
             .unwrap()
             .values()
             .cloned()
-            .map(|page| (dist_folder.clone(), page))
+            .map(|page| (dist_folder.clone(), page.clone()))
             .collect();
 
         try_for_each(input, save_page).await?;
