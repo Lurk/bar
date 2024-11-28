@@ -179,17 +179,16 @@ impl Display for BarErr {
 
 #[cfg(test)]
 mod tests {
-    use crate::error::{BarErr, ContextExt, Errors};
+    use crate::error::{BarErr, ContextExt};
 
     use pretty_assertions::assert_eq;
     #[test]
     fn multiple_context() {
         let error_message =
             "Error:\n\nactual error\n\ncontext:\n\t2. second\n\t1. first\n".to_string();
-        let err: Result<(), BarErr> =
-            Err(BarErr::new(Errors::Str("actual error".to_owned()), vec![]))
-                .with_context(|| "first".to_string())
-                .with_context(|| "second".to_string());
+        let err: Result<(), BarErr> = Err("actual error")
+            .with_context(|| "first".to_string())
+            .with_context(|| "second".to_string());
 
         if let Err(bar) = err {
             assert_eq!(bar.to_string(), error_message);
