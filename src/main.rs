@@ -14,7 +14,7 @@ pub mod templating;
 use clap::Parser;
 use clap_verbosity_flag::Verbosity;
 use config::Config;
-use error::Errors;
+use error::BarErr;
 use renderer::render;
 use site::init_site;
 use std::path::PathBuf;
@@ -39,7 +39,7 @@ struct Args {
 }
 
 #[tokio::main]
-async fn main() -> Result<(), Errors> {
+async fn main() -> Result<(), BarErr> {
     let args = Args::parse();
 
     let subscriber = FmtSubscriber::builder()

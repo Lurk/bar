@@ -1,5 +1,5 @@
 use crate::{
-    error::Errors,
+    error::BarErr,
     fs::crc32_checksum,
     pages::Pages,
     site::{DynamicPage, Feed, FeedType, Page, Site, StaticPage},
@@ -208,7 +208,7 @@ pub fn initialize(
     template_path: &Path,
     posts: Arc<Pages>,
     site: Arc<Site>,
-) -> Result<Tera, Errors> {
+) -> Result<Tera, BarErr> {
     let templates = format!("{}/**/*.html", template_path.to_str().unwrap());
     info!("initialize teplates: {}", templates);
     let mut tera = Tera::new(&templates)?;

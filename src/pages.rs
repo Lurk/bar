@@ -1,7 +1,7 @@
 use crate::{
     cloudinary::unwrap_cloudinary,
     config::Config,
-    error::Errors,
+    error::BarErr,
     fs::{canonicalize_with_context, get_files_by_ext_deep},
     metadata::Metadata,
     r#async::try_map,
@@ -235,7 +235,7 @@ impl Default for Pages {
 
 async fn path_to_yamd(
     (path, content_path): (PathBuf, Arc<PathBuf>),
-) -> Result<(String, Yamd), Errors> {
+) -> Result<(String, Yamd), BarErr> {
     let path = canonicalize_with_context(&path).await?;
     let file_contents = read_to_string(&path).await?;
 
@@ -252,7 +252,7 @@ async fn path_to_yamd(
     Ok((pid, yamd))
 }
 
-pub async fn init_pages(path: &Path, config: Arc<Config>) -> Result<Arc<Pages>, Errors> {
+pub async fn init_pages(path: &Path, config: Arc<Config>) -> Result<Arc<Pages>, BarErr> {
     let content_path = Arc::new(canonicalize_with_context(&path.join(&config.content_path)).await?);
     info!("processing YAMD from {:?}", content_path);
     let input = get_files_by_ext_deep(&content_path, &["yamd"])

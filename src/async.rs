@@ -3,15 +3,15 @@ use std::future::Future;
 
 use tokio::task::JoinSet;
 
-use crate::error::Errors;
+use crate::error::BarErr;
 
 /// try_map spawns a future for each item in the iterator and waits for all of them to complete.
 /// If any of the futures return an error, try_map will return that error.
-pub async fn try_map<T, I, F, O, Fut>(input: I, f: F) -> Result<Vec<O>, Errors>
+pub async fn try_map<T, I, F, O, Fut>(input: I, f: F) -> Result<Vec<O>, BarErr>
 where
     I: IntoIterator<Item = T>,
     F: Fn(T) -> Fut + Send + 'static,
-    Fut: Future<Output = Result<O, Errors>> + Send + 'static,
+    Fut: Future<Output = Result<O, BarErr>> + Send + 'static,
     T: Send + Send + 'static,
     O: Send + 'static,
 {
@@ -40,11 +40,11 @@ where
 
 /// try_for_each spawns a future for each item in the iterator and waits for all of them to complete.
 /// If any of the futures return an error, try_for_each will return that error.
-pub async fn try_for_each<T, I, F, Fut>(input: I, f: F) -> Result<(), Errors>
+pub async fn try_for_each<T, I, F, Fut>(input: I, f: F) -> Result<(), BarErr>
 where
     I: IntoIterator<Item = T>,
     F: Fn(T) -> Fut + Send + 'static,
-    Fut: Future<Output = Result<(), Errors>> + Send + 'static,
+    Fut: Future<Output = Result<(), BarErr>> + Send + 'static,
     T: Send + Send + 'static,
 {
     let mut set = JoinSet::new();

@@ -4,24 +4,48 @@ use std::{
     path::StripPrefixError,
 };
 
+use itertools::Itertools;
 use tokio::task::JoinError;
 use url::ParseError;
 
-pub struct Context<V, E>(V, E);
-
-pub trait ContextExt<T, E> {
-    fn with_context<V>(self, v: V) -> Result<T, Context<V, E>>;
+#[derive(Debug)]
+pub struct BarErr {
+    err: Errors,
+    context: Vec<String>,
 }
 
-impl<T, E> ContextExt<T, E> for Result<T, E> {
-    fn with_context<V>(self, v: V) -> Result<T, Context<V, E>> {
-        self.map_err(|e| Context(v, e))
+impl BarErr {
+    pub fn new(err: Errors, context: Vec<String>) -> Self {
+        Self { err, context }
     }
 }
 
+pub trait ContextExt<T> {
+    fn with_context<V>(self, v: V) -> Result<T, BarErr>
+    where
+        V: FnOnce() -> String;
+}
+
+impl<T, E> ContextExt<T> for Result<T, E>
+where
+    E: Into<BarErr>,
+{
+    fn with_context<V>(self, v: V) -> Result<T, BarErr>
+    where
+        V: FnOnce() -> String,
+    {
+        self.map_err(|e| {
+            let mut err: BarErr = e.into();
+            err.context.push(v());
+            err
+        })
+    }
+}
+
+#[derive(Debug)]
 pub enum Errors {
-    FileNotFound(String, io::Error),
-    ConfigFileNotValid(serde_yaml::Error),
+    IO(io::Error),
+    YamlParseError(serde_yaml::Error),
     TerraError(tera::Error),
     OsStringError(std::ffi::OsString),
     BinErr(bincode::Error),
@@ -31,104 +55,143 @@ pub enum Errors {
     JoinError(JoinError),
 }
 
-impl From<io::Error> for Errors {
+impl From<io::Error> for BarErr {
     fn from(err: io::Error) -> Self {
-        Errors::FileNotFound("".to_string(), err)
+        BarErr {
+            err: Errors::IO(err),
+            context: vec![],
+        }
     }
 }
 
-impl From<serde_yaml::Error> for Errors {
+impl From<serde_yaml::Error> for BarErr {
     fn from(err: serde_yaml::Error) -> Self {
-        Errors::ConfigFileNotValid(err)
+        BarErr {
+            err: Errors::YamlParseError(err),
+            context: vec![],
+        }
     }
 }
 
-impl From<tera::Error> for Errors {
+impl From<tera::Error> for BarErr {
     fn from(err: tera::Error) -> Self {
-        Errors::TerraError(err)
+        BarErr {
+            err: Errors::TerraError(err),
+            context: vec![],
+        }
     }
 }
 
-impl From<Context<String, io::Error>> for Errors {
-    fn from(err: Context<String, io::Error>) -> Self {
-        Errors::FileNotFound(err.0, err.1)
-    }
-}
-
-impl From<std::ffi::OsString> for Errors {
+impl From<std::ffi::OsString> for BarErr {
     fn from(err: std::ffi::OsString) -> Self {
-        Errors::OsStringError(err)
+        BarErr {
+            err: Errors::OsStringError(err),
+            context: vec![],
+        }
     }
 }
 
-impl From<bincode::Error> for Errors {
+impl From<bincode::Error> for BarErr {
     fn from(err: bincode::Error) -> Self {
-        Errors::BinErr(err)
+        BarErr {
+            err: Errors::BinErr(err),
+            context: vec![],
+        }
     }
 }
 
-impl From<StripPrefixError> for Errors {
+impl From<StripPrefixError> for BarErr {
     fn from(err: StripPrefixError) -> Self {
-        Errors::StripPrefixError(err)
+        BarErr {
+            err: Errors::StripPrefixError(err),
+            context: vec![],
+        }
     }
 }
 
-impl From<ParseError> for Errors {
+impl From<ParseError> for BarErr {
     fn from(err: ParseError) -> Self {
-        Errors::ParseError(err)
+        BarErr {
+            err: Errors::ParseError(err),
+            context: vec![],
+        }
     }
 }
 
-impl From<String> for Errors {
+impl From<String> for BarErr {
     fn from(err: String) -> Self {
-        Errors::Str(err)
+        BarErr {
+            err: Errors::Str(err),
+            context: vec![],
+        }
     }
 }
 
-impl From<&str> for Errors {
+impl From<&str> for BarErr {
     fn from(err: &str) -> Self {
-        Errors::Str(err.to_string())
+        BarErr {
+            err: Errors::Str(err.to_string()),
+            context: vec![],
+        }
     }
 }
 
-impl From<JoinError> for Errors {
+impl From<JoinError> for BarErr {
     fn from(err: JoinError) -> Self {
-        Errors::JoinError(err)
+        BarErr {
+            err: Errors::JoinError(err),
+            context: vec![],
+        }
     }
 }
 
 impl Display for Errors {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Errors::FileNotFound(context, err) => {
-                write!(f, "File {} not found:\n {}", context, err)
-            }
-            Errors::ConfigFileNotValid(err) => write!(f, "Config file not valid:\n {}", err),
-            Errors::TerraError(err) => write!(f, "Terra error:\n {}", err),
-            Errors::OsStringError(err) => write!(f, "OsString error:\n {:?}", err),
-            Errors::BinErr(err) => write!(f, "Bincode error:\n {:?}", err),
-            Errors::StripPrefixError(err) => write!(f, "Strip prefix error:\n {:?}", err),
-            Errors::ParseError(err) => write!(f, "Parse error:\n {:?}", err),
-            Errors::Str(err) => write!(f, "{}", err),
-            Errors::JoinError(err) => write!(f, "Join error:\n {:?}", err),
+            Errors::IO(err) => f.write_str(err.to_string().as_str()),
+            Errors::YamlParseError(err) => f.write_str(err.to_string().as_str()),
+            Errors::TerraError(err) => f.write_str(err.to_string().as_str()),
+            Errors::OsStringError(err) => f.write_str(format!("{:#?}", err).as_str()),
+            Errors::BinErr(err) => f.write_str(err.to_string().as_str()),
+            Errors::StripPrefixError(err) => f.write_str(err.to_string().as_str()),
+            Errors::ParseError(err) => f.write_str(err.to_string().as_str()),
+            Errors::Str(err) => f.write_str(err.to_string().as_str()),
+            Errors::JoinError(err) => f.write_str(err.to_string().as_str()),
         }
     }
 }
 
-impl Debug for Errors {
+impl Display for BarErr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Errors::FileNotFound(context, err) => {
-                write!(f, "File {} not found:\n {:?}", context, err)
-            }
-            Errors::ConfigFileNotValid(err) => write!(f, "Config file not valid:\n {:#?}", err),
-            Errors::TerraError(err) => write!(f, "Terra error:\n {:#?}", err),
-            Errors::OsStringError(err) => write!(f, "OsString error:\n {:#?}", err),
-            Errors::BinErr(err) => write!(f, "Bincode error:\n {:#?}", err),
-            Errors::StripPrefixError(err) => write!(f, "Strip prefix error:\n {:#?}", err),
-            Errors::ParseError(err) => write!(f, "Parse error:\n {:#?}", err),
-            Errors::Str(err) => write!(f, "{}", err),
-            Errors::JoinError(err) => write!(f, "Join error:\n {:#?}", err),
-        }
+        writeln!(
+            f,
+            "Error:\n\n{}\n\ncontext:\n{}",
+            self.err,
+            self.context
+                .iter()
+                .enumerate()
+                .rev()
+                .map(|(pos, message)| format!("\t{}. {message}", pos + 1))
+                .join("\n")
+        )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::error::{BarErr, ContextExt};
+
+    use pretty_assertions::assert_eq;
+    #[test]
+    fn multiple_context() {
+        let error_message =
+            "Error:\n\nactual error\n\ncontext:\n\t2. second\n\t1. first\n".to_string();
+        let err: Result<(), BarErr> = Err("actual error")
+            .with_context(|| "first".to_string())
+            .with_context(|| "second".to_string());
+
+        if let Err(bar) = err {
+            assert_eq!(bar.to_string(), error_message);
+        };
     }
 }
