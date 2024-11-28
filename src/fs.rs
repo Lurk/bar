@@ -11,24 +11,17 @@ use tokio::{
     io::AsyncWriteExt,
 };
 
-use crate::error::{ContextExt, Errors};
+use crate::error::{BarErr, ContextExt};
 
-pub async fn canonicalize_with_context(path: &PathBuf) -> Result<PathBuf, Errors> {
-    Ok(canonicalize(path)
+pub async fn canonicalize_with_context(path: &PathBuf) -> Result<PathBuf, BarErr> {
+    canonicalize(path)
         .await
-        .with_context(format!("canonicalize: {}", path.display()))?)
-}
-
-pub async fn canonicalize_and_ensure_path(path: &PathBuf) -> Result<PathBuf, Errors> {
-    create_dir_all(path)
-        .await
-        .with_context(format!("create_dir_all: {}", path.display()))?;
-    canonicalize_with_context(path).await
+        .with_context(|| format!("canonicalize path: {:?}", path))
 }
 
 /// Get all files with given extensions in the given directory and its subdirectories.
 /// The extension should not include the dot.
-pub async fn get_files_by_ext_deep(path: &Path, ext: &[&str]) -> Result<Vec<PathBuf>, Errors> {
+pub async fn get_files_by_ext_deep(path: &Path, ext: &[&str]) -> Result<Vec<PathBuf>, BarErr> {
     let mut files = Vec::new();
     let mut dirs = vec![path.to_path_buf()];
     while let Some(dir) = dirs.pop() {
@@ -52,7 +45,7 @@ pub async fn get_files_by_ext_deep(path: &Path, ext: &[&str]) -> Result<Vec<Path
     Ok(files)
 }
 
-pub async fn write_file(path: &Path, content: &Arc<str>) -> Result<(), Errors> {
+pub async fn write_file(path: &Path, content: &Arc<str>) -> Result<(), BarErr> {
     let prefix = path.parent().unwrap();
     create_dir_all(prefix).await?;
     let mut file = OpenOptions::new()
@@ -65,7 +58,7 @@ pub async fn write_file(path: &Path, content: &Arc<str>) -> Result<(), Errors> {
     Ok(())
 }
 
-pub fn crc32_checksum(path: &PathBuf) -> Result<String, Errors> {
+pub fn crc32_checksum(path: &PathBuf) -> Result<String, BarErr> {
     let input = File::open(path)?;
     let mut reader = BufReader::new(input);
 
@@ -90,7 +83,7 @@ mod tests {
     use super::*;
 
     #[tokio::test]
-    async fn get_files_happy_path() -> Result<(), Errors> {
+    async fn get_files_happy_path() -> Result<(), BarErr> {
         let files = get_files_by_ext_deep(&PathBuf::from("./test/"), &["yamd"]).await?;
         assert_eq!(
             files,
@@ -103,7 +96,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn get_crc32_happy_path() -> Result<(), Errors> {
+    async fn get_crc32_happy_path() -> Result<(), BarErr> {
         let checksum = crc32_checksum(&PathBuf::from("./test/fixtures/static/1.png"))?;
         assert_eq!(checksum, String::from("jBiXwg"));
         Ok(())

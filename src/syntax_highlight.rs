@@ -8,7 +8,7 @@ use syntect::{
 };
 use tera::{Function, Value};
 
-use crate::{error::Errors, templating::get_arc_str_arg};
+use crate::{error::BarErr, templating::get_arc_str_arg};
 
 fn map_language(supported: &[Arc<str>], language: Arc<str>) -> Result<Arc<str>, tera::Error> {
     let language: Arc<str> = match language.to_lowercase().as_ref() {
@@ -50,7 +50,7 @@ pub fn code(syntax_set: Arc<SyntaxSet>) -> impl Function + 'static {
     }
 }
 
-pub fn init() -> Result<Arc<SyntaxSet>, Errors> {
+pub fn init() -> Result<Arc<SyntaxSet>, BarErr> {
     Ok(Arc::new(from_uncompressed_data(include_bytes!(
         "./syntaxes.bin"
     ))?))

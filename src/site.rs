@@ -9,7 +9,7 @@ use tracing::{debug, info};
 
 use crate::{
     config::Config,
-    error::{ContextExt, Errors},
+    error::{BarErr, ContextExt},
     fs::{canonicalize_with_context, get_files_by_ext_deep, write_file},
     r#async::try_for_each,
 };
@@ -199,15 +199,15 @@ impl Site {
             });
     }
 
-    pub async fn save(&self) -> Result<(), Errors> {
+    pub async fn save(&self) -> Result<(), BarErr> {
         info!("clean up dist folder");
         create_dir_all(&self.dist_folder)
             .await
-            .with_context(format!("create directory: {}", self.dist_folder.display()))?;
+            .with_context(|| format!("create directory: {}", self.dist_folder.display()))?;
 
         remove_dir_all(&self.dist_folder)
             .await
-            .with_context(format!("remove directory: {}", self.dist_folder.display()))?;
+            .with_context(|| format!("remove directory: {}", self.dist_folder.display()))?;
         info!("cleanup complete");
 
         info!("writing data");
@@ -227,7 +227,7 @@ impl Site {
     }
 }
 
-async fn save_page((dist_folder, page): (Arc<PathBuf>, Arc<Page>)) -> Result<(), Errors> {
+async fn save_page((dist_folder, page): (Arc<PathBuf>, Arc<Page>)) -> Result<(), BarErr> {
     match page.as_ref() {
         Page::Static(page) => {
             let destination = dist_folder.join(page.destination.trim_start_matches('/'));
@@ -243,12 +243,10 @@ async fn save_page((dist_folder, page): (Arc<PathBuf>, Arc<Page>)) -> Result<(),
                 let prefix = destination.parent().unwrap();
                 create_dir_all(prefix)
                     .await
-                    .with_context(format!("create directory: {}", prefix.display()))?;
-                copy(source, &destination).await.with_context(format!(
-                    "copy file: {:?} -> {}",
-                    source,
-                    &destination.display()
-                ))?;
+                    .with_context(|| format!("create directory: {}", prefix.display()))?;
+                copy(source, &destination).await.with_context(|| {
+                    format!("copy file: {:?} -> {}", source, &destination.display())
+                })?;
             } else {
                 panic!("source or fallback is required");
             }
@@ -293,7 +291,7 @@ fn create_destination_path(source: &Path, prefix: &PathBuf) -> String {
 /// 1. Source files
 /// 2. Template files
 /// 3. BAR defaults
-pub async fn init_site(path: &Path, config: Arc<Config>) -> Result<Arc<Site>, Errors> {
+pub async fn init_site(path: &Path, config: Arc<Config>) -> Result<Arc<Site>, BarErr> {
     info!("init static files");
     let site = Arc::new(Site::new(path.join(&config.dist_path)));
     let source_path = path.join(&config.static_source_path);

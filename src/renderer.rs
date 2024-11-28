@@ -6,13 +6,13 @@ use tracing::{debug, info};
 
 use crate::{
     config::Config,
-    error::Errors,
+    error::BarErr,
     json_feed::{FeedItem, JsonFeedBuilder},
     pages::Pages,
     site::{FeedType, Site},
 };
 
-pub fn render(site: Arc<Site>, config: &Config, tera: &Tera, pages: &Pages) -> Result<(), Errors> {
+pub fn render(site: Arc<Site>, config: &Config, tera: &Tera, pages: &Pages) -> Result<(), BarErr> {
     info!("render dynamic pages and feeds");
     let mut feed_items: Vec<FeedItem> = vec![];
 

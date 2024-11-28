@@ -6,9 +6,9 @@ use yamd::{
     Yamd,
 };
 
-use crate::error::Errors;
+use crate::error::BarErr;
 
-async fn cloudinary_gallery_to_image_gallery(embed: &Embed) -> Result<Images, Errors> {
+async fn cloudinary_gallery_to_image_gallery(embed: &Embed) -> Result<Images, BarErr> {
     if let Some((cloud_name, tag)) = embed.args.split_once('&') {
         let mut tags = get_tags(cloud_name.into(), tag.into())
             .await
@@ -35,7 +35,7 @@ async fn cloudinary_gallery_to_image_gallery(embed: &Embed) -> Result<Images, Er
 }
 
 #[async_recursion]
-async fn process_collapsible(collapsible: &Collapsible) -> Result<Collapsible, Errors> {
+async fn process_collapsible(collapsible: &Collapsible) -> Result<Collapsible, BarErr> {
     let mut nodes_vec: Vec<YamdNodes> = Vec::with_capacity(collapsible.body.len());
     for node in collapsible.body.iter() {
         match node {
@@ -51,7 +51,7 @@ async fn process_collapsible(collapsible: &Collapsible) -> Result<Collapsible, E
     Ok(Collapsible::new(collapsible.title.clone(), nodes_vec))
 }
 
-pub async fn unwrap_cloudinary((pid, yamd): (String, Yamd)) -> Result<(String, Yamd), Errors> {
+pub async fn unwrap_cloudinary((pid, yamd): (String, Yamd)) -> Result<(String, Yamd), BarErr> {
     let mut nodes: Vec<YamdNodes> = Vec::with_capacity(yamd.body.len());
     for node in yamd.body.iter() {
         match node {
