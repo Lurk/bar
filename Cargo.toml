@@ -25,7 +25,7 @@ numeric-sort = "0.1.4"
 tracing = "0.1.41"
 tracing-subscriber = "0.3.19"
 tracing-log = "0.2.0"
-itertools = "0.13.0"
+itertools = "0.14.0"
 
 [dev-dependencies]
 pretty_assertions = "1.4.1"

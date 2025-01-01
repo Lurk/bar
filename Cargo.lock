@@ -159,7 +159,7 @@ dependencies = [
  "cloudinary",
  "crc32fast",
  "data-encoding",
- "itertools",
+ "itertools 0.14.0",
  "numeric-sort",
  "pretty_assertions",
  "rss",
@@ -347,7 +347,7 @@ checksum = "3ed176266dc66a68078839530b7b9bd630f118ebc49dcf5b5dafe2a852bae1e2"
 dependencies = [
  "anyhow",
  "chrono",
- "itertools",
+ "itertools 0.13.0",
  "mime",
  "reqwest",
  "serde",
@@ -1114,6 +1114,15 @@ name = "itertools"
 version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "413ee7dfc52ee1a4949ceeb7dbc8a33f2d6c088194d9f922fb8318faf1f01186"
+dependencies = [
+ "either",
+]
+
+[[package]]
+name = "itertools"
+version = "0.14.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2b192c782037fadd9cfa75548310488aabdbf3d2da73885b31bd0abd03351285"
 dependencies = [
  "either",
 ]
