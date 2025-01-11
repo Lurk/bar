@@ -16,6 +16,8 @@ fn map_language(supported: &[Arc<str>], language: Arc<str>) -> Result<Arc<str>, 
         "ts" | "typescript" | "jsx" => "TypeScriptReact".into(),
         "rs" | "rust" => "Rust".into(),
         "bash" | "sh" => "Bourne Again Shell (bash)".into(),
+        "yaml" | "yml" => "YAML".into(),
+        "md" | "yamd" => "Markdown".into(),
         _ => language,
     };
     if supported.contains(&language) {
