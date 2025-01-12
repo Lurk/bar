@@ -156,7 +156,7 @@ fn get_image_url(site: Arc<Site>, path: &'static Path) -> impl Function + 'stati
                 (None, Some(height)) => Transformations::Crop(CropMode::FillByHeight {
                     height: height as u32,
                     ar: None,
-                    gravity: Some(Gravity::AutoClassic),
+                    gravity: Some(Gravity::Center),
                 }),
                 (Some(width), None) => Transformations::Pad(PadMode::PadByWidth {
                     width: width as u32,
@@ -176,7 +176,7 @@ fn get_image_url(site: Arc<Site>, path: &'static Path) -> impl Function + 'stati
                 (Some(width), Some(height)) => Transformations::Crop(CropMode::Fill {
                     width: width as u32,
                     height: height as u32,
-                    gravity: Some(Gravity::AutoClassic),
+                    gravity: Some(Gravity::Center),
                 }),
             };
         let src = get_string_arg(args, "src").expect("get url from src");
