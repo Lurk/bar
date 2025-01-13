@@ -341,9 +341,9 @@ checksum = "f46ad14479a25103f283c0f10005961cf086d8dc42205bb44c46ac563475dca6"
 
 [[package]]
 name = "cloudinary"
-version = "0.8.0"
+version = "0.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3ed176266dc66a68078839530b7b9bd630f118ebc49dcf5b5dafe2a852bae1e2"
+checksum = "bc05f8a3f12f01ddeb8b92cea07cfce5f0f5b0289f7f904b0ed8a443c92b835c"
 dependencies = [
  "anyhow",
  "chrono",
