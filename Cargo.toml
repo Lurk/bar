@@ -10,7 +10,7 @@ clap = { version = "4.5.26", features = ["derive"] }
 clap-verbosity-flag = "3.0.2"
 crc32fast = "1.4.2"
 cloudinary = { version = "0.8.1" }
-data-encoding = "2.6.0"
+data-encoding = "2.7.0"
 serde = { version = "1.0.217", features = ["derive", "rc"] }
 serde_yaml = "0.9.34"
 syntect = { version = "5.2.0", features = ["dump-load"] }
