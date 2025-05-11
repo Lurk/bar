@@ -192,13 +192,17 @@ fn get_image_url(site: Arc<Site>, path: &'static Path) -> impl Function + 'stati
 
             return Ok(tera::to_value(src)?);
         }
-        let src = Url::parse(src.as_str()).expect("parse url from src");
-        match Image::try_from(src.clone()) {
-            Ok(image) => {
-                let result = image.clone().add_transformation(transformation);
-                Ok(tera::to_value(result.to_string())?)
+        if !src.is_empty() {
+            let src = Url::parse(src.as_str()).expect("parse url from src");
+            match Image::try_from(src.clone()) {
+                Ok(image) => {
+                    let result = image.clone().add_transformation(transformation);
+                    Ok(tera::to_value(result.to_string())?)
+                }
+                Err(_) => Ok(tera::to_value(src.to_string())?),
             }
-            Err(_) => Ok(tera::to_value(src.to_string())?),
+        } else {
+            Ok(tera::to_value(src)?)
         }
     }
 }
