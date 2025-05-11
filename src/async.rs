@@ -58,9 +58,41 @@ where
             set.spawn(f(item));
         }
         while let Some(res) = set.join_next().await {
-            let _ = res??;
+            let _: () = res??;
         }
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::{Arc, Mutex};
+
+    use super::*;
+
+    #[tokio::test]
+    async fn test_try_map() {
+        let input = vec![1, 2, 3, 4, 5];
+        let result = try_map(input, |x| async move { Ok(x * 2) }).await.unwrap();
+        assert_eq!(result, vec![2, 4, 6, 8, 10]);
+    }
+
+    #[tokio::test]
+    async fn test_try_for_each() {
+        let input = vec![1, 2, 3, 4, 5];
+        let sum: Arc<Mutex<usize>> = Arc::from(Mutex::from(0));
+        let sum_clone = sum.clone();
+        try_for_each(input, move |_| {
+            let sum = sum.clone();
+            async move {
+                let mut sum = sum.lock().unwrap();
+                *sum += 1;
+                Ok(())
+            }
+        })
+        .await
+        .expect("should not fail");
+        assert_eq!(*sum_clone.lock().unwrap(), 5);
+    }
 }
