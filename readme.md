@@ -2,15 +2,40 @@
 
 # BAR
 
-Static web site generator
+Static web site generator.
 
 ## Usage
 
+### Build BAR project. [default]
+
 ```shell
-bar <path to bar project>
+Usage: bar build [OPTIONS] [PATH]
+
+Arguments:
+  [PATH]  Path to the project directory [default: .]
+
+Options:
+  -v, --verbose...  Increase logging verbosity
+  -q, --quiet...    Decrease logging verbosity
+  -h, --help        Print help
 ```
 
-## bar project configuration
+### Create a new article in the current directory.
+
+```shell
+Usage: bar article [OPTIONS] <TITLE>
+
+Arguments:
+  <TITLE>  Title of the article will be used as the file name
+
+Options:
+  -f, --force       By default BAR will fail if article with the same title already exists. Use this flag to overwrite exiting one
+  -v, --verbose...  Increase logging verbosity
+  -q, --quiet...    Decrease logging verbosity
+  -h, --help        Print help
+```
+
+## BAR project configuration
 
 Configuration file `config.yaml` should be in root folder of a project.
 

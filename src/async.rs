@@ -58,7 +58,7 @@ where
             set.spawn(f(item));
         }
         while let Some(res) = set.join_next().await {
-            let _ = res??;
+            let _: () = res??;
         }
     }
 
