@@ -5,16 +5,17 @@ use tera::{Context, Tera};
 use tracing::{debug, info};
 
 use crate::{
-    config::Config,
     error::BarErr,
     json_feed::{FeedItem, JsonFeedBuilder},
     pages::Pages,
     site::{FeedType, Site},
+    CONFIG,
 };
 
-pub fn render(site: Arc<Site>, config: &Config, tera: &Tera, pages: &Pages) -> Result<(), BarErr> {
+pub fn render(site: Arc<Site>, tera: &Tera, pages: &Pages) -> Result<(), BarErr> {
     info!("render dynamic pages and feeds");
     let mut feed_items: Vec<FeedItem> = vec![];
+    let config = CONFIG.get().expect("Config to be initialized");
 
     while let Some(page) = site.next_unrendered_dynamic_page() {
         debug!("Rendering page: {}", page.path);

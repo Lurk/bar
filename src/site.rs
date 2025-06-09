@@ -8,10 +8,10 @@ use tokio::fs::{copy, create_dir_all, remove_dir_all};
 use tracing::{debug, info};
 
 use crate::{
-    config::Config,
     error::{BarErr, ContextExt},
     fs::{canonicalize_with_context, get_files_by_ext_deep, write_file},
     r#async::try_for_each,
+    CONFIG, PATH,
 };
 
 #[derive(Debug, Clone, PartialEq)]
@@ -291,11 +291,13 @@ fn create_destination_path(source: &Path, prefix: &PathBuf) -> String {
 /// 1. Source files
 /// 2. Template files
 /// 3. BAR defaults
-pub async fn init_site(path: &Path, config: Arc<Config>) -> Result<Arc<Site>, BarErr> {
+pub async fn init_site() -> Result<Arc<Site>, BarErr> {
     info!("init static files");
-    let site = Arc::new(Site::new(path.join(&config.dist_path)));
-    let source_path = path.join(&config.static_source_path);
-    let template_static_path = path.join(&config.template).join("static/");
+    let base_path = PATH.get().expect("Path to be initialized");
+    let config = CONFIG.get().expect("Config to be initialized");
+    let site = Arc::new(Site::new(base_path.join(&config.dist_path)));
+    let source_path = base_path.join(&config.static_source_path);
+    let template_static_path = base_path.join(&config.template).join("static/");
     let (source_path, template_static_path) = tokio::try_join!(
         canonicalize_with_context(&source_path),
         canonicalize_with_context(&template_static_path)

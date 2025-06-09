@@ -4,6 +4,7 @@ use crate::{
     pages::Pages,
     site::{DynamicPage, Feed, FeedType, Page, Site, StaticPage},
     syntax_highlight::{code, init},
+    PATH,
 };
 use cloudinary::transformation::{
     aspect_ratio::AspectRatio,
@@ -148,7 +149,7 @@ fn get_page_by_pid(pages: Arc<Pages>) -> impl Function + 'static {
     }
 }
 
-fn get_image_url(site: Arc<Site>, path: &'static Path) -> impl Function + 'static {
+fn get_image_url(site: Arc<Site>) -> impl Function + 'static {
     move |args: &HashMap<String, Value>| {
         let transformation: Transformations =
             match (get_usize_arg(args, "width"), get_usize_arg(args, "height")) {
@@ -184,7 +185,11 @@ fn get_image_url(site: Arc<Site>, path: &'static Path) -> impl Function + 'stati
             site.add_page(
                 StaticPage {
                     destination: src.trim().into(),
-                    source: Some(path.join(src.trim().trim_start_matches('/'))),
+                    source: Some(
+                        PATH.get()
+                            .expect("Path to be initialized")
+                            .join(src.trim().trim_start_matches('/')),
+                    ),
                     fallback: None,
                 }
                 .into(),
@@ -208,7 +213,6 @@ fn get_image_url(site: Arc<Site>, path: &'static Path) -> impl Function + 'stati
 }
 
 pub fn initialize(
-    path: &'static Path,
     template_path: &Path,
     posts: Arc<Pages>,
     site: Arc<Site>,
@@ -223,7 +227,7 @@ pub fn initialize(
     tera.register_function("get_page_by_pid", get_page_by_pid(posts.clone()));
     tera.register_function("get_similar", get_similar(posts.clone()));
     tera.register_function("code", code(init()?));
-    tera.register_function("get_image_url", get_image_url(site.clone(), path));
+    tera.register_function("get_image_url", get_image_url(site.clone()));
     tera.register_function("add_feed", add_feed(site.clone()));
 
     info!("template initialization complete");

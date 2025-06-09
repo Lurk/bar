@@ -1,17 +1,17 @@
 use crate::{
     cloudinary::unwrap_cloudinary,
-    config::Config,
     error::BarErr,
     fs::{canonicalize_with_context, get_files_by_ext_deep},
     metadata::Metadata,
     r#async::try_map,
+    CONFIG, PATH,
 };
 
 use serde::Serialize;
 use std::{
     cmp::Ordering,
     collections::{BTreeSet, HashMap, HashSet},
-    path::{Path, PathBuf},
+    path::PathBuf,
     sync::Arc,
 };
 use tokio::fs::read_to_string;
@@ -252,8 +252,19 @@ async fn path_to_yamd(
     Ok((pid, yamd))
 }
 
-pub async fn init_pages(path: &Path, config: Arc<Config>) -> Result<Arc<Pages>, BarErr> {
-    let content_path = Arc::new(canonicalize_with_context(&path.join(&config.content_path)).await?);
+pub async fn init_pages() -> Result<Arc<Pages>, BarErr> {
+    let content_path = Arc::new(
+        canonicalize_with_context(
+            &PATH.get().expect("Path to be initialized").join(
+                CONFIG
+                    .get()
+                    .expect("Config to be initialized")
+                    .content_path
+                    .clone(),
+            ),
+        )
+        .await?,
+    );
     info!("processing YAMD from {:?}", content_path);
     let input = get_files_by_ext_deep(&content_path, &["yamd"])
         .await?
@@ -263,7 +274,12 @@ pub async fn init_pages(path: &Path, config: Arc<Config>) -> Result<Arc<Pages>, 
     let mut pages_vec = try_map(input, path_to_yamd).await?;
     info!("processing YAMD complete");
 
-    if config.yamd_processors.convert_cloudinary_embed {
+    if CONFIG
+        .get()
+        .expect("Config to be initialized")
+        .yamd_processors
+        .convert_cloudinary_embed
+    {
         info!("unwrapping cloudinary");
         pages_vec = try_map(pages_vec, unwrap_cloudinary).await?;
         info!("unwrapping cloudinary complete");
@@ -279,29 +295,24 @@ pub async fn init_pages(path: &Path, config: Arc<Config>) -> Result<Arc<Pages>, 
 
 #[cfg(test)]
 mod test {
-    use std::{
-        path::{Path, PathBuf},
-        sync::Arc,
-    };
+    use std::path::Path;
 
     use chrono::prelude::*;
     use yamd::Yamd;
 
-    use crate::{config::Config, metadata::Metadata, pages::init_pages};
+    use crate::{config::Config, metadata::Metadata, pages::init_pages, CONFIG, PATH};
 
     use super::{Page, Pages};
 
     #[tokio::test]
     async fn init_from_path_test() {
-        let config_path = Path::new("./test/fixtures/");
-        let pages = init_pages(
-            config_path,
-            Arc::new(
-                Config::try_from(&<&std::path::Path as Into<PathBuf>>::into(config_path)).unwrap(),
-            ),
-        )
-        .await
-        .unwrap();
+        let config_path = Path::new("./test/fixtures/").to_path_buf();
+        PATH.set(config_path.clone())
+            .expect("Failed to set global path");
+        CONFIG
+            .set(Config::try_from(&config_path).unwrap())
+            .expect("Failed to set global config");
+        let pages = init_pages().await.unwrap();
 
         assert_eq!(pages.keys().len(), 2);
         assert_eq!(

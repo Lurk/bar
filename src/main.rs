@@ -23,7 +23,7 @@ use renderer::render;
 use site::init_site;
 use std::path::PathBuf;
 use std::str::FromStr;
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 use templating::initialize;
 use tokio::fs::{remove_file, try_exists};
 use tokio::try_join;
@@ -35,6 +35,9 @@ use yamd::Yamd;
 
 use crate::fs::canonicalize_with_context;
 use crate::pages::init_pages;
+
+static CONFIG: OnceLock<Config> = OnceLock::new();
+static PATH: OnceLock<PathBuf> = OnceLock::new();
 
 #[tokio::main]
 async fn main() -> Result<(), BarErr> {
@@ -65,19 +68,26 @@ async fn main() -> Result<(), BarErr> {
 }
 
 async fn build(args: BuildArgs) -> Result<(), BarErr> {
-    let path: &'static PathBuf = Box::leak(Box::new(args.path.clone()));
-    let config: Arc<Config> = Arc::new(Config::try_from(path)?);
-    let template_path = args.path.join(&config.template);
+    PATH.set(args.path.clone())
+        .expect("Failed to set global path");
+    if CONFIG.get().is_none() {
+        CONFIG
+            .set(Config::try_from(PATH.get().expect("Path to initialized"))?)
+            .expect("Failed to set global config");
+    }
+    let template_path = args
+        .path
+        .join(&CONFIG.get().expect("config to be initialized").template);
 
     let (template_path, pages, site) = try_join!(
         canonicalize_with_context(&template_path),
-        init_pages(path, config.clone()),
-        init_site(path, config.clone())
+        init_pages(),
+        init_site()
     )?;
 
-    let tera = initialize(path, &template_path, pages.clone(), site.clone())?;
+    let tera = initialize(&template_path, pages.clone(), site.clone())?;
 
-    render(site.clone(), &config, &tera, &pages)?;
+    render(site.clone(), &tera, &pages)?;
 
     site.save().await?;
     Ok(())
@@ -113,7 +123,7 @@ async fn create_article(args: ArticleArgs) -> Result<(), BarErr> {
         vec![Paragraph::new(vec![args.title.clone().into()]).into()],
     );
 
-    write_file(&path, &Arc::from(article.to_string())).await?;
+    write_file(&path, Arc::from(article.to_string())).await?;
 
     println!("Article '{}' is written to: {:?}", args.title, path);
 
