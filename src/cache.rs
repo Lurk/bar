@@ -44,7 +44,7 @@ impl<T: Debug + Serialize + DeserializeOwned> Cache<T> {
 
         write_file(&full_path, Arc::from(serialized))
             .await
-            .with_context(|| format!("Failed to write cache for key: {}", key))
+            .with_context(|| format!("Failed to write cache for key: {key}"))
     }
 
     pub fn get(&self, key: &str) -> Result<Option<T>, BarErr> {
@@ -55,16 +55,16 @@ impl<T: Debug + Serialize + DeserializeOwned> Cache<T> {
         }
 
         if !full_path.is_file() {
-            return Err(format!("Cache path {:?} is not a file", full_path).into());
+            return Err(format!("Cache path {full_path:?} is not a file").into());
         }
 
         let f = std::fs::File::open(&full_path)
-            .with_context(|| format!("Failed to open cache file at path {:?}", full_path))?;
+            .with_context(|| format!("Failed to open cache file at path {full_path:?}"))?;
 
         let reader = std::io::BufReader::new(f);
 
         let cache: Value<T> = serde_json::from_reader(reader)
-            .with_context(|| format!("Failed to deserialize cache data for key: {}", key))?;
+            .with_context(|| format!("Failed to deserialize cache data for key: {key}"))?;
 
         if cache.version == self.version {
             if let Some(ttl) = self.ttl {
