@@ -6,9 +6,15 @@ use yamd::{
     Yamd,
 };
 
-use crate::error::BarErr;
+use crate::{cache::Cache, error::BarErr};
 
 async fn cloudinary_gallery_to_image_gallery(embed: &Embed) -> Result<Images, BarErr> {
+    let cache = Cache::<Images>::new("cloudinary_gallery", 1);
+
+    if let Some(images) = cache.get(&embed.args)? {
+        return Ok(images);
+    }
+
     if let Some((cloud_name, tag)) = embed.args.split_once('&') {
         let mut tags = get_tags(cloud_name.into(), tag.into())
             .await
@@ -26,7 +32,9 @@ async fn cloudinary_gallery_to_image_gallery(embed: &Embed) -> Result<Images, Ba
                 Image::new(resource.public_id.to_string(), image.to_string())
             })
             .collect::<Vec<Image>>();
-        return Ok(Images::new(images));
+        let images = Images::new(images);
+        cache.set(embed.args.as_str(), &images).await?;
+        return Ok(images);
     }
     Err(
         "cloudinary_gallery embed must have two arguments: cloud_name and tag separated by '&'."
