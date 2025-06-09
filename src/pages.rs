@@ -307,8 +307,7 @@ mod test {
     #[tokio::test]
     async fn init_from_path_test() {
         let config_path = Path::new("./test/fixtures/").to_path_buf();
-        PATH.set(config_path.clone())
-            .expect("Failed to set global path");
+        PATH.get_or_init(|| config_path.clone());
         CONFIG
             .set(Config::try_from(&config_path).unwrap())
             .expect("Failed to set global config");
