@@ -45,7 +45,7 @@ pub async fn get_files_by_ext_deep(path: &Path, ext: &[&str]) -> Result<Vec<Path
     Ok(files)
 }
 
-pub async fn write_file(path: &Path, content: &Arc<str>) -> Result<(), BarErr> {
+pub async fn write_file(path: &Path, content: Arc<str>) -> Result<(), BarErr> {
     let prefix = path.parent().unwrap();
     create_dir_all(prefix).await?;
     let mut file = OpenOptions::new()
@@ -55,6 +55,7 @@ pub async fn write_file(path: &Path, content: &Arc<str>) -> Result<(), BarErr> {
         .open(&path)
         .await?;
     file.write_all(content.as_bytes()).await?;
+    file.flush().await?;
     Ok(())
 }
 

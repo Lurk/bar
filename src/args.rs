@@ -21,6 +21,8 @@ pub enum Commands {
         about = "Create a new article in the current directory."
     )]
     Article(ArticleArgs),
+    #[command(name = "clear", about = "Clears dist and cache directories.")]
+    Clear(BuildArgs),
 }
 
 #[derive(Parser, Debug)]

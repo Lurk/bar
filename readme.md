@@ -35,6 +35,20 @@ Options:
   -h, --help        Print help
 ```
 
+### Clear dist and cache directory.
+
+```shell
+Usage: bar clear [OPTIONS] [PATH]
+
+Arguments:
+  [PATH]  Path to the project directory [default: .]
+
+Options:
+  -v, --verbose...  Increase logging verbosity
+  -q, --quiet...    Decrease logging verbosity
+  -h, --help        Print help
+```
+
 ## BAR project configuration
 
 Configuration file `config.yaml` should be in root folder of a project.
