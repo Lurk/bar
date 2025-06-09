@@ -25,7 +25,7 @@ use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::{Arc, OnceLock};
 use templating::initialize;
-use tokio::fs::{remove_file, try_exists};
+use tokio::fs::{create_dir_all, remove_dir_all, remove_file, try_exists};
 use tokio::try_join;
 use tracing::subscriber;
 use tracing_log::AsTrace;
@@ -33,6 +33,7 @@ use tracing_subscriber::FmtSubscriber;
 use yamd::nodes::Paragraph;
 use yamd::Yamd;
 
+use crate::error::ContextExt;
 use crate::fs::canonicalize_with_context;
 use crate::pages::init_pages;
 
@@ -56,6 +57,9 @@ async fn main() -> Result<(), BarErr> {
         Some(Commands::Article(article_args)) => {
             create_article(article_args).await?;
         }
+        Some(Commands::Clear(clear_rgs)) => {
+            clear(clear_rgs).await?;
+        }
         None => {
             build(BuildArgs {
                 path: PathBuf::from_str("./").expect("current directory path is valid"),
@@ -70,11 +74,9 @@ async fn main() -> Result<(), BarErr> {
 async fn build(args: BuildArgs) -> Result<(), BarErr> {
     PATH.set(args.path.clone())
         .expect("Failed to set global path");
-    if CONFIG.get().is_none() {
-        CONFIG
-            .set(Config::try_from(PATH.get().expect("Path to initialized"))?)
-            .expect("Failed to set global config");
-    }
+    CONFIG
+        .set(Config::try_from(PATH.get().expect("Path to initialized"))?)
+        .expect("Failed to set global config");
     let template_path = args
         .path
         .join(&CONFIG.get().expect("config to be initialized").template);
@@ -126,6 +128,37 @@ async fn create_article(args: ArticleArgs) -> Result<(), BarErr> {
     write_file(&path, Arc::from(article.to_string())).await?;
 
     println!("Article '{}' is written to: {:?}", args.title, path);
+
+    Ok(())
+}
+
+async fn clear(args: BuildArgs) -> Result<(), BarErr> {
+    PATH.set(args.path.clone())
+        .expect("Failed to set global path");
+    CONFIG
+        .set(Config::try_from(PATH.get().expect("Path to initialized"))?)
+        .expect("Failed to set global config");
+    let cache_path = PATH.get().expect("Path to be initialized").join(".cache");
+    let dist_path = PATH
+        .get()
+        .expect("Path to be initialized")
+        .join(&CONFIG.get().expect("Config to be initialized").dist_path);
+
+    create_dir_all(&dist_path)
+        .await
+        .with_context(|| format!("create directory: {}", dist_path.display()))?;
+
+    remove_dir_all(&dist_path)
+        .await
+        .with_context(|| format!("remove directory: {}", dist_path.display()))?;
+
+    create_dir_all(&cache_path)
+        .await
+        .with_context(|| format!("create directory: {}", cache_path.display()))?;
+
+    remove_dir_all(&cache_path)
+        .await
+        .with_context(|| format!("remove directory: {}", cache_path.display()))?;
 
     Ok(())
 }
