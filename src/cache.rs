@@ -47,11 +47,6 @@ impl<T: Debug + Serialize + DeserializeOwned> Cache<T> {
             .with_context(|| format!("Failed to write cache for key: {}", key))
     }
 
-    pub fn with_ttl(mut self, ttl: Duration) -> Self {
-        self.ttl = Some(ttl);
-        self
-    }
-
     pub fn get(&self, key: &str) -> Result<Option<T>, BarErr> {
         let full_path = self.get_path(key);
 
@@ -98,7 +93,7 @@ mod tests {
     #[tokio::test]
     async fn test_cache_manager() {
         PATH.get_or_init(|| PathBuf::from("./test/fixtures"));
-        let cache = Cache::new("test", 1).with_ttl(Duration::from_millis(10));
+        let cache = Cache::new("test", 1);
 
         let key = "test_key";
         let value = "test_value".to_string();
@@ -106,10 +101,5 @@ mod tests {
         cache.set(key, &value).await.ok();
 
         assert_eq!(cache.get(key).ok().unwrap(), Some(value));
-
-        // TODO: figure out a better way to wait for the TTL to expire
-        tokio::time::sleep(Duration::from_millis(10)).await;
-
-        assert_eq!(cache.get(key).ok().unwrap(), None);
     }
 }
