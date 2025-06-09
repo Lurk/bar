@@ -55,6 +55,7 @@ pub async fn write_file(path: &Path, content: Arc<str>) -> Result<(), BarErr> {
         .open(&path)
         .await?;
     file.write_all(content.as_bytes()).await?;
+    file.flush().await?;
     Ok(())
 }
 
