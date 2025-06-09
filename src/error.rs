@@ -46,6 +46,7 @@ where
 pub enum Errors {
     IO(io::Error),
     YamlParseError(serde_yaml::Error),
+    JsonParseError(serde_json::Error),
     TerraError(tera::Error),
     OsStringError(std::ffi::OsString),
     BinErr(bincode::Error),
@@ -68,6 +69,15 @@ impl From<serde_yaml::Error> for BarErr {
     fn from(err: serde_yaml::Error) -> Self {
         BarErr {
             err: Errors::YamlParseError(err),
+            context: vec![],
+        }
+    }
+}
+
+impl From<serde_json::Error> for BarErr {
+    fn from(err: serde_json::Error) -> Self {
+        BarErr {
+            err: Errors::JsonParseError(err),
             context: vec![],
         }
     }
@@ -150,6 +160,7 @@ impl Display for Errors {
         match self {
             Errors::IO(err) => f.write_str(err.to_string().as_str()),
             Errors::YamlParseError(err) => f.write_str(err.to_string().as_str()),
+            Errors::JsonParseError(err) => f.write_str(err.to_string().as_str()),
             Errors::TerraError(err) => f.write_str(err.to_string().as_str()),
             Errors::OsStringError(err) => f.write_str(format!("{:#?}", err).as_str()),
             Errors::BinErr(err) => f.write_str(err.to_string().as_str()),
