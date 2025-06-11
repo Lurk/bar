@@ -45,6 +45,13 @@ pub async fn get_files_by_ext_deep(path: &Path, ext: &[&str]) -> Result<Vec<Path
     Ok(files)
 }
 
+pub async fn read_to_string(path: &Path) -> Result<Arc<str>, BarErr> {
+    let content = tokio::fs::read_to_string(path)
+        .await
+        .with_context(|| format!("Failed to read file: {:?}", path))?;
+    Ok(Arc::from(content))
+}
+
 pub async fn write_file(path: &Path, content: Arc<str>) -> Result<(), BarErr> {
     let prefix = path.parent().unwrap();
     create_dir_all(prefix).await?;

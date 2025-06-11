@@ -4,7 +4,7 @@ use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 use crate::{
     error::{BarErr, ContextExt},
-    fs::write_file,
+    fs::{read_to_string, write_file},
     PATH,
 };
 
@@ -47,7 +47,7 @@ impl<T: Debug + Serialize + DeserializeOwned> Cache<T> {
             .with_context(|| format!("Failed to write cache for key: {key}"))
     }
 
-    pub fn get(&self, key: &str) -> Result<Option<T>, BarErr> {
+    pub async fn get(&self, key: &str) -> Result<Option<T>, BarErr> {
         let full_path = self.get_path(key);
 
         if !full_path.exists() {
@@ -58,12 +58,7 @@ impl<T: Debug + Serialize + DeserializeOwned> Cache<T> {
             return Err(format!("Cache path {full_path:?} is not a file").into());
         }
 
-        let f = std::fs::File::open(&full_path)
-            .with_context(|| format!("Failed to open cache file at path {full_path:?}"))?;
-
-        let reader = std::io::BufReader::new(f);
-
-        let cache: Value<T> = serde_json::from_reader(reader)
+        let cache: Value<T> = serde_json::from_str(read_to_string(&full_path).await?.as_ref())
             .with_context(|| format!("Failed to deserialize cache data for key: {key}"))?;
 
         if cache.version == self.version {
@@ -100,6 +95,6 @@ mod tests {
 
         cache.set(key, &value).await.ok();
 
-        assert_eq!(cache.get(key).ok().unwrap(), Some(value));
+        assert_eq!(cache.get(key).await.ok().unwrap(), Some(value));
     }
 }

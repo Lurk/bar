@@ -75,11 +75,13 @@ async fn build(args: BuildArgs) -> Result<(), BarErr> {
     PATH.set(args.path.clone())
         .expect("Failed to set global path");
     CONFIG
-        .set(Config::try_from(PATH.get().expect("Path to initialized"))?)
+        .set(Config::try_from(
+            PATH.get().expect("Path to be initialized"),
+        )?)
         .expect("Failed to set global config");
     let template_path = args
         .path
-        .join(&CONFIG.get().expect("config to be initialized").template);
+        .join(&CONFIG.get().expect("Config to be initialized").template);
 
     let (template_path, pages, site) = try_join!(
         canonicalize_with_context(&template_path),
@@ -136,7 +138,9 @@ async fn clear(args: BuildArgs) -> Result<(), BarErr> {
     PATH.set(args.path.clone())
         .expect("Failed to set global path");
     CONFIG
-        .set(Config::try_from(PATH.get().expect("Path to initialized"))?)
+        .set(Config::try_from(
+            PATH.get().expect("Path to be initialized"),
+        )?)
         .expect("Failed to set global config");
     let cache_path = PATH.get().expect("Path to be initialized").join(".cache");
     let dist_path = PATH
