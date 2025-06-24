@@ -2,6 +2,7 @@ use crate::{
     cloudinary::unwrap_cloudinary,
     error::BarErr,
     fs::{canonicalize_with_context, get_files_by_ext_deep},
+    image_alt::{generate_alt_text, AltGenerator},
     metadata::Metadata,
     r#async::try_map,
     CONFIG, PATH,
@@ -284,6 +285,15 @@ pub async fn init_pages() -> Result<Arc<Pages>, BarErr> {
         pages_vec = try_map(pages_vec, unwrap_cloudinary).await?;
         info!("unwrapping cloudinary complete");
     }
+
+    info!("generating alt text for images");
+    let alt_text = Arc::from(AltGenerator::new().await?);
+    let pages_with_alt_generator: Vec<(Arc<AltGenerator>, String, Yamd)> = pages_vec
+        .into_iter()
+        .map(|(pid, yamd)| (alt_text.clone(), pid, yamd))
+        .collect();
+    pages_vec = try_map(pages_with_alt_generator, generate_alt_text).await?;
+    info!("generating alt text for images complete");
 
     let mut pages = Pages::new();
     for page in pages_vec {

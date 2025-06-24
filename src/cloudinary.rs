@@ -29,7 +29,7 @@ async fn cloudinary_gallery_to_image_gallery(embed: &Embed) -> Result<Images, Ba
             .map(|resource| {
                 let mut image = CloudinaryImage::new(cloud_name.into(), resource.public_id.clone());
                 image.set_format(resource.format.as_ref());
-                Image::new(resource.public_id.to_string(), image.to_string())
+                Image::new("".to_string(), image.to_string())
             })
             .collect::<Vec<Image>>();
         let images = Images::new(images);

@@ -5,6 +5,7 @@ mod cloudinary;
 pub mod config;
 pub mod error;
 pub mod fs;
+mod image_alt;
 pub mod json_feed;
 mod metadata;
 pub mod pages;
