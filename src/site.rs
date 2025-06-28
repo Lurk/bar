@@ -221,7 +221,7 @@ impl Site {
             .map(|page| (dist_folder.clone(), page.clone()))
             .collect();
 
-        try_for_each(input, save_page).await?;
+        try_for_each(50, input, save_page).await?;
         info!("writing data complete");
         Ok(())
     }

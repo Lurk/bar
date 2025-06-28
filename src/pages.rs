@@ -272,7 +272,7 @@ pub async fn init_pages() -> Result<Arc<Pages>, BarErr> {
         .into_iter()
         .map(|path| (path, content_path.clone()));
 
-    let mut pages_vec = try_map(input, path_to_yamd).await?;
+    let mut pages_vec = try_map(50, input, path_to_yamd).await?;
     info!("processing YAMD complete");
 
     if CONFIG
@@ -282,7 +282,7 @@ pub async fn init_pages() -> Result<Arc<Pages>, BarErr> {
         .convert_cloudinary_embed
     {
         info!("unwrapping cloudinary");
-        pages_vec = try_map(pages_vec, unwrap_cloudinary).await?;
+        pages_vec = try_map(50, pages_vec, unwrap_cloudinary).await?;
         info!("unwrapping cloudinary complete");
     }
 
@@ -292,7 +292,7 @@ pub async fn init_pages() -> Result<Arc<Pages>, BarErr> {
         .into_iter()
         .map(|(pid, yamd)| (alt_text.clone(), pid, yamd))
         .collect();
-    pages_vec = try_map(pages_with_alt_generator, generate_alt_text).await?;
+    pages_vec = try_map(2, pages_with_alt_generator, generate_alt_text).await?;
     info!("generating alt text for images complete");
 
     let mut pages = Pages::new();
