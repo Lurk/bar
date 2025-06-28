@@ -1,9 +1,8 @@
 use crate::{
-    error::BarErr,
     fs::crc32_checksum,
     pages::Pages,
     site::{DynamicPage, Feed, FeedType, Page, Site, StaticPage},
-    syntax_highlight::{code, init},
+    syntax_highlight::code,
     PATH,
 };
 use cloudinary::transformation::{
@@ -14,8 +13,11 @@ use cloudinary::transformation::{
     pad_mode::PadMode,
     Image, Transformations,
 };
+use crc32fast::Hasher;
+use data_encoding::BASE64URL_NOPAD;
 use std::{collections::HashMap, path::Path, sync::Arc};
-use tera::{Function, Tera, Value};
+use syntect::parsing::SyntaxSet;
+use tera::{Function, Result, Tera, Value};
 use tracing::info;
 use url::Url;
 
@@ -212,11 +214,24 @@ fn get_image_url(site: Arc<Site>) -> impl Function + 'static {
     }
 }
 
+fn crc32(value: &Value, _: &HashMap<String, Value>) -> Result<Value> {
+    let val = value
+        .as_str()
+        .ok_or_else(|| tera::Error::msg("crc32 filter requires a string value"))?;
+    let mut hasher = Hasher::new();
+    hasher.update(val.as_bytes());
+    let digest = hasher.finalize();
+    Ok(tera::to_value(
+        BASE64URL_NOPAD.encode(digest.to_be_bytes().as_ref()),
+    )?)
+}
+
 pub fn initialize(
     template_path: &Path,
     posts: Arc<Pages>,
     site: Arc<Site>,
-) -> Result<Tera, BarErr> {
+    syntax_highlighter: Arc<SyntaxSet>,
+) -> Result<Tera> {
     let templates = format!("{}/**/*.html", template_path.to_str().unwrap());
     info!("initialize teplates: {}", templates);
     let mut tera = Tera::new(&templates)?;
@@ -226,9 +241,11 @@ pub fn initialize(
     tera.register_function("get_page_by_path", get_page_by_path(posts.clone()));
     tera.register_function("get_page_by_pid", get_page_by_pid(posts.clone()));
     tera.register_function("get_similar", get_similar(posts.clone()));
-    tera.register_function("code", code(init()?));
+    tera.register_function("code", code(syntax_highlighter));
     tera.register_function("get_image_url", get_image_url(site.clone()));
     tera.register_function("add_feed", add_feed(site.clone()));
+
+    tera.register_filter("crc32", crc32);
 
     info!("template initialization complete");
     Ok(tera)

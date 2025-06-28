@@ -37,6 +37,7 @@ use yamd::Yamd;
 use crate::error::ContextExt;
 use crate::fs::canonicalize_with_context;
 use crate::pages::init_pages;
+use crate::syntax_highlight::init;
 
 static CONFIG: OnceLock<Config> = OnceLock::new();
 static PATH: OnceLock<PathBuf> = OnceLock::new();
@@ -90,7 +91,14 @@ async fn build(args: BuildArgs) -> Result<(), BarErr> {
         init_site()
     )?;
 
-    let tera = initialize(&template_path, pages.clone(), site.clone())?;
+    let syntax_highlighter = init()?;
+
+    let tera = initialize(
+        &template_path,
+        pages.clone(),
+        site.clone(),
+        syntax_highlighter,
+    )?;
 
     render(site.clone(), &tera, &pages)?;
 
