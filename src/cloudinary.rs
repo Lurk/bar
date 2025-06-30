@@ -6,7 +6,7 @@ use yamd::{
     Yamd,
 };
 
-use crate::{cache::Cache, error::BarErr};
+use crate::{cache::Cache, error::BarErr, CONFIG};
 
 async fn cloudinary_gallery_to_image_gallery(embed: &Embed) -> Result<Images, BarErr> {
     let cache = Cache::<Images>::new("cloudinary_gallery", 1);
@@ -23,13 +23,25 @@ async fn cloudinary_gallery_to_image_gallery(embed: &Embed) -> Result<Images, Ba
         tags.resources
             .sort_by(|a, b| cmp(&a.public_id, &b.public_id));
 
+        let should_alt_text_be_empty = CONFIG
+            .get()
+            .expect("Config should be initialized")
+            .yamd_processors
+            .generate_alt_text
+            .is_some();
+
         let images = tags
             .resources
             .iter()
             .map(|resource| {
                 let mut image = CloudinaryImage::new(cloud_name.into(), resource.public_id.clone());
                 image.set_format(resource.format.as_ref());
-                Image::new("".to_string(), image.to_string())
+                let alt_text = if should_alt_text_be_empty {
+                    String::new()
+                } else {
+                    resource.public_id.to_string()
+                };
+                Image::new(alt_text, image.to_string())
             })
             .collect::<Vec<Image>>();
         let images = Images::new(images);

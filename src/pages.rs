@@ -286,14 +286,24 @@ pub async fn init_pages() -> Result<Arc<Pages>, BarErr> {
         info!("unwrapping cloudinary complete");
     }
 
-    info!("generating alt text for images");
-    let alt_text = Arc::from(AltGenerator::new().await?);
-    let pages_with_alt_generator: Vec<(Arc<AltGenerator>, String, Yamd)> = pages_vec
-        .into_iter()
-        .map(|(pid, yamd)| (alt_text.clone(), pid, yamd))
-        .collect();
-    pages_vec = try_map(2, pages_with_alt_generator, generate_alt_text).await?;
-    info!("generating alt text for images complete");
+    if CONFIG
+        .get()
+        .expect("Config to be initialized")
+        .yamd_processors
+        .generate_alt_text
+        .is_some()
+    {
+        info!("generating alt text for images");
+        // TODO: initialization of AltGenerator should be lazy. If all images already have alt
+        // text, it should not be initialized.
+        let alt_text = Arc::from(AltGenerator::new().await?);
+        let pages_with_alt_generator: Vec<(Arc<AltGenerator>, String, Yamd)> = pages_vec
+            .into_iter()
+            .map(|(pid, yamd)| (alt_text.clone(), pid, yamd))
+            .collect();
+        pages_vec = try_map(2, pages_with_alt_generator, generate_alt_text).await?;
+        info!("generating alt text for images complete");
+    }
 
     let mut pages = Pages::new();
     for page in pages_vec {

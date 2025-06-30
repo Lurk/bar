@@ -8,7 +8,6 @@ use itertools::Itertools;
 use tokio::task::JoinError;
 use url::ParseError;
 
-#[derive(Debug)]
 pub struct BarErr {
     err: Errors,
     context: Vec<String>,
@@ -237,6 +236,21 @@ impl Display for BarErr {
                 .iter()
                 .enumerate()
                 .rev()
+                .map(|(pos, message)| format!("\t{}. {message}", pos + 1))
+                .join("\n")
+        )
+    }
+}
+
+impl Debug for BarErr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        writeln!(
+            f,
+            "Error:\n\n{}\n\ncontext:\n{}",
+            self.err,
+            self.context
+                .iter()
+                .enumerate()
                 .map(|(pos, message)| format!("\t{}. {message}", pos + 1))
                 .join("\n")
         )

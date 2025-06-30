@@ -23,7 +23,7 @@ use crate::{
     cache::Cache,
     error::{BarErr, ContextExt},
     fs::write_file,
-    PATH,
+    CONFIG, PATH,
 };
 
 fn device() -> Result<Device, BarErr> {
@@ -122,14 +122,25 @@ impl AltGenerator {
             return Ok(alt_text);
         }
 
-        let image = self.load_image(path).await?;
+        let image = self
+            .load_image(path)
+            .await
+            .with_context(|| format!("loaing image from {path}"))?;
 
-        info!("loaded and encoded the image {image:?}",);
+        debug!("loaded and encoded the image {image:?}",);
+        let config = CONFIG
+            .get()
+            .expect("Config should be initialized")
+            .yamd_processors
+            .generate_alt_text
+            .as_ref()
+            .expect("Alt text generator should be configured");
 
         let result = self
             .run(
-                "\n\nQuestion: Describe image in a short sentence.\n\nAnswer:",
+                config.prompt.as_ref(),
                 image,
+                Some(config.temperature.clone()),
             )
             .await;
 
@@ -144,7 +155,7 @@ impl AltGenerator {
         if !i.alt.is_empty() {
             return Ok(None);
         }
-        info!("no alt text found for image: {}", i.src);
+        debug!("no alt text found for image: {}", i.src);
         let alt = self.generate_image_alt(i.src.as_ref()).await?;
         Ok(Some(Image {
             src: i.src.clone(),
@@ -198,8 +209,17 @@ impl AltGenerator {
         Ok((pid, Yamd::new(yamd.metadata.clone(), nodes)))
     }
 
-    async fn run(&self, prompt: &str, image: Tensor) -> Result<String, BarErr> {
-        let mut tokens = self.tokenizer.encode(prompt, true)?.get_ids().to_vec();
+    async fn run(
+        &self,
+        prompt: &str,
+        image: Tensor,
+        temperature: Option<f64>,
+    ) -> Result<String, BarErr> {
+        let mut tokens = self
+            .tokenizer
+            .encode(format!("\n\nQuestion: {prompt}\n\nAnswer:"), true)?
+            .get_ids()
+            .to_vec();
 
         let mut m = self.model.lock().await;
         let d = self.device.lock().await;
@@ -209,7 +229,7 @@ impl AltGenerator {
 
         let image_embeds = image.unsqueeze(0)?.apply(m.vision_encoder())?;
 
-        let mut logits_processor = LogitsProcessor::new(0, Some(0.1), Some(0.1));
+        let mut logits_processor = LogitsProcessor::new(0, temperature, Some(0.1));
         let mut answer = String::new();
 
         for index in 0..1000 {
@@ -252,8 +272,9 @@ impl AltGenerator {
         let p = unwrap_path(path).await?;
 
         let img = ImageReader::open(&p)
-            .with_context(|| format!("reading {p:?}"))?
-            .decode()?
+            .with_context(|| format!("reading: {p:?}"))?
+            .decode()
+            .with_context(|| format!("decoding: {p:?}"))?
             .resize_to_fill(378, 378, FilterType::Triangle);
 
         let img = img.to_rgb8();
