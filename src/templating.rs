@@ -103,14 +103,13 @@ fn get_static_file(site: Arc<Site>) -> impl Function + 'static {
                             .expect("source of static file to be present"),
                     )
                     .unwrap();
-                    return Ok(tera::to_value(format!("{}?cb={}", path, hash))?);
+                    return Ok(tera::to_value(format!("{path}?cb={hash}"))?);
                 }
                 return Err(tera::Error::msg(format!(
-                    "{} is not a path to static resource",
-                    path
+                    "{path} is not a path to static resource"
                 )));
             }
-            return Err(tera::Error::msg(format!("{} not found", path)));
+            return Err(tera::Error::msg(format!("{path} not found")));
         }
         Err(tera::Error::msg("path is required"))
     }

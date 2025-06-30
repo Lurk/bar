@@ -1,4 +1,4 @@
-use std::{fmt::Debug, path::PathBuf, sync::Arc, time::Duration};
+use std::{fmt::Debug, path::PathBuf, time::Duration};
 
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
@@ -42,7 +42,7 @@ impl<T: Debug + Serialize + DeserializeOwned> Cache<T> {
         let serialized = serde_json::to_string(&cache)?;
         let full_path = self.get_path(key);
 
-        write_file(&full_path, Arc::from(serialized))
+        write_file(&full_path, serialized.as_bytes())
             .await
             .with_context(|| format!("Failed to write cache for key: {key}"))
     }

@@ -24,7 +24,7 @@ use renderer::render;
 use site::init_site;
 use std::path::PathBuf;
 use std::str::FromStr;
-use std::sync::{Arc, OnceLock};
+use std::sync::OnceLock;
 use templating::initialize;
 use tokio::fs::{create_dir_all, remove_dir_all, remove_file, try_exists};
 use tokio::try_join;
@@ -136,7 +136,7 @@ async fn create_article(args: ArticleArgs) -> Result<(), BarErr> {
         vec![Paragraph::new(vec![args.title.clone().into()]).into()],
     );
 
-    write_file(&path, Arc::from(article.to_string())).await?;
+    write_file(&path, article.to_string().as_bytes()).await?;
 
     println!("Article '{}' is written to: {:?}", args.title, path);
 

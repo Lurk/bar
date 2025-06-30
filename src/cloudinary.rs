@@ -18,7 +18,7 @@ async fn cloudinary_gallery_to_image_gallery(embed: &Embed) -> Result<Images, Ba
     if let Some((cloud_name, tag)) = embed.args.split_once('&') {
         let mut tags = get_tags(cloud_name.into(), tag.into())
             .await
-            .unwrap_or_else(|_| panic!("error loading cloudinary tag: {}", tag));
+            .unwrap_or_else(|_| panic!("error loading cloudinary tag: {tag}"));
 
         tags.resources
             .sort_by(|a, b| cmp(&a.public_id, &b.public_id));

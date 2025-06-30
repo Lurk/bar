@@ -212,7 +212,7 @@ impl Display for Errors {
             Errors::YamlParseError(err) => f.write_str(err.to_string().as_str()),
             Errors::JsonParseError(err) => f.write_str(err.to_string().as_str()),
             Errors::TerraError(err) => f.write_str(err.to_string().as_str()),
-            Errors::OsStringError(err) => f.write_str(format!("{:#?}", err).as_str()),
+            Errors::OsStringError(err) => f.write_str(format!("{err:#?}").as_str()),
             Errors::BinErr(err) => f.write_str(err.to_string().as_str()),
             Errors::StripPrefixError(err) => f.write_str(err.to_string().as_str()),
             Errors::ParseError(err) => f.write_str(err.to_string().as_str()),
