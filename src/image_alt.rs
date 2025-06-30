@@ -1,4 +1,4 @@
-use std::{env::temp_dir, path::PathBuf, sync::Arc};
+use std::{path::PathBuf, sync::Arc};
 
 use async_recursion::async_recursion;
 use candle_core::{
@@ -10,12 +10,9 @@ use candle_transformers::{
     generation::LogitsProcessor,
     models::{moondream::Config, moondream::Model},
 };
-use image::{imageops::FilterType, ImageReader};
+use image::{imageops::FilterType, EncodableLayout, ImageReader};
 use tokenizers::Tokenizer;
-use tokio::{
-    fs::{remove_file, write},
-    sync::Mutex,
-};
+use tokio::sync::Mutex;
 use tracing::{debug, info};
 use yamd::{
     nodes::{Image, Images, YamdNodes},
@@ -25,6 +22,8 @@ use yamd::{
 use crate::{
     cache::Cache,
     error::{BarErr, ContextExt},
+    fs::write_file,
+    PATH,
 };
 
 fn device() -> Result<Device, BarErr> {
@@ -40,28 +39,36 @@ fn device() -> Result<Device, BarErr> {
     }
 }
 
-async fn unwrap_path(path: &str) -> Result<(PathBuf, bool), BarErr> {
+async fn unwrap_path(path: &str) -> Result<PathBuf, BarErr> {
     if path.starts_with("http") {
-        debug!("Downloading image from URL: {}", path);
-        let response = reqwest::get(path).await?;
-        if !response.status().is_success() {
-            return Err(
-                format!("Failed to fetch image, status code: {}", response.status()).into(),
+        let destination = PATH
+            .get()
+            .expect("PATH should be initialized")
+            .join(format!(".cache/remote_images/{path}"));
+
+        if !destination.exists() {
+            debug!(
+                "Downloading image from URL: {}\n to: {:?}",
+                path, destination
             );
+            let response = reqwest::get(path).await?;
+            if !response.status().is_success() {
+                return Err(
+                    format!("Failed to fetch image, status code: {}", response.status()).into(),
+                );
+            }
+
+            let bytes = response.bytes().await?;
+            write_file(&destination, bytes.as_bytes()).await?;
+            debug!("Saved image to temporary file: {:?}", destination);
         }
-
-        let bytes = response.bytes().await?;
-        let destination = temp_dir().join(path.split('/').next_back().unwrap_or(path));
-        write(&destination, bytes).await?;
-
-        debug!("Saved image to temporary file: {:?}", destination);
-        Ok((destination, true))
+        Ok(destination)
     } else {
         let path = PathBuf::from(path);
         if !path.exists() {
             return Err(format!("Image file does not exist: {}", path.display()).into());
         }
-        Ok((path, false))
+        Ok(path)
     }
 }
 
@@ -242,15 +249,12 @@ impl AltGenerator {
     }
 
     async fn load_image(&self, path: &str) -> Result<Tensor, BarErr> {
-        let (p, is_temp_file) = unwrap_path(path).await?;
+        let p = unwrap_path(path).await?;
 
-        let img = ImageReader::open(&p)?
+        let img = ImageReader::open(&p)
+            .with_context(|| format!("reading {p:?}"))?
             .decode()?
             .resize_to_fill(378, 378, FilterType::Triangle);
-
-        if is_temp_file {
-            remove_file(&p).await?;
-        }
 
         let img = img.to_rgb8();
         let data = img.into_raw();
