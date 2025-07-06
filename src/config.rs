@@ -65,6 +65,29 @@ pub struct YamdProcessors {
     /// converts cloudinary embed to image gallery
     #[serde(default)]
     pub convert_cloudinary_embed: bool,
+    /// generate alt text for images
+    #[serde(default)]
+    pub generate_alt_text: Option<AltTextGenerator>,
+}
+
+fn default_prompt() -> Arc<str> {
+    "Describe this image in detail".to_string().into()
+}
+
+fn default_temperature() -> f64 {
+    0.1
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct AltTextGenerator {
+    /// Prompt for the alt text generator.
+    /// Default: "Describe this image in detail".to_string()
+    #[serde(default = "default_prompt")]
+    pub prompt: Arc<str>,
+    /// The temperature for the alt text generator.
+    /// Default: 0.1
+    #[serde(default = "default_temperature")]
+    pub temperature: f64,
 }
 
 #[derive(Debug, Serialize, Deserialize)]

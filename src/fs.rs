@@ -16,7 +16,7 @@ use crate::error::{BarErr, ContextExt};
 pub async fn canonicalize_with_context(path: &PathBuf) -> Result<PathBuf, BarErr> {
     canonicalize(path)
         .await
-        .with_context(|| format!("canonicalize path: {:?}", path))
+        .with_context(|| format!("canonicalize path: {path:?}"))
 }
 
 /// Get all files with given extensions in the given directory and its subdirectories.
@@ -48,11 +48,11 @@ pub async fn get_files_by_ext_deep(path: &Path, ext: &[&str]) -> Result<Vec<Path
 pub async fn read_to_string(path: &Path) -> Result<Arc<str>, BarErr> {
     let content = tokio::fs::read_to_string(path)
         .await
-        .with_context(|| format!("Failed to read file: {:?}", path))?;
+        .with_context(|| format!("Failed to read file: {path:?}"))?;
     Ok(Arc::from(content))
 }
 
-pub async fn write_file(path: &Path, content: Arc<str>) -> Result<(), BarErr> {
+pub async fn write_file(path: &Path, content: &[u8]) -> Result<(), BarErr> {
     let prefix = path.parent().unwrap();
     create_dir_all(prefix).await?;
     let mut file = OpenOptions::new()
@@ -61,7 +61,7 @@ pub async fn write_file(path: &Path, content: Arc<str>) -> Result<(), BarErr> {
         .truncate(true)
         .open(&path)
         .await?;
-    file.write_all(content.as_bytes()).await?;
+    file.write_all(content).await?;
     file.flush().await?;
     Ok(())
 }

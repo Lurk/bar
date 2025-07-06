@@ -5,6 +5,7 @@ mod cloudinary;
 pub mod config;
 pub mod error;
 pub mod fs;
+mod image_alt;
 pub mod json_feed;
 mod metadata;
 pub mod pages;
@@ -23,7 +24,7 @@ use renderer::render;
 use site::init_site;
 use std::path::PathBuf;
 use std::str::FromStr;
-use std::sync::{Arc, OnceLock};
+use std::sync::OnceLock;
 use templating::initialize;
 use tokio::fs::{create_dir_all, remove_dir_all, remove_file, try_exists};
 use tokio::try_join;
@@ -36,6 +37,7 @@ use yamd::Yamd;
 use crate::error::ContextExt;
 use crate::fs::canonicalize_with_context;
 use crate::pages::init_pages;
+use crate::syntax_highlight::init;
 
 static CONFIG: OnceLock<Config> = OnceLock::new();
 static PATH: OnceLock<PathBuf> = OnceLock::new();
@@ -89,7 +91,14 @@ async fn build(args: BuildArgs) -> Result<(), BarErr> {
         init_site()
     )?;
 
-    let tera = initialize(&template_path, pages.clone(), site.clone())?;
+    let syntax_highlighter = init()?;
+
+    let tera = initialize(
+        &template_path,
+        pages.clone(),
+        site.clone(),
+        syntax_highlighter,
+    )?;
 
     render(site.clone(), &tera, &pages)?;
 
@@ -127,7 +136,7 @@ async fn create_article(args: ArticleArgs) -> Result<(), BarErr> {
         vec![Paragraph::new(vec![args.title.clone().into()]).into()],
     );
 
-    write_file(&path, Arc::from(article.to_string())).await?;
+    write_file(&path, article.to_string().as_bytes()).await?;
 
     println!("Article '{}' is written to: {:?}", args.title, path);
 

@@ -7,9 +7,9 @@ use crate::error::BarErr;
 
 /// try_map spawns a future for each item in the iterator and waits for all of them to complete.
 /// If any of the futures return an error, try_map will return that error.
-/// It will run no more than 50 futures concurrently.
+/// It will run no more than [size] futures concurrently.
 /// There is no guarantee that the order of the output will match the order of the input.
-pub async fn try_map<T, I, F, O, Fut>(input: I, f: F) -> Result<Vec<O>, BarErr>
+pub async fn try_map<T, I, F, O, Fut>(size: usize, input: I, f: F) -> Result<Vec<O>, BarErr>
 where
     I: IntoIterator<Item = T>,
     F: Fn(T) -> Fut + Send + 'static,
@@ -22,7 +22,7 @@ where
     let mut output = Vec::with_capacity(lower_bound);
     let mut set = JoinSet::new();
 
-    for item in iterator.by_ref().take(50) {
+    for item in iterator.by_ref().take(size) {
         set.spawn(f(item));
     }
 
@@ -45,8 +45,8 @@ where
 
 /// try_for_each spawns a future for each item in the iterator and waits for all of them to complete.
 /// If any of the futures return an error, try_for_each will return that error.
-/// It will run no more than 50 futures concurrently.
-pub async fn try_for_each<T, I, F, Fut>(input: I, f: F) -> Result<(), BarErr>
+/// It will run no more than [size] futures concurrently.
+pub async fn try_for_each<T, I, F, Fut>(size: usize, input: I, f: F) -> Result<(), BarErr>
 where
     I: IntoIterator<Item = T>,
     F: Fn(T) -> Fut + Send + 'static,
@@ -56,7 +56,7 @@ where
     let mut iterator = input.into_iter();
     let mut set = JoinSet::new();
 
-    for item in iterator.by_ref().take(50) {
+    for item in iterator.by_ref().take(size) {
         set.spawn(f(item));
     }
     while let Some(res) = set.join_next().await {
@@ -78,7 +78,7 @@ mod tests {
     #[tokio::test]
     async fn test_try_map() {
         let input: Vec<usize> = (1..100).collect();
-        let mut result = try_map(input.clone(), |x| async move { Ok(x * 2) })
+        let mut result = try_map(50, input.clone(), |x| async move { Ok(x * 2) })
             .await
             .unwrap();
         result.sort();
@@ -90,7 +90,7 @@ mod tests {
         let input: Vec<usize> = (1..100).collect();
         let sum: Arc<Mutex<usize>> = Arc::from(Mutex::from(0));
         let sum_clone = sum.clone();
-        try_for_each(input, move |_| {
+        try_for_each(50, input, move |_| {
             let sum = sum.clone();
             async move {
                 let mut sum = sum.lock().unwrap();

@@ -24,8 +24,7 @@ fn map_language(supported: &[Arc<str>], language: Arc<str>) -> Result<Arc<str>, 
         Ok(language)
     } else {
         Err(tera::Error::from(format!(
-            "Language {} is not supported\nSupported languages are {:?}",
-            language, supported
+            "Language {language} is not supported\nSupported languages are {supported:?}"
         )))
     }
 }

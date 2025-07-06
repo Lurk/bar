@@ -2,6 +2,7 @@ use crate::{
     cloudinary::unwrap_cloudinary,
     error::BarErr,
     fs::{canonicalize_with_context, get_files_by_ext_deep},
+    image_alt::{generate_alt_text, AltGenerator},
     metadata::Metadata,
     r#async::try_map,
     CONFIG, PATH,
@@ -271,7 +272,7 @@ pub async fn init_pages() -> Result<Arc<Pages>, BarErr> {
         .into_iter()
         .map(|path| (path, content_path.clone()));
 
-    let mut pages_vec = try_map(input, path_to_yamd).await?;
+    let mut pages_vec = try_map(50, input, path_to_yamd).await?;
     info!("processing YAMD complete");
 
     if CONFIG
@@ -281,8 +282,27 @@ pub async fn init_pages() -> Result<Arc<Pages>, BarErr> {
         .convert_cloudinary_embed
     {
         info!("unwrapping cloudinary");
-        pages_vec = try_map(pages_vec, unwrap_cloudinary).await?;
+        pages_vec = try_map(50, pages_vec, unwrap_cloudinary).await?;
         info!("unwrapping cloudinary complete");
+    }
+
+    if CONFIG
+        .get()
+        .expect("Config to be initialized")
+        .yamd_processors
+        .generate_alt_text
+        .is_some()
+    {
+        info!("generating alt text for images");
+        // TODO: initialization of AltGenerator should be lazy. If all images already have alt
+        // text, it should not be initialized.
+        let alt_text = Arc::from(AltGenerator::new().await?);
+        let pages_with_alt_generator: Vec<(Arc<AltGenerator>, String, Yamd)> = pages_vec
+            .into_iter()
+            .map(|(pid, yamd)| (alt_text.clone(), pid, yamd))
+            .collect();
+        pages_vec = try_map(2, pages_with_alt_generator, generate_alt_text).await?;
+        info!("generating alt text for images complete");
     }
 
     let mut pages = Pages::new();

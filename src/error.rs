@@ -8,7 +8,6 @@ use itertools::Itertools;
 use tokio::task::JoinError;
 use url::ParseError;
 
-#[derive(Debug)]
 pub struct BarErr {
     err: Errors,
     context: Vec<String>,
@@ -54,6 +53,11 @@ pub enum Errors {
     ParseError(ParseError),
     Str(String),
     JoinError(JoinError),
+    CandleCore(candle_core::Error),
+    ReqwestError(reqwest::Error),
+    HFAPIError(hf_hub::api::tokio::ApiError),
+    Boxed(Box<(dyn std::error::Error + Send + Sync + 'static)>),
+    ImageError(image::ImageError),
 }
 
 impl From<io::Error> for BarErr {
@@ -155,6 +159,51 @@ impl From<JoinError> for BarErr {
     }
 }
 
+impl From<candle_core::Error> for BarErr {
+    fn from(err: candle_core::Error) -> Self {
+        BarErr {
+            err: Errors::CandleCore(err),
+            context: vec![],
+        }
+    }
+}
+
+impl From<reqwest::Error> for BarErr {
+    fn from(err: reqwest::Error) -> Self {
+        BarErr {
+            err: Errors::ReqwestError(err),
+            context: vec![],
+        }
+    }
+}
+
+impl From<hf_hub::api::tokio::ApiError> for BarErr {
+    fn from(err: hf_hub::api::tokio::ApiError) -> Self {
+        BarErr {
+            err: Errors::HFAPIError(err),
+            context: vec![],
+        }
+    }
+}
+
+impl From<Box<dyn std::error::Error + Send + Sync + 'static>> for BarErr {
+    fn from(err: Box<dyn std::error::Error + Send + Sync + 'static>) -> Self {
+        BarErr {
+            err: Errors::Boxed(err),
+            context: vec![],
+        }
+    }
+}
+
+impl From<image::ImageError> for BarErr {
+    fn from(err: image::ImageError) -> Self {
+        BarErr {
+            err: Errors::ImageError(err),
+            context: vec![],
+        }
+    }
+}
+
 impl Display for Errors {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -162,12 +211,17 @@ impl Display for Errors {
             Errors::YamlParseError(err) => f.write_str(err.to_string().as_str()),
             Errors::JsonParseError(err) => f.write_str(err.to_string().as_str()),
             Errors::TerraError(err) => f.write_str(err.to_string().as_str()),
-            Errors::OsStringError(err) => f.write_str(format!("{:#?}", err).as_str()),
+            Errors::OsStringError(err) => f.write_str(format!("{err:#?}").as_str()),
             Errors::BinErr(err) => f.write_str(err.to_string().as_str()),
             Errors::StripPrefixError(err) => f.write_str(err.to_string().as_str()),
             Errors::ParseError(err) => f.write_str(err.to_string().as_str()),
             Errors::Str(err) => f.write_str(err.to_string().as_str()),
             Errors::JoinError(err) => f.write_str(err.to_string().as_str()),
+            Errors::CandleCore(err) => f.write_str(err.to_string().as_str()),
+            Errors::ReqwestError(err) => f.write_str(err.to_string().as_str()),
+            Errors::HFAPIError(err) => f.write_str(err.to_string().as_str()),
+            Errors::Boxed(err) => f.write_str(err.to_string().as_str()),
+            Errors::ImageError(err) => f.write_str(err.to_string().as_str()),
         }
     }
 }
@@ -182,6 +236,21 @@ impl Display for BarErr {
                 .iter()
                 .enumerate()
                 .rev()
+                .map(|(pos, message)| format!("\t{}. {message}", pos + 1))
+                .join("\n")
+        )
+    }
+}
+
+impl Debug for BarErr {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        writeln!(
+            f,
+            "Error:\n\n{}\n\ncontext:\n{}",
+            self.err,
+            self.context
+                .iter()
+                .enumerate()
                 .map(|(pos, message)| format!("\t{}. {message}", pos + 1))
                 .join("\n")
         )

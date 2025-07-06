@@ -79,6 +79,26 @@ yamd_processors:
 # will be provided to template
 template_config:
   should_unpack_cloudinary: false
+  # If set BAR will generate alt text for images using
+  # [MoonDream1](https://huggingface.co/vikhyatk/moondream1) model locally. It will do so only for images that do not
+  # have alt text.
+  #
+  # Generation takes seconds per image and depends on prompt.
+  #
+  # Remote images will be downloaded and cached in `.cache/remote_images/` directory.
+  #
+  # Result will be cached in `.cache/alt_text/` directory.
+  #
+  # Disabled by default.
+  #
+  # Caution:
+  # - It will download [MoonDream1 model](https://huggingface.co/vikhyatk/moondream1) from HuggingFace (3.72GB).
+  # - it was tested only on Apple M2 Max.
+  generate_alt_text:
+    # Prompt to use for alt text generation.
+    prompt: 'Describe image in one sentence.'
+    # temperature for alt text generation.
+    temperature: 0.1
 ```
 
 ## Static files
