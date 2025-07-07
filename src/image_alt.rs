@@ -12,7 +12,7 @@ use candle_transformers::{
 };
 use image::{imageops::FilterType, EncodableLayout, ImageReader};
 use tokenizers::Tokenizer;
-use tokio::sync::Mutex;
+use tokio::sync::{Mutex, OnceCell};
 use tracing::{debug, info};
 use yamd::{
     nodes::{Image, Images, YamdNodes},
@@ -72,15 +72,15 @@ async fn unwrap_path(path: &str) -> Result<PathBuf, BarErr> {
     }
 }
 
-pub struct AltGenerator {
-    model: Mutex<Model>,
-    device: Mutex<Device>,
+struct AltGeneratorInner {
+    model: Model,
+    device: Device,
     tokenizer: Tokenizer,
     bos_token: u32,
     eos_token: u32,
 }
 
-impl AltGenerator {
+impl AltGeneratorInner {
     pub async fn new() -> Result<Self, BarErr> {
         let api = hf_hub::api::tokio::Api::new()?;
         let repo = api.repo(hf_hub::Repo::with_revision(
@@ -108,12 +108,24 @@ impl AltGenerator {
         };
 
         Ok(Self {
-            model: Mutex::new(model),
-            device: Mutex::new(device),
+            model,
+            device,
             tokenizer,
             bos_token: special_token,
             eos_token: special_token,
         })
+    }
+}
+
+pub struct AltGenerator {
+    inner: Mutex<OnceCell<AltGeneratorInner>>,
+}
+
+impl AltGenerator {
+    pub fn new() -> Self {
+        Self {
+            inner: Mutex::new(OnceCell::const_new()),
+        }
     }
 
     async fn generate_image_alt(&self, path: &str) -> Result<String, BarErr> {
@@ -211,19 +223,22 @@ impl AltGenerator {
         image: Tensor,
         temperature: Option<f64>,
     ) -> Result<String, BarErr> {
-        let mut tokens = self
+        debug!("locked the model and device for inference");
+        let mut inner_lock = self.inner.lock().await;
+
+        inner_lock
+            .get_or_try_init(|| async { AltGeneratorInner::new().await })
+            .await?;
+        let inner = inner_lock.get_mut().expect("Inner should be initialized");
+        let mut tokens = inner
             .tokenizer
             .encode(format!("\n\nQuestion: {prompt}\n\nAnswer:"), true)?
             .get_ids()
             .to_vec();
 
-        let mut m = self.model.lock().await;
-        let d = self.device.lock().await;
-        debug!("locked the model and device for inference");
+        inner.model.text_model.clear_kv_cache();
 
-        m.text_model.clear_kv_cache();
-
-        let image_embeds = image.unsqueeze(0)?.apply(m.vision_encoder())?;
+        let image_embeds = image.unsqueeze(0)?.apply(inner.model.vision_encoder())?;
 
         let mut logits_processor = LogitsProcessor::new(0, temperature, Some(0.1));
         let mut answer = String::new();
@@ -231,29 +246,27 @@ impl AltGenerator {
         for index in 0..1000 {
             let context_size = if index > 0 { 1 } else { tokens.len() };
             let ctxt = &tokens[tokens.len().saturating_sub(context_size)..];
-            let input = Tensor::new(ctxt, &d)?.unsqueeze(0)?;
+            let input = Tensor::new(ctxt, &inner.device)?.unsqueeze(0)?;
 
             let logits = if index > 0 {
-                m.text_model.forward(&input)?
+                inner.model.text_model.forward(&input)?
             } else {
-                let bos_token = Tensor::new(&[self.bos_token], &d)?.unsqueeze(0)?;
-                m.text_model
+                let bos_token = Tensor::new(&[inner.bos_token], &inner.device)?.unsqueeze(0)?;
+                inner
+                    .model
+                    .text_model
                     .forward_with_img(&bos_token, &input, &image_embeds)?
             };
 
             let logits = logits.squeeze(0)?.to_dtype(DType::F32)?;
             let next_token = logits_processor.sample(&logits)?;
             tokens.push(next_token);
-            answer.push_str(self.tokenizer.decode(&[next_token], true)?.as_str());
+            answer.push_str(inner.tokenizer.decode(&[next_token], true)?.as_str());
 
-            if next_token == self.eos_token || answer.ends_with("<END>") {
+            if next_token == inner.eos_token || answer.ends_with("<END>") {
                 break;
             }
         }
-
-        drop(m);
-        drop(d);
-        debug!("unlocked the model and device after inference");
 
         let result = answer
             .strip_suffix("<END>")
@@ -276,17 +289,21 @@ impl AltGenerator {
         let img = img.to_rgb8();
         let data = img.into_raw();
 
-        let d = self.device.lock().await;
+        let inner_lock = self.inner.lock().await;
+
+        let inner = inner_lock
+            .get_or_try_init(|| async { AltGeneratorInner::new().await })
+            .await?;
         debug!("locked the device for image processing");
 
-        let data = Tensor::from_vec(data, (378, 378, 3), &d)?.permute((2, 0, 1))?;
-        let mean = Tensor::new(&[0.5f32, 0.5, 0.5], &d)?.reshape((3, 1, 1))?;
-        let std = Tensor::new(&[0.5f32, 0.5, 0.5], &d)?.reshape((3, 1, 1))?;
+        let data = Tensor::from_vec(data, (378, 378, 3), &inner.device)?.permute((2, 0, 1))?;
+        let mean = Tensor::new(&[0.5f32, 0.5, 0.5], &inner.device)?.reshape((3, 1, 1))?;
+        let std = Tensor::new(&[0.5f32, 0.5, 0.5], &inner.device)?.reshape((3, 1, 1))?;
 
         (data.to_dtype(DType::F32)? / 255.)?
             .broadcast_sub(&mean)?
             .broadcast_div(&std)?
-            .to_device(&d)
+            .to_device(&inner.device)
             .with_context(|| String::from("encoding to device"))?
             .to_dtype(DType::F16)
             .with_context(|| String::from("encoding do dtype"))
