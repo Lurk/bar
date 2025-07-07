@@ -137,11 +137,7 @@ impl AltGenerator {
             .expect("Alt text generator should be configured");
 
         let result = self
-            .run(
-                config.prompt.as_ref(),
-                image,
-                Some(config.temperature.clone()),
-            )
+            .run(config.prompt.as_ref(), image, Some(config.temperature))
             .await;
 
         if let Ok(alt_text) = result.as_ref() {
