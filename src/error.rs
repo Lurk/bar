@@ -56,7 +56,7 @@ pub enum Errors {
     CandleCore(candle_core::Error),
     ReqwestError(reqwest::Error),
     HFAPIError(hf_hub::api::tokio::ApiError),
-    Boxed(Box<(dyn std::error::Error + Send + Sync + 'static)>),
+    Boxed(Box<dyn std::error::Error + Send + Sync + 'static>),
     ImageError(image::ImageError),
 }
 

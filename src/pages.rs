@@ -294,9 +294,7 @@ pub async fn init_pages() -> Result<Arc<Pages>, BarErr> {
         .is_some()
     {
         info!("generating alt text for images");
-        // TODO: initialization of AltGenerator should be lazy. If all images already have alt
-        // text, it should not be initialized.
-        let alt_text = Arc::from(AltGenerator::new().await?);
+        let alt_text = Arc::from(AltGenerator::new());
         let pages_with_alt_generator: Vec<(Arc<AltGenerator>, String, Yamd)> = pages_vec
             .into_iter()
             .map(|(pid, yamd)| (alt_text.clone(), pid, yamd))
