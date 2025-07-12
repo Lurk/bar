@@ -292,11 +292,14 @@ pub async fn init_pages() -> Result<Arc<Pages>, BarErr> {
     {
         info!("generating alt text for images");
         let alt_text = Arc::from(AltGenerator::new());
-        let pages_with_alt_generator: Vec<(Arc<AltGenerator>, String, Yamd)> = pages_vec
-            .into_iter()
-            .map(|(pid, yamd)| (alt_text.clone(), pid, yamd))
-            .collect();
-        pages_vec = try_map(2, pages_with_alt_generator, generate_alt_text).await?;
+        pages_vec = try_map(
+            2,
+            pages_vec
+                .into_iter()
+                .map(|(pid, yamd)| (alt_text.clone(), pid, yamd)),
+            generate_alt_text,
+        )
+        .await?;
         info!("generating alt text for images complete");
     }
 
