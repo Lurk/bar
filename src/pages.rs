@@ -8,6 +8,7 @@ use crate::{
     CONFIG, PATH,
 };
 
+use itertools::Itertools;
 use serde::Serialize;
 use std::{
     cmp::Ordering,
@@ -184,9 +185,9 @@ impl Pages {
     }
 
     pub fn get_similar(&self, pid: &str, max: usize) -> Vec<Arc<str>> {
-        let Some(page) = self.get(pid) else {
-            return vec![];
-        };
+        let page = self
+            .get(pid)
+            .unwrap_or_else(|| panic!("article with {pid} is not found"));
 
         let Some(tags) = page.metadata.tags.as_ref() else {
             return vec![];
@@ -204,21 +205,17 @@ impl Pages {
                     continue;
                 }
 
-                let Some(other_tags) = other.metadata.tags.as_ref() else {
-                    continue;
-                };
-
-                leaderboard.entry(other.pid.clone()).or_insert_with(|| {
-                    other_tags
-                        .iter()
-                        .filter(|other_tag| tags.contains(other_tag))
-                        .count()
-                });
+                leaderboard
+                    .entry(other.pid.clone())
+                    .and_modify(|score| *score += 1)
+                    .or_insert(1);
             }
         }
 
-        let mut leaderboard: Vec<(&Arc<str>, &usize)> = leaderboard.iter().collect();
-        leaderboard.sort_by(|(_, left), (_, right)| right.cmp(left));
+        let leaderboard: Vec<(&Arc<str>, &usize)> = leaderboard
+            .iter()
+            .sorted_by(|(_, left), (_, right)| right.cmp(left))
+            .collect();
 
         leaderboard
             .iter()
@@ -295,11 +292,14 @@ pub async fn init_pages() -> Result<Arc<Pages>, BarErr> {
     {
         info!("generating alt text for images");
         let alt_text = Arc::from(AltGenerator::new());
-        let pages_with_alt_generator: Vec<(Arc<AltGenerator>, String, Yamd)> = pages_vec
-            .into_iter()
-            .map(|(pid, yamd)| (alt_text.clone(), pid, yamd))
-            .collect();
-        pages_vec = try_map(2, pages_with_alt_generator, generate_alt_text).await?;
+        pages_vec = try_map(
+            2,
+            pages_vec
+                .into_iter()
+                .map(|(pid, yamd)| (alt_text.clone(), pid, yamd)),
+            generate_alt_text,
+        )
+        .await?;
         info!("generating alt text for images complete");
     }
 
