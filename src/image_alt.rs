@@ -39,7 +39,7 @@ fn device() -> Result<Device, BarErr> {
     }
 }
 
-async fn unwrap_path(path: &str) -> Result<PathBuf, BarErr> {
+async fn str_to_path(path: &str) -> Result<PathBuf, BarErr> {
     if path.starts_with("http") {
         let destination = PATH
             .get()
@@ -278,7 +278,7 @@ impl AltGenerator {
     }
 
     async fn load_image(&self, path: &str) -> Result<Tensor, BarErr> {
-        let p = unwrap_path(path).await?;
+        let p = str_to_path(path).await?;
 
         let img = ImageReader::open(&p)
             .with_context(|| format!("reading: {p:?}"))?
