@@ -4,7 +4,7 @@ use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 use crate::{
     error::{BarErr, ContextExt},
-    fs::{read_to_string, write_file},
+    fs::write_file,
     PATH,
 };
 
@@ -22,7 +22,7 @@ pub struct Cache<T> {
     version: usize,
 }
 
-impl<T: Debug + Serialize + DeserializeOwned> Cache<T> {
+impl<T> Cache<T> {
     pub fn new(kind: &str, version: usize) -> Self {
         Cache {
             kind: kind.to_string(),
@@ -32,6 +32,19 @@ impl<T: Debug + Serialize + DeserializeOwned> Cache<T> {
         }
     }
 
+    pub fn with_ttl(mut self, ttl: Duration) -> Self {
+        self.ttl = Some(ttl);
+        self
+    }
+
+    fn get_path(&self, key: &str) -> PathBuf {
+        PATH.get()
+            .expect("PATH should be initialized")
+            .join(format!(".cache/{}/{}.json", self.kind, key))
+    }
+}
+
+impl<T: Debug + Serialize + DeserializeOwned> Cache<T> {
     pub async fn set(&self, key: &str, data: &T) -> Result<(), BarErr> {
         let cache = Value {
             data,
@@ -47,7 +60,7 @@ impl<T: Debug + Serialize + DeserializeOwned> Cache<T> {
             .with_context(|| format!("Failed to write cache for key: {key}"))
     }
 
-    pub async fn get(&self, key: &str) -> Result<Option<T>, BarErr> {
+    pub fn get(&self, key: &str) -> Result<Option<T>, BarErr> {
         let full_path = self.get_path(key);
 
         if !full_path.exists() {
@@ -58,8 +71,11 @@ impl<T: Debug + Serialize + DeserializeOwned> Cache<T> {
             return Err(format!("Cache path {full_path:?} is not a file").into());
         }
 
-        let cache: Value<T> = serde_json::from_str(read_to_string(&full_path).await?.as_ref())
-            .with_context(|| format!("Failed to deserialize cache data for key: {key}"))?;
+        let rdr = std::fs::File::open(&full_path)
+            .with_context(|| format!("Failed to open cache file for key: {key}"))?;
+
+        let cache: Value<T> = serde_json::from_reader(rdr)
+            .with_context(|| format!("Failed to deserialize cache file for key: {key}"))?;
 
         if cache.version == self.version {
             if let Some(ttl) = self.ttl {
@@ -72,12 +88,6 @@ impl<T: Debug + Serialize + DeserializeOwned> Cache<T> {
         }
 
         Ok(None)
-    }
-
-    fn get_path(&self, key: &str) -> PathBuf {
-        PATH.get()
-            .expect("PATH should be initialized")
-            .join(format!(".cache/{}/{}.json", self.kind, key))
     }
 }
 
@@ -95,6 +105,6 @@ mod tests {
 
         cache.set(key, &value).await.ok();
 
-        assert_eq!(cache.get(key).await.ok().unwrap(), Some(value));
+        assert_eq!(cache.get(key).ok().unwrap(), Some(value));
     }
 }

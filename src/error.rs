@@ -4,6 +4,7 @@ use std::{
     path::StripPrefixError,
 };
 
+use gpxtools::GPXError;
 use itertools::Itertools;
 use tokio::task::JoinError;
 use url::ParseError;
@@ -58,6 +59,7 @@ pub enum Errors {
     HFAPIError(hf_hub::api::tokio::ApiError),
     Boxed(Box<dyn std::error::Error + Send + Sync + 'static>),
     ImageError(image::ImageError),
+    GPXError(GPXError),
 }
 
 impl From<io::Error> for BarErr {
@@ -204,6 +206,15 @@ impl From<image::ImageError> for BarErr {
     }
 }
 
+impl From<GPXError> for BarErr {
+    fn from(err: GPXError) -> Self {
+        BarErr {
+            err: Errors::GPXError(err),
+            context: vec![],
+        }
+    }
+}
+
 impl Display for Errors {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -222,6 +233,7 @@ impl Display for Errors {
             Errors::HFAPIError(err) => f.write_str(err.to_string().as_str()),
             Errors::Boxed(err) => f.write_str(err.to_string().as_str()),
             Errors::ImageError(err) => f.write_str(err.to_string().as_str()),
+            Errors::GPXError(err) => f.write_str(err.to_string().as_str()),
         }
     }
 }

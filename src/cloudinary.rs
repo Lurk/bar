@@ -11,7 +11,7 @@ use crate::{cache::Cache, error::BarErr, CONFIG};
 async fn cloudinary_gallery_to_image_gallery(embed: &Embed) -> Result<Images, BarErr> {
     let cache = Cache::<Images>::new("cloudinary_gallery", 1);
 
-    if let Some(images) = cache.get(&embed.args).await? {
+    if let Some(images) = cache.get(&embed.args)? {
         return Ok(images);
     }
 

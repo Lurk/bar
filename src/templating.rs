@@ -1,9 +1,10 @@
 use crate::{
     fs::crc32_checksum,
+    gpx_embed::gpx,
     pages::Pages,
     site::{DynamicPage, Feed, FeedType, Page, Site, StaticPage},
     syntax_highlight::code,
-    PATH,
+    CONFIG, PATH,
 };
 use cloudinary::transformation::{
     aspect_ratio::AspectRatio,
@@ -213,6 +214,44 @@ fn get_image_url(site: Arc<Site>) -> impl Function + 'static {
     }
 }
 
+fn render_gpx(site: Arc<Site>) -> impl Function + 'static {
+    move |args: &HashMap<String, Value>| {
+        let input = get_string_arg(args, "input").expect("input is required");
+        let width = get_usize_arg(args, "width").unwrap_or(800) as f64;
+        let height = get_usize_arg(args, "height").unwrap_or(600) as f64;
+        let base = CONFIG
+            .get()
+            .expect("CONFIG to be initialized")
+            .gpx_embedding
+            .base
+            .clone();
+
+        let copyright = CONFIG
+            .get()
+            .expect("CONFIG to be initialized")
+            .gpx_embedding
+            .copyright_png
+            .clone();
+
+        let map_url = tokio::runtime::Handle::current()
+            .block_on(async {
+                gpx(
+                    site.clone(),
+                    base,
+                    copyright,
+                    PATH.get()
+                        .expect("Path to be initialized")
+                        .join(input.trim().trim_start_matches('/')),
+                    width,
+                    height,
+                )
+                .await
+            })
+            .map_err(|e| format!("{e}"))?;
+        Ok(tera::to_value(map_url)?)
+    }
+}
+
 fn crc32(value: &Value, _: &HashMap<String, Value>) -> Result<Value> {
     let val = value
         .as_str()
@@ -243,6 +282,7 @@ pub fn initialize(
     tera.register_function("code", code(syntax_highlighter));
     tera.register_function("get_image_url", get_image_url(site.clone()));
     tera.register_function("add_feed", add_feed(site.clone()));
+    tera.register_function("render_gpx", render_gpx(site.clone()));
 
     tera.register_filter("crc32", crc32);
 
