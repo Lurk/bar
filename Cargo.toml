@@ -39,7 +39,7 @@ candle-transformers = { version = "0.9.1" }
 tokenizers = { version = "0.21.4" }
 image = { version = "0.25.6", features = ["jpeg", "png", "gif", "tiff"] }
 hf-hub = { version = "0.4.3"}
-reqwest = { version = "0.12.22"}
+reqwest = { version = "0.12.23"}
 
 [dev-dependencies]
 pretty_assertions = "1.4.1"
