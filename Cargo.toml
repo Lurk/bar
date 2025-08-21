@@ -14,7 +14,7 @@ candle-transformers = { version = "0.9.1", features = ["metal"] }
 async-recursion = "1.1.1"
 bincode = "1.3.3"
 clap = { version = "4.5.45", features = ["derive"] }
-clap-verbosity-flag = "3.0.3"
+clap-verbosity-flag = "3.0.4"
 crc32fast = "1.5.0"
 cloudinary = { version = "0.8.1" }
 data-encoding = "2.9.0"
