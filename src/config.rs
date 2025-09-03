@@ -1,5 +1,6 @@
 use std::{collections::HashMap, fs::File, path::PathBuf, sync::Arc};
 
+use linked_hash_map::LinkedHashMap;
 use serde::{Deserialize, Serialize};
 use tracing::{debug, info};
 use url::Url;
@@ -10,39 +11,11 @@ use crate::error::{BarErr, ContextExt};
 #[serde(untagged)]
 pub enum TemplateConfigValue {
     VecOfStrings(Vec<String>),
+    MapOfStringToString(LinkedHashMap<String, String>),
+    MapOfStringToMapOfStringToString(LinkedHashMap<String, LinkedHashMap<String, String>>),
     String(String),
     Bool(bool),
     Usize(usize),
-}
-
-impl TemplateConfigValue {
-    pub fn as_vec_of_strings(&self) -> Option<&Vec<String>> {
-        match self {
-            TemplateConfigValue::VecOfStrings(v) => Some(v),
-            _ => None,
-        }
-    }
-
-    pub fn as_string(&self) -> Option<&String> {
-        match self {
-            TemplateConfigValue::String(v) => Some(v),
-            _ => None,
-        }
-    }
-
-    pub fn as_bool(&self) -> Option<&bool> {
-        match self {
-            TemplateConfigValue::Bool(v) => Some(v),
-            _ => None,
-        }
-    }
-
-    pub fn as_usize(&self) -> Option<&usize> {
-        match self {
-            TemplateConfigValue::Usize(v) => Some(v),
-            _ => None,
-        }
-    }
 }
 
 fn default_extension() -> Vec<String> {
@@ -119,11 +92,5 @@ impl TryFrom<&PathBuf> for Config {
         let f =
             File::open(&config_path).with_context(|| format!("config file: {:?}", &config_path))?;
         Ok(serde_yaml::from_reader(f)?)
-    }
-}
-
-impl Config {
-    pub fn get(&self, key: Arc<str>) -> Option<&TemplateConfigValue> {
-        self.template_config.get(&key)
     }
 }
