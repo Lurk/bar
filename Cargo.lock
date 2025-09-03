@@ -243,6 +243,7 @@ dependencies = [
  "hf-hub",
  "image",
  "itertools 0.14.0",
+ "linked-hash-map",
  "numeric-sort",
  "pretty_assertions",
  "reqwest",
@@ -2123,6 +2124,9 @@ name = "linked-hash-map"
 version = "0.5.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0717cef1bc8b636c6e1c1bbdefc09e6322da8a9321966e8928ef80d20f7f770f"
+dependencies = [
+ "serde",
+]
 
 [[package]]
 name = "linux-raw-sys"
@@ -3387,6 +3391,7 @@ version = "1.0.143"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d401abef1d108fbd9cbaebc3e46611f4b1021f714a0597a71f41ee463f5f4a5a"
 dependencies = [
+ "indexmap",
  "itoa",
  "memchr",
  "ryu",

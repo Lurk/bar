@@ -6,7 +6,7 @@ edition = "2021"
 rust-version = "1.82.0"
 
 [target.'cfg(target_os = "macos")'.dependencies]
-candle-core = { version ="0.9.1", features=["metal"]  }
+candle-core = { version = "0.9.1", features = ["metal"] }
 candle-nn = { version = "0.9.1", features = ["metal"] }
 candle-transformers = { version = "0.9.1", features = ["metal"] }
 
@@ -24,7 +24,7 @@ syntect = { version = "5.2.0", features = ["dump-load"] }
 serde_json = "1.0.143"
 chrono = { version = "0.4.41", features = ["serde"] }
 yamd = { version = "0.16.1", features = ["serde"] }
-tera = { version = "1.20.0", features = ["builtins"] }
+tera = { version = "1.20.0", features = ["builtins", "preserve_order"] }
 url = { version = "2.5.7", features = ["serde"] }
 tokio = { version = "1.47.1", features = ["full"] }
 rss = "2.0.12"
@@ -33,14 +33,14 @@ tracing = "0.1.41"
 tracing-subscriber = "0.3.20"
 tracing-log = "0.2.0"
 itertools = "0.14.0"
-candle-core = { version ="0.9.1" }
+candle-core = { version = "0.9.1" }
 candle-nn = { version = "0.9.1" }
 candle-transformers = { version = "0.9.1" }
 tokenizers = { version = "0.22.0" }
 image = { version = "0.25.6", features = ["jpeg", "png", "gif", "tiff"] }
-hf-hub = { version = "0.4.3"}
-reqwest = { version = "0.12.23"}
+hf-hub = { version = "0.4.3" }
+reqwest = { version = "0.12.23" }
+linked-hash-map = { version = "0.5.6", features = ["serde", "serde_impl"] }
 
 [dev-dependencies]
 pretty_assertions = "1.4.1"
-
