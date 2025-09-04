@@ -37,7 +37,7 @@ candle-core = { version = "0.9.1" }
 candle-nn = { version = "0.9.1" }
 candle-transformers = { version = "0.9.1" }
 tokenizers = { version = "0.22.0" }
-image = { version = "0.25.6", features = ["jpeg", "png", "gif", "tiff"] }
+image = { version = "0.25.8", features = ["jpeg", "png", "gif", "tiff"] }
 hf-hub = { version = "0.4.3" }
 reqwest = { version = "0.12.23" }
 linked-hash-map = { version = "0.5.6", features = ["serde", "serde_impl"] }
