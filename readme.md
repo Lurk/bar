@@ -207,4 +207,4 @@ example:
 
 ## Minimal Rust Version
 
-BAR MSRV is 1.80.0
+BAR MSRV is 1.85.0
