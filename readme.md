@@ -75,10 +75,6 @@ yamd_processors:
   # if set to true BAR will convert Cloudinary [Embed](https://docs.rs/yamd/latest/yamd/nodes/struct.Embed.html)
   # to [Images](https://docs.rs/yamd/latest/yamd/nodes/struct.Images.html)
   convert_cloudinary_embed: true
-# hash map to configure template free form, depends on a template
-# will be provided to template
-template_config:
-  should_unpack_cloudinary: false
   # If set BAR will generate alt text for images using
   # [MoonDream1](https://huggingface.co/vikhyatk/moondream1) model locally. It will do so only for images that do not
   # have alt text.
@@ -99,6 +95,36 @@ template_config:
     prompt: 'Describe image in one sentence.'
     # temperature for alt text generation.
     temperature: 0.1
+# HashMap to configure template (depends on a template)
+# Supported types:
+# - Boolean (bool),
+# - Integer (usize),
+# - String (String),
+# - Vector Of Strings (Vec<String>),
+# - Map Of String To String (LinkedHashMap<String, String>) preserves order,
+# - Map Of String To Map Of String To String(LinkedHashMap<String, LinkedHashMap<String, String>>) preserves order,
+#
+# will be provided to template as `config.template_config`
+template_config:
+  # Example of boolean config
+  show_rss: true
+  # Example of integer config
+  articles_per_page: 5
+  # Example of string config
+  value: 'string value'
+  # Example of vector of strings config
+  authors:
+    - 'author 1'
+    - 'author 2'
+  # Example of map of string to string config
+  social:
+    mastodon: 'https://mastodon.social/@user'
+  # Example of map of string to map of string to string config
+  analytics:
+    plausible:
+      domain: 'blog.com'
+    umami:
+      website_id: 'your-website-id'
 ```
 
 ## Static files
