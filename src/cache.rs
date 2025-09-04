@@ -1,11 +1,11 @@
 use std::{fmt::Debug, path::PathBuf, time::Duration};
 
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use serde::{Deserialize, Serialize, de::DeserializeOwned};
 
 use crate::{
+    PATH,
     error::{BarErr, ContextExt},
     fs::{read_to_string, write_file},
-    PATH,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

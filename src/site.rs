@@ -8,10 +8,10 @@ use tokio::fs::{copy, create_dir_all, remove_dir_all};
 use tracing::{debug, info};
 
 use crate::{
+    CONFIG, PATH,
+    r#async::try_for_each,
     error::{BarErr, ContextExt},
     fs::{canonicalize_with_context, get_files_by_ext_deep, write_file},
-    r#async::try_for_each,
-    CONFIG, PATH,
 };
 
 #[derive(Debug, Clone, PartialEq)]

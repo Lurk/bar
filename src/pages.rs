@@ -1,11 +1,11 @@
 use crate::{
+    CONFIG, PATH,
+    r#async::try_map,
     cloudinary::unwrap_cloudinary,
     error::BarErr,
     fs::{canonicalize_with_context, get_files_by_ext_deep},
-    image_alt::{generate_alt_text, AltGenerator},
+    image_alt::{AltGenerator, generate_alt_text},
     metadata::Metadata,
-    r#async::try_map,
-    CONFIG, PATH,
 };
 
 use itertools::Itertools;
@@ -318,7 +318,7 @@ mod test {
     use chrono::prelude::*;
     use yamd::Yamd;
 
-    use crate::{config::Config, metadata::Metadata, pages::init_pages, CONFIG, PATH};
+    use crate::{CONFIG, PATH, config::Config, metadata::Metadata, pages::init_pages};
 
     use super::{Page, Pages};
 

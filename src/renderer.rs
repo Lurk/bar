@@ -5,11 +5,11 @@ use tera::{Context, Tera};
 use tracing::{debug, info};
 
 use crate::{
+    CONFIG,
     error::BarErr,
     json_feed::{FeedItem, JsonFeedBuilder},
     pages::Pages,
     site::{FeedType, Site},
-    CONFIG,
 };
 
 pub fn render(site: Arc<Site>, tera: &Tera, pages: &Pages) -> Result<(), BarErr> {
