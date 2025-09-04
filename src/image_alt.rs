@@ -2,28 +2,28 @@ use std::{path::PathBuf, sync::Arc};
 
 use async_recursion::async_recursion;
 use candle_core::{
-    utils::{cuda_is_available, metal_is_available},
     DType, Device, Tensor,
+    utils::{cuda_is_available, metal_is_available},
 };
 use candle_nn::VarBuilder;
 use candle_transformers::{
     generation::LogitsProcessor,
     models::{moondream::Config, moondream::Model},
 };
-use image::{imageops::FilterType, EncodableLayout, ImageReader};
+use image::{EncodableLayout, ImageReader, imageops::FilterType};
 use tokenizers::Tokenizer;
 use tokio::sync::{Mutex, OnceCell};
 use tracing::{debug, info};
 use yamd::{
-    nodes::{Image, Images, YamdNodes},
     Yamd,
+    nodes::{Image, Images, YamdNodes},
 };
 
 use crate::{
+    CONFIG, PATH,
     cache::Cache,
     error::{BarErr, ContextExt},
     fs::write_file,
-    CONFIG, PATH,
 };
 
 fn device() -> Result<Device, BarErr> {

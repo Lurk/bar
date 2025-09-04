@@ -1,17 +1,17 @@
 use crate::{
+    PATH,
     fs::crc32_checksum,
     pages::Pages,
     site::{DynamicPage, Feed, FeedType, Page, Site, StaticPage},
     syntax_highlight::code,
-    PATH,
 };
 use cloudinary::transformation::{
+    Image, Transformations,
     aspect_ratio::AspectRatio,
     background::{Auto, AutoModes, Direction, Number},
     crop_mode::CropMode,
     gravity::Gravity,
     pad_mode::PadMode,
-    Image, Transformations,
 };
 use crc32fast::Hasher;
 use data_encoding::BASE64URL_NOPAD;

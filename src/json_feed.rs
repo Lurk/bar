@@ -3,7 +3,7 @@ use std::{
     sync::Arc,
 };
 
-use cloudinary::transformation::{crop_mode::CropMode, gravity::Gravity, Image, Transformations};
+use cloudinary::transformation::{Image, Transformations, crop_mode::CropMode, gravity::Gravity};
 use rss::{Category, Guid, Item, ItemBuilder};
 use serde::Serialize;
 use url::Url;
