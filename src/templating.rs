@@ -152,35 +152,6 @@ fn get_page_by_pid(pages: Arc<Pages>) -> impl Function + 'static {
 
 fn get_image_url(site: Arc<Site>) -> impl Function + 'static {
     move |args: &HashMap<String, Value>| {
-        let transformation: Transformations =
-            match (get_usize_arg(args, "width"), get_usize_arg(args, "height")) {
-                (None, None) => return Err(tera::Error::msg("width or height is required")),
-                (None, Some(height)) => Transformations::Crop(CropMode::FillByHeight {
-                    height: height as u32,
-                    ar: None,
-                    gravity: Some(Gravity::Center),
-                }),
-                (Some(width), None) => Transformations::Pad(PadMode::PadByWidth {
-                    width: width as u32,
-                    // TODO control aspect_ratio from template
-                    ar: Some(AspectRatio::Sides(16, 9)),
-                    gravity: Some(Gravity::Center),
-                    background: Some(
-                        Auto {
-                            mode: Some(AutoModes::BorderGradient),
-                            number: Some(Number::Four),
-                            direction: Some(Direction::Vertical),
-                            palette: None,
-                        }
-                        .into(),
-                    ),
-                }),
-                (Some(width), Some(height)) => Transformations::Crop(CropMode::Fill {
-                    width: width as u32,
-                    height: height as u32,
-                    gravity: Some(Gravity::Center),
-                }),
-            };
         let src = get_string_arg(args, "src").expect("get url from src");
         if src.starts_with('/') {
             site.add_page(
@@ -202,6 +173,37 @@ fn get_image_url(site: Arc<Site>) -> impl Function + 'static {
             let src = Url::parse(src.as_str()).expect("parse url from src");
             match Image::try_from(src.clone()) {
                 Ok(image) => {
+                    let transformation: Transformations =
+                        match (get_usize_arg(args, "width"), get_usize_arg(args, "height")) {
+                            (None, None) => {
+                                return Err(tera::Error::msg("width or height is required"));
+                            }
+                            (None, Some(height)) => Transformations::Crop(CropMode::FillByHeight {
+                                height: height as u32,
+                                ar: None,
+                                gravity: Some(Gravity::Center),
+                            }),
+                            (Some(width), None) => Transformations::Pad(PadMode::PadByWidth {
+                                width: width as u32,
+                                // TODO control aspect_ratio from template
+                                ar: Some(AspectRatio::Sides(16, 9)),
+                                gravity: Some(Gravity::Center),
+                                background: Some(
+                                    Auto {
+                                        mode: Some(AutoModes::BorderGradient),
+                                        number: Some(Number::Four),
+                                        direction: Some(Direction::Vertical),
+                                        palette: None,
+                                    }
+                                    .into(),
+                                ),
+                            }),
+                            (Some(width), Some(height)) => Transformations::Crop(CropMode::Fill {
+                                width: width as u32,
+                                height: height as u32,
+                                gravity: Some(Gravity::Center),
+                            }),
+                        };
                     let result = image.clone().add_transformation(transformation);
                     Ok(tera::to_value(result.to_string())?)
                 }
