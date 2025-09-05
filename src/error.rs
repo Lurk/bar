@@ -205,11 +205,11 @@ impl From<image::ImageError> for BarErr {
     }
 }
 
-fn recursive_terra_error(err: &(dyn Error + 'static)) -> String {
+fn stringify_error_with_source(err: &(dyn Error + 'static)) -> String {
     if let Some(source) = &err.source() {
-        format!("{}\n{}\n", err, recursive_terra_error(*source))
+        format!("\n{}\n{}", err, stringify_error_with_source(*source))
     } else {
-        format!("{}\n", err)
+        format!("{}", err)
     }
 }
 
@@ -219,7 +219,7 @@ impl Display for Errors {
             Errors::IO(err) => f.write_str(err.to_string().as_str()),
             Errors::YamlParseError(err) => f.write_str(err.to_string().as_str()),
             Errors::JsonParseError(err) => f.write_str(err.to_string().as_str()),
-            Errors::TerraError(err) => f.write_str(recursive_terra_error(err).as_str()),
+            Errors::TerraError(err) => f.write_str(stringify_error_with_source(err).as_str()),
             Errors::OsStringError(err) => f.write_str(format!("{err:#?}").as_str()),
             Errors::BinErr(err) => f.write_str(err.to_string().as_str()),
             Errors::StripPrefixError(err) => f.write_str(err.to_string().as_str()),
@@ -276,7 +276,7 @@ impl Debug for BarErr {
 
 #[cfg(test)]
 mod tests {
-    use crate::error::{BarErr, ContextExt};
+    use crate::error::{BarErr, ContextExt, stringify_error_with_source};
 
     use pretty_assertions::assert_eq;
 
@@ -304,5 +304,46 @@ mod tests {
         if let Err(bar) = err {
             assert_eq!(format!("{bar:?}"), error_message);
         };
+    }
+
+    #[test]
+    fn stringify_error_with_source_test() {
+        use std::fmt;
+
+        #[derive(Debug)]
+        struct MyError;
+
+        impl fmt::Display for MyError {
+            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                write!(f, "MyError occurred")
+            }
+        }
+
+        impl std::error::Error for MyError {
+            fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+                Some(&AnotherError)
+            }
+        }
+
+        #[derive(Debug)]
+        struct AnotherError;
+
+        impl fmt::Display for AnotherError {
+            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                write!(f, "AnotherError occurred")
+            }
+        }
+
+        impl std::error::Error for AnotherError {}
+
+        let my_error = MyError;
+        let result = stringify_error_with_source(&my_error);
+        let expected = "\nMyError occurred\nAnotherError occurred".to_string();
+        assert_eq!(result, expected);
+
+        let another_error = AnotherError;
+        let result = stringify_error_with_source(&another_error);
+        let expected = "AnotherError occurred".to_string();
+        assert_eq!(result, expected);
     }
 }
