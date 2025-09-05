@@ -1,4 +1,5 @@
 use std::{
+    error::Error,
     fmt::{Debug, Display},
     io,
     path::StripPrefixError,
@@ -204,13 +205,21 @@ impl From<image::ImageError> for BarErr {
     }
 }
 
+fn recursive_terra_error(err: &(dyn Error + 'static)) -> String {
+    if let Some(source) = &err.source() {
+        format!("{}\n{}\n", err, recursive_terra_error(*source))
+    } else {
+        format!("{}\n", err)
+    }
+}
+
 impl Display for Errors {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Errors::IO(err) => f.write_str(err.to_string().as_str()),
             Errors::YamlParseError(err) => f.write_str(err.to_string().as_str()),
             Errors::JsonParseError(err) => f.write_str(err.to_string().as_str()),
-            Errors::TerraError(err) => f.write_str(err.to_string().as_str()),
+            Errors::TerraError(err) => f.write_str(recursive_terra_error(err).as_str()),
             Errors::OsStringError(err) => f.write_str(format!("{err:#?}").as_str()),
             Errors::BinErr(err) => f.write_str(err.to_string().as_str()),
             Errors::StripPrefixError(err) => f.write_str(err.to_string().as_str()),
@@ -228,32 +237,40 @@ impl Display for Errors {
 
 impl Display for BarErr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        writeln!(
-            f,
-            "Error:\n\n{}\n\ncontext:\n{}",
-            self.err,
-            self.context
-                .iter()
-                .enumerate()
-                .rev()
-                .map(|(pos, message)| format!("\t{}. {message}", pos + 1))
-                .join("\n")
-        )
+        let context = if self.context.is_empty() {
+            "".to_string()
+        } else {
+            format!(
+                "context:\n{}",
+                self.context
+                    .iter()
+                    .enumerate()
+                    .rev()
+                    .map(|(pos, message)| format!("\t{}. {message}", pos + 1))
+                    .join("\n")
+            )
+        };
+        writeln!(f, "Error:\n\n{}\n\n{}", self.err, context)
     }
 }
 
 impl Debug for BarErr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        writeln!(
-            f,
-            "Error:\n\n{}\n\ncontext:\n{}",
-            self.err,
-            self.context
-                .iter()
-                .enumerate()
-                .map(|(pos, message)| format!("\t{}. {message}", pos + 1))
-                .join("\n")
-        )
+        let context = if self.context.is_empty() {
+            "".to_string()
+        } else {
+            format!(
+                "context:\n{}",
+                self.context
+                    .iter()
+                    .enumerate()
+                    .rev()
+                    .map(|(pos, message)| format!("\t{}. {message}", pos + 1))
+                    .join("\n")
+            )
+        };
+
+        writeln!(f, "Error:\n\n{}\n\n{}", self.err, context)
     }
 }
 
@@ -262,8 +279,9 @@ mod tests {
     use crate::error::{BarErr, ContextExt};
 
     use pretty_assertions::assert_eq;
+
     #[test]
-    fn multiple_context() {
+    fn multiple_context_display() {
         let error_message =
             "Error:\n\nactual error\n\ncontext:\n\t2. second\n\t1. first\n".to_string();
         let err: Result<(), BarErr> = Err("actual error")
@@ -272,6 +290,19 @@ mod tests {
 
         if let Err(bar) = err {
             assert_eq!(bar.to_string(), error_message);
+        };
+    }
+
+    #[test]
+    fn multiple_context_debug() {
+        let error_message =
+            "Error:\n\nactual error\n\ncontext:\n\t2. second\n\t1. first\n".to_string();
+        let err: Result<(), BarErr> = Err("actual error")
+            .with_context(|| "first".to_string())
+            .with_context(|| "second".to_string());
+
+        if let Err(bar) = err {
+            assert_eq!(format!("{bar:?}"), error_message);
         };
     }
 }

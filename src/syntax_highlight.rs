@@ -1,5 +1,6 @@
 use std::{collections::HashMap, sync::Arc};
 
+use itertools::Itertools;
 use syntect::{
     dumps::from_uncompressed_data,
     html::{ClassStyle, ClassedHTMLGenerator},
@@ -24,7 +25,8 @@ fn map_language(supported: &[Arc<str>], language: Arc<str>) -> Result<Arc<str>, 
         Ok(language)
     } else {
         Err(tera::Error::from(format!(
-            "Language {language} is not supported\nSupported languages are {supported:?}"
+            "Language '{language}' is not supported\nSupported languages are:\n{}",
+            supported.iter().map(|s| format!(" - {s}")).join("\n")
         )))
     }
 }
@@ -55,4 +57,46 @@ pub fn init() -> Result<Arc<SyntaxSet>, BarErr> {
     Ok(Arc::new(from_uncompressed_data(include_bytes!(
         "./syntaxes.bin"
     ))?))
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    #[test]
+    fn map_language_test() {
+        use super::map_language;
+        let supported = vec![
+            "JavaScript".into(),
+            "TypeScriptReact".into(),
+            "Rust".into(),
+            "Bourne Again Shell (bash)".into(),
+            "YAML".into(),
+            "Markdown".into(),
+        ];
+        let test_cases = vec![
+            ("js", "JavaScript"),
+            ("javascript", "JavaScript"),
+            ("ts", "TypeScriptReact"),
+            ("typescript", "TypeScriptReact"),
+            ("jsx", "TypeScriptReact"),
+            ("rs", "Rust"),
+            ("rust", "Rust"),
+            ("bash", "Bourne Again Shell (bash)"),
+            ("sh", "Bourne Again Shell (bash)"),
+            ("yaml", "YAML"),
+            ("yml", "YAML"),
+            ("md", "Markdown"),
+            ("yamd", "Markdown"),
+            ("Python", "Python"),
+        ];
+        for (input, expected) in test_cases {
+            let result = map_language(&supported, input.into());
+            if supported.contains(&expected.into()) {
+                assert_eq!(result.unwrap(), Arc::from(expected));
+            } else {
+                assert!(result.is_err());
+            }
+        }
+    }
 }
