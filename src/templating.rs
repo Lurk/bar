@@ -150,37 +150,39 @@ fn get_page_by_pid(pages: Arc<Pages>) -> impl Function + 'static {
     }
 }
 
+fn get_transformations(with: Option<usize>, height: Option<usize>) -> Result<Transformations> {
+    match (with, height) {
+        (None, None) => Err(tera::Error::msg("width or height is required")),
+        (None, Some(height)) => Ok(Transformations::Crop(CropMode::FillByHeight {
+            height: height as u32,
+            ar: None,
+            gravity: Some(Gravity::Center),
+        })),
+        (Some(width), None) => Ok(Transformations::Pad(PadMode::PadByWidth {
+            width: width as u32,
+            // TODO control aspect_ratio from template
+            ar: Some(AspectRatio::Sides(16, 9)),
+            gravity: Some(Gravity::Center),
+            background: Some(
+                Auto {
+                    mode: Some(AutoModes::BorderGradient),
+                    number: Some(Number::Four),
+                    direction: Some(Direction::Vertical),
+                    palette: None,
+                }
+                .into(),
+            ),
+        })),
+        (Some(width), Some(height)) => Ok(Transformations::Crop(CropMode::Fill {
+            width: width as u32,
+            height: height as u32,
+            gravity: Some(Gravity::Center),
+        })),
+    }
+}
+
 fn get_image_url(site: Arc<Site>) -> impl Function + 'static {
     move |args: &HashMap<String, Value>| {
-        let transformation: Transformations =
-            match (get_usize_arg(args, "width"), get_usize_arg(args, "height")) {
-                (None, None) => return Err(tera::Error::msg("width or height is required")),
-                (None, Some(height)) => Transformations::Crop(CropMode::FillByHeight {
-                    height: height as u32,
-                    ar: None,
-                    gravity: Some(Gravity::Center),
-                }),
-                (Some(width), None) => Transformations::Pad(PadMode::PadByWidth {
-                    width: width as u32,
-                    // TODO control aspect_ratio from template
-                    ar: Some(AspectRatio::Sides(16, 9)),
-                    gravity: Some(Gravity::Center),
-                    background: Some(
-                        Auto {
-                            mode: Some(AutoModes::BorderGradient),
-                            number: Some(Number::Four),
-                            direction: Some(Direction::Vertical),
-                            palette: None,
-                        }
-                        .into(),
-                    ),
-                }),
-                (Some(width), Some(height)) => Transformations::Crop(CropMode::Fill {
-                    width: width as u32,
-                    height: height as u32,
-                    gravity: Some(Gravity::Center),
-                }),
-            };
         let src = get_string_arg(args, "src").expect("get url from src");
         if src.starts_with('/') {
             site.add_page(
@@ -202,6 +204,10 @@ fn get_image_url(site: Arc<Site>) -> impl Function + 'static {
             let src = Url::parse(src.as_str()).expect("parse url from src");
             match Image::try_from(src.clone()) {
                 Ok(image) => {
+                    let transformation = get_transformations(
+                        get_usize_arg(args, "width"),
+                        get_usize_arg(args, "height"),
+                    )?;
                     let result = image.clone().add_transformation(transformation);
                     Ok(tera::to_value(result.to_string())?)
                 }
@@ -248,4 +254,17 @@ pub fn initialize(
 
     info!("template initialization complete");
     Ok(tera)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::get_transformations;
+
+    #[test]
+    fn get_transformations_test() {
+        assert!(get_transformations(None, None).is_err());
+        assert!(get_transformations(Some(100), None).is_ok());
+        assert!(get_transformations(None, Some(100)).is_ok());
+        assert!(get_transformations(Some(100), Some(100)).is_ok());
+    }
 }
