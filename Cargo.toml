@@ -21,7 +21,7 @@ data-encoding = "2.9.0"
 serde = { version = "1.0.219", features = ["derive", "rc"] }
 serde_yaml = "0.9.34"
 syntect = { version = "5.2.0", features = ["dump-load"] }
-serde_json = "1.0.143"
+serde_json = "1.0.145"
 chrono = { version = "0.4.42", features = ["serde"] }
 yamd = { version = "0.16.2", features = ["serde"] }
 tera = { version = "1.20.0", features = ["builtins", "preserve_order"] }
