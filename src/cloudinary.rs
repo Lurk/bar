@@ -2,11 +2,11 @@ use async_recursion::async_recursion;
 use cloudinary::{tags::get_tags, transformation::Image as CloudinaryImage};
 use numeric_sort::cmp;
 use yamd::{
-    nodes::{Collapsible, Embed, Image, Images, YamdNodes},
     Yamd,
+    nodes::{Collapsible, Embed, Image, Images, YamdNodes},
 };
 
-use crate::{cache::Cache, error::BarErr, CONFIG};
+use crate::{CONFIG, cache::Cache, error::BarErr};
 
 async fn cloudinary_gallery_to_image_gallery(embed: &Embed) -> Result<Images, BarErr> {
     let cache = Cache::<Images>::new("cloudinary_gallery", 1);

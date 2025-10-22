@@ -1,4 +1,5 @@
 use std::{
+    error::Error,
     fmt::{Debug, Display},
     io,
     path::StripPrefixError,
@@ -206,12 +207,11 @@ impl From<image::ImageError> for BarErr {
     }
 }
 
-impl From<GPXError> for BarErr {
-    fn from(err: GPXError) -> Self {
-        BarErr {
-            err: Errors::GPXError(err),
-            context: vec![],
-        }
+fn stringify_error_with_source(err: &(dyn Error + 'static)) -> String {
+    if let Some(source) = &err.source() {
+        format!("\n{}\n{}", err, stringify_error_with_source(*source))
+    } else {
+        format!("{}", err)
     }
 }
 
@@ -221,7 +221,7 @@ impl Display for Errors {
             Errors::IO(err) => f.write_str(err.to_string().as_str()),
             Errors::YamlParseError(err) => f.write_str(err.to_string().as_str()),
             Errors::JsonParseError(err) => f.write_str(err.to_string().as_str()),
-            Errors::TerraError(err) => f.write_str(err.to_string().as_str()),
+            Errors::TerraError(err) => f.write_str(stringify_error_with_source(err).as_str()),
             Errors::OsStringError(err) => f.write_str(format!("{err:#?}").as_str()),
             Errors::BinErr(err) => f.write_str(err.to_string().as_str()),
             Errors::StripPrefixError(err) => f.write_str(err.to_string().as_str()),
@@ -240,42 +240,51 @@ impl Display for Errors {
 
 impl Display for BarErr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        writeln!(
-            f,
-            "Error:\n\n{}\n\ncontext:\n{}",
-            self.err,
-            self.context
-                .iter()
-                .enumerate()
-                .rev()
-                .map(|(pos, message)| format!("\t{}. {message}", pos + 1))
-                .join("\n")
-        )
+        let context = if self.context.is_empty() {
+            "".to_string()
+        } else {
+            format!(
+                "context:\n{}",
+                self.context
+                    .iter()
+                    .enumerate()
+                    .rev()
+                    .map(|(pos, message)| format!("\t{}. {message}", pos + 1))
+                    .join("\n")
+            )
+        };
+        writeln!(f, "Error:\n\n{}\n\n{}", self.err, context)
     }
 }
 
 impl Debug for BarErr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        writeln!(
-            f,
-            "Error:\n\n{}\n\ncontext:\n{}",
-            self.err,
-            self.context
-                .iter()
-                .enumerate()
-                .map(|(pos, message)| format!("\t{}. {message}", pos + 1))
-                .join("\n")
-        )
+        let context = if self.context.is_empty() {
+            "".to_string()
+        } else {
+            format!(
+                "context:\n{}",
+                self.context
+                    .iter()
+                    .enumerate()
+                    .rev()
+                    .map(|(pos, message)| format!("\t{}. {message}", pos + 1))
+                    .join("\n")
+            )
+        };
+
+        writeln!(f, "Error:\n\n{}\n\n{}", self.err, context)
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::error::{BarErr, ContextExt};
+    use crate::error::{BarErr, ContextExt, stringify_error_with_source};
 
     use pretty_assertions::assert_eq;
+
     #[test]
-    fn multiple_context() {
+    fn multiple_context_display() {
         let error_message =
             "Error:\n\nactual error\n\ncontext:\n\t2. second\n\t1. first\n".to_string();
         let err: Result<(), BarErr> = Err("actual error")
@@ -285,5 +294,59 @@ mod tests {
         if let Err(bar) = err {
             assert_eq!(bar.to_string(), error_message);
         };
+    }
+
+    #[test]
+    fn multiple_context_debug() {
+        let error_message =
+            "Error:\n\nactual error\n\ncontext:\n\t2. second\n\t1. first\n".to_string();
+        let err: Result<(), BarErr> = Err("actual error")
+            .with_context(|| "first".to_string())
+            .with_context(|| "second".to_string());
+
+        if let Err(bar) = err {
+            assert_eq!(format!("{bar:?}"), error_message);
+        };
+    }
+
+    #[test]
+    fn stringify_error_with_source_test() {
+        use std::fmt;
+
+        #[derive(Debug)]
+        struct MyError;
+
+        impl fmt::Display for MyError {
+            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                write!(f, "MyError occurred")
+            }
+        }
+
+        impl std::error::Error for MyError {
+            fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+                Some(&AnotherError)
+            }
+        }
+
+        #[derive(Debug)]
+        struct AnotherError;
+
+        impl fmt::Display for AnotherError {
+            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                write!(f, "AnotherError occurred")
+            }
+        }
+
+        impl std::error::Error for AnotherError {}
+
+        let my_error = MyError;
+        let result = stringify_error_with_source(&my_error);
+        let expected = "\nMyError occurred\nAnotherError occurred".to_string();
+        assert_eq!(result, expected);
+
+        let another_error = AnotherError;
+        let result = stringify_error_with_source(&another_error);
+        let expected = "AnotherError occurred".to_string();
+        assert_eq!(result, expected);
     }
 }

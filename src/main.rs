@@ -33,8 +33,8 @@ use tokio::try_join;
 use tracing::subscriber;
 use tracing_log::AsTrace;
 use tracing_subscriber::FmtSubscriber;
-use yamd::nodes::Paragraph;
 use yamd::Yamd;
+use yamd::nodes::Paragraph;
 
 use crate::error::ContextExt;
 use crate::fs::canonicalize_with_context;
