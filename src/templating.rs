@@ -1,11 +1,10 @@
 use crate::{
-    PATH,
+    CONFIG, PATH,
     fs::crc32_checksum,
     gpx_embed::gpx,
     pages::Pages,
     site::{DynamicPage, Feed, FeedType, Page, Site, StaticPage},
     syntax_highlight::code,
-    CONFIG, PATH,
 };
 use cloudinary::transformation::{
     Image, Transformations,
@@ -15,8 +14,8 @@ use cloudinary::transformation::{
     gravity::Gravity,
     pad_mode::PadMode,
 };
-use crc32fast::Hasher;
 use data_encoding::BASE64URL_NOPAD;
+use gpxtools::{StatsArgs, calculate_stats};
 use std::{collections::HashMap, path::Path, sync::Arc};
 use syntect::parsing::SyntaxSet;
 use tera::{Function, Result, Tera, Value};
@@ -74,6 +73,28 @@ fn add_page(site: Arc<Site>) -> impl Function + 'static {
             .into(),
         );
         Ok(tera::to_value(())?)
+    }
+}
+
+fn add_static_file(site: Arc<Site>) -> impl Function + 'static {
+    move |args: &HashMap<String, Value>| {
+        let path = get_arc_str_arg(args, "path").expect("path is required");
+        let p = PATH.get().expect("Path to be initialized");
+        let source = if let Some(source) = get_arc_str_arg(args, "source") {
+            p.join(source.trim().trim_start_matches('/'))
+        } else {
+            p.join(path.trim().trim_start_matches('/'))
+        };
+
+        site.add_page(
+            StaticPage {
+                destination: path.clone().trim().into(),
+                source: Some(source),
+                fallback: None,
+            }
+            .into(),
+        );
+        Ok(tera::to_value(path)?)
     }
 }
 
@@ -237,10 +258,11 @@ fn render_gpx(site: Arc<Site>) -> impl Function + 'static {
             .get()
             .expect("CONFIG to be initialized")
             .gpx_embedding
-            .copyright_png
+            .attribution_png
             .clone();
 
-        let map_url = tokio::runtime::Handle::current()
+        let map_url = tokio::runtime::Handle::try_current()
+            .map_err(|e| format!("{e}"))?
             .block_on(async {
                 gpx(
                     site.clone(),
@@ -259,16 +281,33 @@ fn render_gpx(site: Arc<Site>) -> impl Function + 'static {
     }
 }
 
+fn get_gpx_stats() -> impl Function + 'static {
+    move |args: &HashMap<String, Value>| {
+        let input = PATH.get().expect("Path to be initialized").join(
+            get_string_arg(args, "input")
+                .expect("input is required")
+                .trim()
+                .trim_start_matches('/'),
+        );
+
+        let stats = calculate_stats(StatsArgs {
+            input: vec![input.clone()],
+        })
+        .map_err(|e| format!("{e}"))?;
+
+        let stat = stats.first().expect("to have at least one stat ");
+
+        Ok(tera::to_value(stat)?)
+    }
+}
+
 fn crc32(value: &Value, _: &HashMap<String, Value>) -> Result<Value> {
     let val = value
         .as_str()
         .ok_or_else(|| tera::Error::msg("crc32 filter requires a string value"))?;
-    let mut hasher = Hasher::new();
-    hasher.update(val.as_bytes());
-    let digest = hasher.finalize();
-    Ok(tera::to_value(
-        BASE64URL_NOPAD.encode(digest.to_be_bytes().as_ref()),
-    )?)
+    Ok(tera::to_value(BASE64URL_NOPAD.encode(
+        crc32fast::hash(val.as_bytes()).to_be_bytes().as_ref(),
+    ))?)
 }
 
 pub fn initialize(
@@ -280,15 +319,17 @@ pub fn initialize(
     let templates = format!("{}/**/*.html", template_path.to_str().unwrap());
     info!("initialize teplates: {}", templates);
     let mut tera = Tera::new(&templates)?;
+    tera.register_function("add_feed", add_feed(site.clone()));
     tera.register_function("add_page", add_page(site.clone()));
-    tera.register_function("get_static_file", get_static_file(site.clone()));
+    tera.register_function("add_static_file", add_static_file(site.clone()));
+    tera.register_function("code", code(syntax_highlighter));
+    tera.register_function("get_gpx_stats", get_gpx_stats());
+    tera.register_function("get_image_url", get_image_url(site.clone()));
     tera.register_function("get_pages_by_tag", get_pages_by_tag(posts.clone()));
     tera.register_function("get_page_by_path", get_page_by_path(posts.clone()));
     tera.register_function("get_page_by_pid", get_page_by_pid(posts.clone()));
     tera.register_function("get_similar", get_similar(posts.clone()));
-    tera.register_function("code", code(syntax_highlighter));
-    tera.register_function("get_image_url", get_image_url(site.clone()));
-    tera.register_function("add_feed", add_feed(site.clone()));
+    tera.register_function("get_static_file", get_static_file(site.clone()));
     tera.register_function("render_gpx", render_gpx(site.clone()));
 
     tera.register_filter("crc32", crc32);

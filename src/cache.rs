@@ -6,7 +6,6 @@ use crate::{
     PATH,
     error::{BarErr, ContextExt},
     fs::write_file,
-    PATH,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -31,11 +30,6 @@ impl<T> Cache<T> {
             ttl: None,
             __phantom: std::marker::PhantomData,
         }
-    }
-
-    pub fn with_ttl(mut self, ttl: Duration) -> Self {
-        self.ttl = Some(ttl);
-        self
     }
 
     fn get_path(&self, key: &str) -> PathBuf {

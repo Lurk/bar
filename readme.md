@@ -191,6 +191,31 @@ Example:
 
 ```
 
+#### add_static_file
+
+Takes two arguments
+
+- `path` - path to static file (required)
+- `source` - source of the static file. (optional, default: `path`)
+
+Returns relative url to the static file.
+
+Example:
+
+Following code will copy `Path to the project directory` + `/gpx/1.gpx` to `dist_path` + `/gpx/1.gpx` and return
+relative url to it.
+
+```htmldjango
+<img src="{{- add_static_file( path = '/gpx/1.gpx' ) | safe -}}" />
+```
+
+Following code will copy `Path to the project directory` + `/gpx/1.gpx` to `dist_path` + `/public/gpx/1.gpx` and return
+relative url to it.
+
+```htmldjango
+<img src="{{- add_static_file( source='/gpx/1.gpx', path = '/public/gpx/1.gpx' ) | safe -}}" />
+```
+
 #### get_static_file
 
 Takes one argument
@@ -205,6 +230,47 @@ example:
 {{ get_static_file( path='/favicon.ico' )}}
 ```
 
+#### render_gpx
+
+Takes three arguments:
+
+- `input` - path to gpx file (required)
+- `width` - width of the image (optional, default: 800)
+- `height` - height of the image (optional, default: 600)
+
+Renders map with route from GPX file, and returns relative url to it.
+
+Example:
+
+```htmldjango
+<img src="{{ render_gpx( input='path/to/file.gpx', width=800, height=600 ) }}" alt="GPX Track"/>
+```
+
+#### get_gpx_stats
+
+Takes one argument:
+
+- `input` - path to gpx file (required)
+
+Returns object with following fields:
+
+- `total_ascent_m` - total ascent in meters (f64)
+- `distance_km` - total distance in kilometers (f64)
+- `file` - path to gpx file (String)
+
+Example:
+
+```htmldjango
+{% set stat = get_gpx_stats( input='path/to/file.gpx' ) %}
+<p>
+  Ascend: {{- stat.total_ascent_m | round(method="ceil", precision=0) -}} m
+</p>
+<p>
+  Distance: {{- stat.distance_km | round(method="ceil", precision=2) -}} km
+</p>
+```
+
+Takes one argument:
 ## Minimal Rust Version
 
 BAR MSRV is 1.85.0

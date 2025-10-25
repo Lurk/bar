@@ -1,27 +1,27 @@
-use std::{path::PathBuf, sync::Arc, time::Duration};
+use std::{path::PathBuf, sync::Arc};
 
 use data_encoding::BASE64URL_NOPAD;
-use gpxtools::{plot, PlotArgs};
+use gpxtools::{PlotArgs, plot};
 use tracing::debug;
 
 use crate::{
-    cache::Cache,
+    PATH,
     error::BarErr,
+    fs::write_file,
     req::get_client,
     site::{Site, StaticPage},
-    PATH,
 };
 
 pub async fn gpx(
     site: Arc<Site>,
     base: Vec<Arc<str>>,
-    copyright: Option<PathBuf>,
+    attribution_png: Option<PathBuf>,
     input: PathBuf,
     width: f64,
     height: f64,
 ) -> Result<String, BarErr> {
-    let path = BASE64URL_NOPAD.encode(
-        crc32fast::hash(input.to_string_lossy().as_bytes())
+    let filename = BASE64URL_NOPAD.encode(
+        crc32fast::hash(format!("{}{}", input.to_string_lossy(), base.join("")).as_bytes())
             .to_be_bytes()
             .as_ref(),
     );
@@ -29,23 +29,26 @@ pub async fn gpx(
     let destination = PATH
         .get()
         .expect("PATH should be initialized")
-        .join(format!(".cache/gpx_embed/{width}/{height}/{path}.png"));
+        .join(format!(".cache/gpx_embed/{width}/{height}/{filename}.png"));
 
-    plot(
-        |url| Box::pin(async move { read_tile(url).await }),
-        PlotArgs {
-            input,
-            width,
-            height,
-            base,
-            copyright,
-            output: destination.clone(),
-            force: false,
-        },
-    )
-    .await?;
+    if !destination.exists() {
+        plot(
+            |url| Box::pin(async move { read_tile(url).await }),
+            PlotArgs {
+                input,
+                width,
+                height,
+                base,
+                attribution_png: attribution_png
+                    .map(|p| PATH.get().expect("PATH should be initialized").join(p)),
+                output: destination.clone(),
+                force: false,
+            },
+        )
+        .await?;
+    }
 
-    let url = format!("/public/gpx_embed/{width}/{height}/{path}.png");
+    let url = format!("/public/gpx_embed/{width}/{height}/{filename}.png");
 
     site.add_page(
         StaticPage {
@@ -60,16 +63,22 @@ pub async fn gpx(
 
 async fn read_tile(url: String) -> Result<(String, Vec<u8>), String> {
     debug!("Fetching tile: {}", url);
-    let cache = Cache::<(String, Vec<u8>)>::new("gpx_tiles", 1)
-        .with_ttl(Duration::from_secs(60 * 60 * 24 * 31));
 
     let key = url
         .trim_start_matches("https://")
         .trim_start_matches("http://");
 
-    if let Some(cached) = cache.get(key).map_err(|e| format!("{e}"))? {
+    let destination = PATH
+        .get()
+        .expect("PATH should be initialized")
+        .join(format!(".cache/gpx_tile/{key}"));
+
+    if destination.exists() {
         debug!("Tile found in cache: {}", url);
-        return Ok(cached);
+        let bytes = tokio::fs::read(&destination)
+            .await
+            .map_err(|e| format!("Failed to read cached tile at {:?}.\n{e}", &destination))?;
+        return Ok((url, bytes));
     }
 
     let response = get_client()
@@ -77,6 +86,7 @@ async fn read_tile(url: String) -> Result<(String, Vec<u8>), String> {
         .send()
         .await
         .map_err(|e| format!("{e:?}"))?;
+
     if !response.status().is_success() {
         return Err(format!(
             "Failed to fetch image: {}\nstatus code: {}",
@@ -92,10 +102,9 @@ async fn read_tile(url: String) -> Result<(String, Vec<u8>), String> {
         .into_iter()
         .collect();
 
-    cache
-        .set(key, &(url.clone(), bytes.clone()))
+    write_file(&destination, &bytes)
         .await
-        .map_err(|e| format!("{e}"))?;
+        .map_err(|e| format!("Failed to write tile to cache at {:?}.\n{e}", &destination))?;
 
     debug!("Tile cached: {}", url);
     Ok((url, bytes))

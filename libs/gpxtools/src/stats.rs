@@ -1,6 +1,7 @@
 use std::path::PathBuf;
 
 use geo::{Distance, Haversine};
+use serde::{Deserialize, Serialize};
 use tabled::Tabled;
 
 use crate::{
@@ -12,10 +13,10 @@ use crate::{
 pub struct StatsArgs {
     /// Input file path
     #[clap(short, long)]
-    input: Vec<PathBuf>,
+    pub input: Vec<PathBuf>,
 }
 
-#[derive(Tabled)]
+#[derive(Tabled, Serialize, Deserialize, Debug)]
 pub struct Stats {
     #[tabled(rename = "File")]
     pub file: String,

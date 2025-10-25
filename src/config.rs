@@ -73,14 +73,14 @@ pub struct GpxEmbeddingConfig {
     /// Optional copyright notice to be displayed on the map.
     /// Path to png.
     /// Default: None
-    pub copyright_png: Option<PathBuf>,
+    pub attribution_png: Option<PathBuf>,
 }
 
 impl Default for GpxEmbeddingConfig {
     fn default() -> Self {
         GpxEmbeddingConfig {
             base: vec![Arc::from("https://tile.openstreetmap.org")],
-            copyright_png: None,
+            attribution_png: None,
         }
     }
 }

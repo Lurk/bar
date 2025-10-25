@@ -207,6 +207,15 @@ impl From<image::ImageError> for BarErr {
     }
 }
 
+impl From<GPXError> for BarErr {
+    fn from(err: GPXError) -> Self {
+        BarErr {
+            err: Errors::GPXError(err),
+            context: vec![],
+        }
+    }
+}
+
 fn stringify_error_with_source(err: &(dyn Error + 'static)) -> String {
     if let Some(source) = &err.source() {
         format!("\n{}\n{}", err, stringify_error_with_source(*source))
@@ -253,7 +262,7 @@ impl Display for BarErr {
                     .join("\n")
             )
         };
-        writeln!(f, "Error:\n\n{}\n\n{}", self.err, context)
+        writeln!(f, "{}\n\n{}", self.err, context)
     }
 }
 
@@ -273,7 +282,7 @@ impl Debug for BarErr {
             )
         };
 
-        writeln!(f, "Error:\n\n{}\n\n{}", self.err, context)
+        writeln!(f, "{}\n\n{}", self.err, context)
     }
 }
 
