@@ -294,8 +294,7 @@ mod tests {
 
     #[test]
     fn multiple_context_display() {
-        let error_message =
-            "Error:\n\nactual error\n\ncontext:\n\t2. second\n\t1. first\n".to_string();
+        let error_message = "actual error\n\ncontext:\n\t2. second\n\t1. first\n".to_string();
         let err: Result<(), BarErr> = Err("actual error")
             .with_context(|| "first".to_string())
             .with_context(|| "second".to_string());
@@ -307,8 +306,7 @@ mod tests {
 
     #[test]
     fn multiple_context_debug() {
-        let error_message =
-            "Error:\n\nactual error\n\ncontext:\n\t2. second\n\t1. first\n".to_string();
+        let error_message = "actual error\n\ncontext:\n\t2. second\n\t1. first\n".to_string();
         let err: Result<(), BarErr> = Err("actual error")
             .with_context(|| "first".to_string())
             .with_context(|| "second".to_string());
