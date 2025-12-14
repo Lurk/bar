@@ -130,7 +130,7 @@ impl AltGenerator {
 
     async fn generate_image_alt(&self, path: &str) -> Result<String, BarErr> {
         let cache = Cache::<String>::new("image_alt", 1);
-        if let Some(alt_text) = cache.get(path).await? {
+        if let Some(alt_text) = cache.get(path)? {
             return Ok(alt_text);
         }
 

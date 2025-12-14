@@ -3,12 +3,17 @@ name = "bar"
 description = "Static web site generator."
 version = "0.1.0"
 edition = "2024"
-rust-version = "1.85.0"
+rust-version = "1.88.0"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 candle-core = { version = "0.9.1", features = ["metal"] }
 candle-nn = { version = "0.9.1", features = ["metal"] }
 candle-transformers = { version = "0.9.1", features = ["metal"] }
+
+[workspace]
+
+[dependencies.gpxtools]
+path = "libs/gpxtools"
 
 [dependencies]
 async-recursion = "1.1.1"
@@ -26,7 +31,7 @@ chrono = { version = "0.4.42", features = ["serde"] }
 yamd = { version = "0.16.2", features = ["serde"] }
 tera = { version = "1.20.1", features = ["builtins", "preserve_order"] }
 url = { version = "2.5.7", features = ["serde"] }
-tokio = { version = "1.48.0", features = ["full"] }
+tokio = { version = "1.48.0", features = ["full", "rt"] }
 rss = "2.0.12"
 numeric-sort = "0.1.5"
 tracing = "0.1.43"

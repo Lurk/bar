@@ -5,11 +5,13 @@ mod cloudinary;
 pub mod config;
 pub mod error;
 pub mod fs;
+mod gpx_embed;
 mod image_alt;
 pub mod json_feed;
 mod metadata;
 pub mod pages;
 pub mod renderer;
+mod req;
 pub mod site;
 pub mod syntax_highlight;
 pub mod templating;
@@ -40,10 +42,11 @@ use crate::pages::init_pages;
 use crate::syntax_highlight::init;
 
 static CONFIG: OnceLock<Config> = OnceLock::new();
+// Global path to the project root.
 static PATH: OnceLock<PathBuf> = OnceLock::new();
 
 #[tokio::main]
-async fn main() -> Result<(), BarErr> {
+async fn main() {
     let args = Args::parse();
 
     let subscriber = FmtSubscriber::builder()
@@ -51,26 +54,24 @@ async fn main() -> Result<(), BarErr> {
         .finish();
 
     subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
+    let handle = tokio::spawn(async {
+        let res = match args.command {
+            Some(Commands::Build(build_args)) => build(build_args).await,
+            Some(Commands::Article(article_args)) => create_article(article_args).await,
+            Some(Commands::Clear(clear_rgs)) => clear(clear_rgs).await,
+            None => {
+                build(BuildArgs {
+                    path: PathBuf::from_str("./").expect("current directory path is valid"),
+                })
+                .await
+            }
+        };
+        if let Err(e) = res {
+            eprintln!("{e}");
+        }
+    });
 
-    match args.command {
-        Some(Commands::Build(build_args)) => {
-            build(build_args).await?;
-        }
-        Some(Commands::Article(article_args)) => {
-            create_article(article_args).await?;
-        }
-        Some(Commands::Clear(clear_rgs)) => {
-            clear(clear_rgs).await?;
-        }
-        None => {
-            build(BuildArgs {
-                path: PathBuf::from_str("./").expect("current directory path is valid"),
-            })
-            .await?;
-        }
-    }
-
-    Ok(())
+    handle.await.expect("tokio task panicked");
 }
 
 async fn build(args: BuildArgs) -> Result<(), BarErr> {
@@ -100,7 +101,9 @@ async fn build(args: BuildArgs) -> Result<(), BarErr> {
         syntax_highlighter,
     )?;
 
-    render(site.clone(), &tera, &pages)?;
+    let s = site.clone();
+
+    tokio::task::spawn_blocking(move || render(s, &tera, &pages)).await??;
 
     site.save().await?;
     Ok(())

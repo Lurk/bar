@@ -5,6 +5,7 @@ use std::{
     path::StripPrefixError,
 };
 
+use gpxtools::GPXError;
 use itertools::Itertools;
 use tokio::task::JoinError;
 use url::ParseError;
@@ -59,6 +60,7 @@ pub enum Errors {
     HFAPIError(hf_hub::api::tokio::ApiError),
     Boxed(Box<dyn std::error::Error + Send + Sync + 'static>),
     ImageError(image::ImageError),
+    GPXError(GPXError),
 }
 
 impl From<io::Error> for BarErr {
@@ -205,6 +207,15 @@ impl From<image::ImageError> for BarErr {
     }
 }
 
+impl From<GPXError> for BarErr {
+    fn from(err: GPXError) -> Self {
+        BarErr {
+            err: Errors::GPXError(err),
+            context: vec![],
+        }
+    }
+}
+
 fn stringify_error_with_source(err: &(dyn Error + 'static)) -> String {
     if let Some(source) = &err.source() {
         format!("\n{}\n{}", err, stringify_error_with_source(*source))
@@ -231,6 +242,7 @@ impl Display for Errors {
             Errors::HFAPIError(err) => f.write_str(err.to_string().as_str()),
             Errors::Boxed(err) => f.write_str(err.to_string().as_str()),
             Errors::ImageError(err) => f.write_str(err.to_string().as_str()),
+            Errors::GPXError(err) => f.write_str(err.to_string().as_str()),
         }
     }
 }
@@ -250,7 +262,7 @@ impl Display for BarErr {
                     .join("\n")
             )
         };
-        writeln!(f, "Error:\n\n{}\n\n{}", self.err, context)
+        writeln!(f, "{}\n\n{}", self.err, context)
     }
 }
 
@@ -270,7 +282,7 @@ impl Debug for BarErr {
             )
         };
 
-        writeln!(f, "Error:\n\n{}\n\n{}", self.err, context)
+        writeln!(f, "{}\n\n{}", self.err, context)
     }
 }
 
@@ -282,8 +294,7 @@ mod tests {
 
     #[test]
     fn multiple_context_display() {
-        let error_message =
-            "Error:\n\nactual error\n\ncontext:\n\t2. second\n\t1. first\n".to_string();
+        let error_message = "actual error\n\ncontext:\n\t2. second\n\t1. first\n".to_string();
         let err: Result<(), BarErr> = Err("actual error")
             .with_context(|| "first".to_string())
             .with_context(|| "second".to_string());
@@ -295,8 +306,7 @@ mod tests {
 
     #[test]
     fn multiple_context_debug() {
-        let error_message =
-            "Error:\n\nactual error\n\ncontext:\n\t2. second\n\t1. first\n".to_string();
+        let error_message = "actual error\n\ncontext:\n\t2. second\n\t1. first\n".to_string();
         let err: Result<(), BarErr> = Err("actual error")
             .with_context(|| "first".to_string())
             .with_context(|| "second".to_string());

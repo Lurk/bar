@@ -64,6 +64,28 @@ pub struct AltTextGenerator {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+pub struct GpxEmbeddingConfig {
+    /// Base URLs for tile servers.
+    /// Example: ["https://a.tile.openstreetmap.org", "https://b.tile.openstreetmap.org"]
+    /// Default: ["https://tile.openstreetmap.org"]
+    /// The URLs should support {z}/{x}/{y} pattern.
+    pub base: Vec<Arc<str>>,
+    /// Optional copyright notice to be displayed on the map.
+    /// Path to png.
+    /// Default: None
+    pub attribution_png: Option<PathBuf>,
+}
+
+impl Default for GpxEmbeddingConfig {
+    fn default() -> Self {
+        GpxEmbeddingConfig {
+            base: vec![Arc::from("https://tile.openstreetmap.org")],
+            attribution_png: None,
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Config {
     pub dist_path: PathBuf,
     pub content_path: PathBuf,
@@ -81,6 +103,9 @@ pub struct Config {
     pub template_config: HashMap<Arc<str>, TemplateConfigValue>,
     /// pre render yamd transformations
     pub yamd_processors: YamdProcessors,
+    /// gpx embedding configuration
+    #[serde(default)]
+    pub gpx_embedding: GpxEmbeddingConfig,
 }
 
 impl TryFrom<&PathBuf> for Config {
