@@ -270,7 +270,6 @@ Example:
 </p>
 ```
 
-Takes one argument:
-## Minimal Rust Version
+## Minimal Supported Rust Version
 
-BAR MSRV is 1.85.0
+BAR MSRV is 1.88.0
