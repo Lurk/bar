@@ -44,7 +44,7 @@ candle-transformers = { version = "0.9.1" }
 tokenizers = { version = "0.22.2" }
 image = { version = "0.25.9", features = ["jpeg", "png", "gif", "tiff"] }
 hf-hub = { version = "0.4.3" }
-reqwest = { version = "0.12.25" }
+reqwest = { version = "0.12.26" }
 linked-hash-map = { version = "0.5.6", features = ["serde", "serde_impl"] }
 
 [dev-dependencies]
