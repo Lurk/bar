@@ -265,8 +265,7 @@ dependencies = [
  "crc32fast",
  "data-encoding",
  "gpxtools",
- "hf-hub",
- "image",
+ "img2text",
  "itertools 0.14.0",
  "linked-hash-map",
  "numeric-sort",
@@ -278,7 +277,6 @@ dependencies = [
  "serde_yaml",
  "syntect",
  "tera",
- "tokenizers",
  "tokio",
  "tracing",
  "tracing-log",
@@ -592,6 +590,7 @@ checksum = "9d92b1fab272fe943881b77cc6e920d6543e5b1bfadbd5ed81c7c5a755742394"
 dependencies = [
  "clap",
  "log",
+ "tracing-core",
 ]
 
 [[package]]
@@ -2151,6 +2150,28 @@ checksum = "525e9ff3e1a4be2fbea1fdf0e98686a6d98b4d8f937e1bf7402245af1909e8c3"
 dependencies = [
  "byteorder-lite",
  "quick-error",
+]
+
+[[package]]
+name = "img2text"
+version = "0.1.0"
+dependencies = [
+ "candle-core",
+ "candle-nn",
+ "candle-transformers",
+ "clap",
+ "clap-verbosity-flag",
+ "directories",
+ "hf-hub",
+ "image",
+ "reqwest",
+ "tabled",
+ "terminal_size",
+ "thiserror 2.0.17",
+ "tokenizers",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]
@@ -4128,6 +4149,16 @@ dependencies = [
  "serde_json",
  "slug",
  "unicode-segmentation",
+]
+
+[[package]]
+name = "terminal_size"
+version = "0.4.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "60b8cb979cb11c32ce1603f8137b22262a9d131aaa5c37b5678025f22b8becd0"
+dependencies = [
+ "rustix",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]

@@ -51,7 +51,7 @@ fn default_temperature() -> f64 {
     0.1
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct AltTextGenerator {
     /// Prompt for the alt text generator.
     /// Default: "Describe this image in detail".to_string()

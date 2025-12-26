@@ -55,11 +55,8 @@ pub enum Errors {
     ParseError(ParseError),
     Str(String),
     JoinError(JoinError),
-    CandleCore(candle_core::Error),
     ReqwestError(reqwest::Error),
-    HFAPIError(hf_hub::api::tokio::ApiError),
     Boxed(Box<dyn std::error::Error + Send + Sync + 'static>),
-    ImageError(image::ImageError),
     GPXError(GPXError),
 }
 
@@ -162,15 +159,6 @@ impl From<JoinError> for BarErr {
     }
 }
 
-impl From<candle_core::Error> for BarErr {
-    fn from(err: candle_core::Error) -> Self {
-        BarErr {
-            err: Errors::CandleCore(err),
-            context: vec![],
-        }
-    }
-}
-
 impl From<reqwest::Error> for BarErr {
     fn from(err: reqwest::Error) -> Self {
         BarErr {
@@ -180,28 +168,10 @@ impl From<reqwest::Error> for BarErr {
     }
 }
 
-impl From<hf_hub::api::tokio::ApiError> for BarErr {
-    fn from(err: hf_hub::api::tokio::ApiError) -> Self {
-        BarErr {
-            err: Errors::HFAPIError(err),
-            context: vec![],
-        }
-    }
-}
-
 impl From<Box<dyn std::error::Error + Send + Sync + 'static>> for BarErr {
     fn from(err: Box<dyn std::error::Error + Send + Sync + 'static>) -> Self {
         BarErr {
             err: Errors::Boxed(err),
-            context: vec![],
-        }
-    }
-}
-
-impl From<image::ImageError> for BarErr {
-    fn from(err: image::ImageError) -> Self {
-        BarErr {
-            err: Errors::ImageError(err),
             context: vec![],
         }
     }
@@ -237,11 +207,8 @@ impl Display for Errors {
             Errors::ParseError(err) => f.write_str(err.to_string().as_str()),
             Errors::Str(err) => f.write_str(err.to_string().as_str()),
             Errors::JoinError(err) => f.write_str(err.to_string().as_str()),
-            Errors::CandleCore(err) => f.write_str(err.to_string().as_str()),
             Errors::ReqwestError(err) => f.write_str(err.to_string().as_str()),
-            Errors::HFAPIError(err) => f.write_str(err.to_string().as_str()),
             Errors::Boxed(err) => f.write_str(err.to_string().as_str()),
-            Errors::ImageError(err) => f.write_str(err.to_string().as_str()),
             Errors::GPXError(err) => f.write_str(err.to_string().as_str()),
         }
     }

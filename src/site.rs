@@ -217,7 +217,6 @@ impl Site {
             .lock()
             .unwrap()
             .values()
-            .cloned()
             .map(|page| (dist_folder.clone(), page.clone()))
             .collect();
 

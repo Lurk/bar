@@ -4,10 +4,11 @@ use crate::{
     cloudinary::unwrap_cloudinary,
     error::BarErr,
     fs::{canonicalize_with_context, get_files_by_ext_deep},
-    image_alt::{AltGenerator, generate_alt_text},
+    image_alt::generate_alt_text,
     metadata::Metadata,
 };
 
+use img2text::Img2Text;
 use itertools::Itertools;
 use serde::Serialize;
 use std::{
@@ -283,20 +284,21 @@ pub async fn init_pages() -> Result<Arc<Pages>, BarErr> {
         info!("unwrapping cloudinary complete");
     }
 
-    if CONFIG
+    if let Some(config) = CONFIG
         .get()
         .expect("Config to be initialized")
         .yamd_processors
         .generate_alt_text
-        .is_some()
+        .as_ref()
     {
         info!("generating alt text for images");
-        let alt_text = Arc::from(AltGenerator::new());
+        let alt_text = Arc::from(Img2Text::new());
+        let config = Arc::new(config.clone());
         pages_vec = try_map(
             2,
             pages_vec
                 .into_iter()
-                .map(|(pid, yamd)| (alt_text.clone(), pid, yamd)),
+                .map(|(pid, yamd)| (alt_text.clone(), pid, yamd, config.clone())),
             generate_alt_text,
         )
         .await?;

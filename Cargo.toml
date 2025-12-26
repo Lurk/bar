@@ -11,9 +11,13 @@ candle-nn = { version = "0.9.1", features = ["metal"] }
 candle-transformers = { version = "0.9.1", features = ["metal"] }
 
 [workspace]
+members = ["libs/img2text", "libs/gpxtools"]
 
 [dependencies.gpxtools]
 path = "libs/gpxtools"
+
+[dependencies.img2text]
+path = "libs/img2text"
 
 [dependencies]
 async-recursion = "1.1.1"
@@ -38,13 +42,7 @@ tracing = "0.1.44"
 tracing-subscriber = "0.3.22"
 tracing-log = "0.2.0"
 itertools = "0.14.0"
-candle-core = { version = "0.9.1" }
-candle-nn = { version = "0.9.1" }
-candle-transformers = { version = "0.9.1" }
-tokenizers = { version = "0.22.2" }
-image = { version = "0.25.9", features = ["jpeg", "png", "gif", "tiff"] }
-hf-hub = { version = "0.4.3" }
-reqwest = { version = "0.12.26" }
+reqwest = { version = "0.12.25" }
 linked-hash-map = { version = "0.5.6", features = ["serde", "serde_impl"] }
 
 [dev-dependencies]
