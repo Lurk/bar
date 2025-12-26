@@ -11,7 +11,7 @@ geo = "0.32.0"
 geo-types = "0.7.17"
 gpx = "0.10.0"
 image = "0.25.8"
-reqwest = "0.12.23"
+reqwest = "0.12.26"
 serde = { version = "1.0.228", features = ["derive"] }
 tabled = "0.20.0"
 thiserror = "2.0.17"
