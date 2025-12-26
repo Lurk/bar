@@ -55,7 +55,6 @@ pub enum Errors {
     ParseError(ParseError),
     Str(String),
     JoinError(JoinError),
-    CandleCore(candle_core::Error),
     ReqwestError(reqwest::Error),
     Boxed(Box<dyn std::error::Error + Send + Sync + 'static>),
     GPXError(GPXError),
@@ -160,15 +159,6 @@ impl From<JoinError> for BarErr {
     }
 }
 
-impl From<candle_core::Error> for BarErr {
-    fn from(err: candle_core::Error) -> Self {
-        BarErr {
-            err: Errors::CandleCore(err),
-            context: vec![],
-        }
-    }
-}
-
 impl From<reqwest::Error> for BarErr {
     fn from(err: reqwest::Error) -> Self {
         BarErr {
@@ -217,7 +207,6 @@ impl Display for Errors {
             Errors::ParseError(err) => f.write_str(err.to_string().as_str()),
             Errors::Str(err) => f.write_str(err.to_string().as_str()),
             Errors::JoinError(err) => f.write_str(err.to_string().as_str()),
-            Errors::CandleCore(err) => f.write_str(err.to_string().as_str()),
             Errors::ReqwestError(err) => f.write_str(err.to_string().as_str()),
             Errors::Boxed(err) => f.write_str(err.to_string().as_str()),
             Errors::GPXError(err) => f.write_str(err.to_string().as_str()),
