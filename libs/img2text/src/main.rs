@@ -8,7 +8,7 @@ use tabled::{
     Table,
     settings::{Style, Width, peaker::Priority},
 };
-use terminal_size::{Width, terminal_size};
+use terminal_size::{Width as TerminalWidth, terminal_size};
 use tokio::{
     fs::{OpenOptions, create_dir_all},
     io::AsyncWriteExt,
@@ -49,7 +49,7 @@ async fn main() {
             std::process::exit(1);
         }
         Ok(captions) => {
-            let (Width(width), _) = terminal_size().expect("terminal size");
+            let (TerminalWidth(width), _) = terminal_size().expect("terminal size");
             let mut table = Table::new(captions);
             table.with((
                 Width::wrap((width) as usize).priority(Priority::max(true)),
