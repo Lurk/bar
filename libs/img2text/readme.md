@@ -10,12 +10,15 @@ Initialization is quite expensive, especially on first run. Pass as many images 
 ## Usage as a CLI
 
 ```bash
-Usage: img2text [OPTIONS] --prompt <PROMPT>
+Usage: img2text [OPTIONS] --source <SOURCE>... --prompt <PROMPT>
 
 Options:
-  -s, --source <SOURCE>            The path or URL to the image, can be specified multiple times
-  -p, --prompt <PROMPT>            The prompt to generate alt text
-  -t, --temperature <TEMPERATURE>  The temperature for generation
+  -s, --source <SOURCE>...         Path or URL to the image, can be specified multiple times
+  -p, --prompt <PROMPT>            Prompt to generate alt text
+  -t, --temperature <TEMPERATURE>  Temperature for generation. From 0.0 to 1.0 [default: 0.1]
+  -f, --format <FORMAT>            Output format [default: table] [possible values: table, json]
+  -v, --verbose...                 Increase logging verbosity
+  -q, --quiet...                   Decrease logging verbosity
   -h, --help                       Print help
 ```
 
