@@ -45,6 +45,7 @@ struct Args {
 pub struct Img2TextArgs {
     /// Path or URL to the image, can be specified multiple times
     #[clap(short, long)]
+    #[arg(required=true, num_args = 1..)]
     pub source: Vec<Arc<str>>,
     /// Prompt to generate alt text
     #[clap(short, long)]
@@ -60,11 +61,6 @@ async fn main() {
 
     if args.img2text.temperature < 0.0 || args.img2text.temperature > 1.0 {
         eprintln!("Temperature must be between 0.0 and 1.0");
-        std::process::exit(1);
-    }
-
-    if args.img2text.source.is_empty() {
-        eprintln!("At least one source must be provided");
         std::process::exit(1);
     }
 
