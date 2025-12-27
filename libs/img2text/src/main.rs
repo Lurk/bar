@@ -52,8 +52,8 @@ async fn main() {
             let (TerminalWidth(width), _) = terminal_size().expect("terminal size");
             let mut table = Table::new(captions);
             table.with((
-                Width::wrap((width) as usize).priority(Priority::max(true)),
-                Width::increase((width) as usize).priority(Priority::min(true)),
+                Width::wrap(width as usize).priority(Priority::max(true)),
+                Width::increase(width as usize).priority(Priority::min(true)),
             ));
             table.with(Style::modern());
             println!("{}", table);
