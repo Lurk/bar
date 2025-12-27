@@ -1,4 +1,4 @@
-use std::{path::PathBuf, sync::Arc};
+use std::{fmt::Display, path::PathBuf, sync::Arc};
 
 use clap::Parser;
 use clap_verbosity_flag::Verbosity;
@@ -15,12 +15,30 @@ use tokio::{
 };
 use tracing::debug;
 
+#[derive(clap::ValueEnum, Clone)]
+enum OutputFormat {
+    Table,
+    Json,
+}
+
+impl Display for OutputFormat {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            OutputFormat::Table => write!(f, "table"),
+            OutputFormat::Json => write!(f, "json"),
+        }
+    }
+}
+
 #[derive(Parser)]
 struct Args {
-    #[command(flatten)]
-    pub log_level: Verbosity,
     #[clap(flatten)]
     img2text: Img2TextArgs,
+    /// Output format
+    #[clap(short, long, default_value_t = OutputFormat::Table)]
+    format: OutputFormat,
+    #[command(flatten)]
+    pub log_level: Verbosity,
 }
 
 #[derive(clap::Parser)]
@@ -31,7 +49,7 @@ pub struct Img2TextArgs {
     /// Prompt to generate alt text
     #[clap(short, long)]
     pub prompt: String,
-    /// Temperature for generation from 0.0 to 1.0
+    /// Temperature for generation. From 0.0 to 1.0.
     #[clap(short, long, default_value_t = 0.1)]
     pub temperature: f64,
 }
@@ -39,6 +57,17 @@ pub struct Img2TextArgs {
 #[tokio::main]
 async fn main() {
     let args = Args::parse();
+
+    if args.img2text.temperature < 0.0 || args.img2text.temperature > 1.0 {
+        eprintln!("Temperature must be between 0.0 and 1.0");
+        std::process::exit(1);
+    }
+
+    if args.img2text.source.is_empty() {
+        eprintln!("At least one source must be provided");
+        std::process::exit(1);
+    }
+
     tracing_subscriber::fmt()
         .with_max_level(args.log_level.tracing_level_filter())
         .compact()
@@ -48,16 +77,23 @@ async fn main() {
             eprintln!("{e}");
             std::process::exit(1);
         }
-        Ok(captions) => {
-            let (TerminalWidth(width), _) = terminal_size().expect("terminal size");
-            let mut table = Table::new(captions);
-            table.with((
-                Width::wrap(width as usize).priority(Priority::max(true)),
-                Width::increase(width as usize).priority(Priority::min(true)),
-            ));
-            table.with(Style::modern());
-            println!("{}", table);
-        }
+        Ok(captions) => match args.format {
+            OutputFormat::Json => {
+                let json = serde_json::to_string_pretty(&captions).expect("serialize to json");
+                println!("{json}");
+                return;
+            }
+            OutputFormat::Table => {
+                let (TerminalWidth(width), _) = terminal_size().expect("terminal size");
+                let mut table = Table::new(captions);
+                table.with((
+                    Width::wrap(width as usize).priority(Priority::max(true)),
+                    Width::increase(width as usize).priority(Priority::min(true)),
+                ));
+                table.with(Style::modern());
+                println!("{}", table);
+            }
+        },
     }
 }
 
@@ -136,7 +172,7 @@ async fn read_file(url: Arc<str>) -> Result<PathBuf, String> {
     Ok(destination)
 }
 
-#[derive(tabled::Tabled)]
+#[derive(tabled::Tabled, serde::Serialize)]
 struct Res {
     source: Arc<str>,
     caption: Arc<str>,
