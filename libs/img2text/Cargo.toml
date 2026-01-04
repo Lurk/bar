@@ -31,6 +31,8 @@ tokio = { version = "1.48.0", features = ["sync"] }
 tracing = "0.1.44"
 tracing-subscriber = { version = "0.3.22", optional = true }
 terminal_size = { version = "0.4.3", optional = true }
+serde_json = { version = "1.0.148", optional = true }
+serde = { version = "1.0.228", features = ["derive", "rc"], optional = true }
 
 [features]
 cli = [
@@ -38,6 +40,8 @@ cli = [
 	"clap-verbosity-flag",
 	"directories",
 	"reqwest",
+	"serde",
+	"serde_json",
 	"tabled",
 	"terminal_size",
 	"tracing-subscriber",
