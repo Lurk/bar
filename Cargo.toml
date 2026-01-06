@@ -34,7 +34,7 @@ serde_json = "1.0.147"
 chrono = { version = "0.4.42", features = ["serde"] }
 yamd = { version = "0.16.2", features = ["serde"] }
 tera = { version = "1.20.1", features = ["builtins", "preserve_order"] }
-url = { version = "2.5.7", features = ["serde"] }
+url = { version = "2.5.8", features = ["serde"] }
 tokio = { version = "1.48.0", features = ["full", "rt"] }
 rss = "2.0.12"
 numeric-sort = "0.1.5"
