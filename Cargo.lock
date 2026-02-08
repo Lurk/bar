@@ -5432,9 +5432,9 @@ checksum = "7a5a4b21e1a62b67a2970e6831bc091d7b87e119e7f9791aef9702e3bef04448"
 
 [[package]]
 name = "yamd"
-version = "0.16.2"
+version = "0.17.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ae19a383db83e11371af7b5bfb9d7c101d79ea93a60d86781eaf14b90af89bba"
+checksum = "74a0229d4d591da2e424d3b8bd9d32f933095181903201efe83ff65b42a5fcff"
 dependencies = [
  "serde",
 ]
