@@ -274,9 +274,6 @@ version = "0.1.0"
 dependencies = [
  "async-recursion",
  "bincode",
- "candle-core",
- "candle-nn",
- "candle-transformers",
  "chrono",
  "clap",
  "clap-verbosity-flag",
