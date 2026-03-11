@@ -23,7 +23,7 @@ clap-verbosity-flag = { version = "3.0.4", default-features = false, features = 
 ], optional = true }
 directories = { version = "6.0.0", optional = true }
 hf-hub = "0.5.0"
-image = "0.25.9"
+image = "0.25.10"
 tabled = { version = "0.20.0", optional = true }
 thiserror = "2.0.18"
 tokenizers = "0.22.2"
