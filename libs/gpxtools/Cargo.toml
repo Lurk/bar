@@ -8,7 +8,7 @@ rust-version = "1.88.0"
 clap = { version = "4.6.0", features = ["derive"] }
 directories = "6.0.0"
 geo = "0.32.0"
-geo-types = "0.7.17"
+geo-types = "0.7.18"
 gpx = "0.10.0"
 image = "0.25.8"
 reqwest = "0.13.1"
