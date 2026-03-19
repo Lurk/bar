@@ -1,6 +1,6 @@
 use crate::{
     CONFIG, PATH,
-    fs::crc32_checksum,
+    fs::seahash_checksum,
     gpx_embed::gpx,
     pages::Pages,
     site::{DynamicPage, Feed, FeedType, Page, Site, StaticPage},
@@ -119,7 +119,7 @@ fn get_static_file(site: Arc<Site>) -> impl Function + 'static {
         if let Some(path) = get_string_arg(args, "path") {
             if let Some(page) = site.get_page(path.trim_start_matches('/')) {
                 if let Page::Static(inner) = page.as_ref() {
-                    let hash = crc32_checksum(
+                    let hash = seahash_checksum(
                         inner
                             .source
                             .as_ref()
@@ -306,7 +306,7 @@ fn crc32(value: &Value, _: &HashMap<String, Value>) -> Result<Value> {
         .as_str()
         .ok_or_else(|| tera::Error::msg("crc32 filter requires a string value"))?;
     Ok(tera::to_value(BASE64URL_NOPAD.encode(
-        crc32fast::hash(val.as_bytes()).to_be_bytes().as_ref(),
+        seahash::hash(val.as_bytes()).to_be_bytes().as_ref(),
     ))?)
 }
 

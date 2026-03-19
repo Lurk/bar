@@ -1,7 +1,8 @@
-use crc32fast::Hasher;
 use data_encoding::BASE64URL_NOPAD;
+use seahash::SeaHasher;
 use std::{
     fs::File,
+    hash::Hasher,
     io::{BufReader, Read},
     path::{Path, PathBuf},
     sync::Arc,
@@ -66,21 +67,22 @@ pub async fn write_file(path: &Path, content: &[u8]) -> Result<(), BarErr> {
     Ok(())
 }
 
-pub fn crc32_checksum(path: &PathBuf) -> Result<String, BarErr> {
+pub fn seahash_checksum(path: &PathBuf) -> Result<String, BarErr> {
     let input = File::open(path)?;
     let mut reader = BufReader::new(input);
 
     let digest = {
-        let mut hasher = Hasher::new();
+        let mut hasher = SeaHasher::new();
         let mut buffer = [0; 1024];
         loop {
             let count = reader.read(&mut buffer)?;
             if count == 0 {
                 break;
             }
-            hasher.update(&buffer[..count]);
+
+            Hasher::write(&mut hasher, &buffer[..count]);
         }
-        hasher.finalize()
+        hasher.finish()
     };
 
     Ok(BASE64URL_NOPAD.encode(digest.to_be_bytes().as_ref()))
@@ -104,9 +106,9 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn get_crc32_happy_path() -> Result<(), BarErr> {
-        let checksum = crc32_checksum(&PathBuf::from("./test/fixtures/static/1.png"))?;
-        assert_eq!(checksum, String::from("jBiXwg"));
+    async fn get_seahash_happy_path() -> Result<(), BarErr> {
+        let checksum = seahash_checksum(&PathBuf::from("./test/fixtures/static/1.png"))?;
+        assert_eq!(checksum, String::from("digdyOjp4_o"));
         Ok(())
     }
 }

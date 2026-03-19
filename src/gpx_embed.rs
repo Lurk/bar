@@ -21,7 +21,7 @@ pub async fn gpx(
     height: f64,
 ) -> Result<String, BarErr> {
     let filename = BASE64URL_NOPAD.encode(
-        crc32fast::hash(format!("{}{}", input.to_string_lossy(), base.join("")).as_bytes())
+        seahash::hash(format!("{}{}", input.to_string_lossy(), base.join("")).as_bytes())
             .to_be_bytes()
             .as_ref(),
     );
