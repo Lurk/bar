@@ -306,7 +306,7 @@ fn crc32(value: &Value, _: &HashMap<String, Value>) -> Result<Value> {
         .as_str()
         .ok_or_else(|| tera::Error::msg("crc32 filter requires a string value"))?;
     Ok(tera::to_value(BASE64URL_NOPAD.encode(
-        crc32fast::hash(val.as_bytes()).to_be_bytes().as_ref(),
+        seahash::hash(val.as_bytes()).to_be_bytes().as_ref(),
     ))?)
 }
 
