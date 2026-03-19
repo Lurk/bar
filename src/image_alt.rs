@@ -1,6 +1,7 @@
 use std::{path::PathBuf, pin::Pin, sync::Arc};
 
 use async_recursion::async_recursion;
+use data_encoding::BASE64URL_NOPAD;
 use img2text::Img2Text;
 use tracing::debug;
 use yamd::{
@@ -8,7 +9,7 @@ use yamd::{
     nodes::{Image, Images, YamdNodes},
 };
 
-use crate::{PATH, config::AltTextGenerator, error::BarErr, fs::write_file};
+use crate::{PATH, cache::Cache, config::AltTextGenerator, error::BarErr, fs::write_file};
 
 async fn str_to_path(path: &str) -> Result<PathBuf, BarErr> {
     if path.starts_with("http") {
@@ -106,17 +107,38 @@ pub async fn generate_alt_text(
     let yamd = add_alt_text(
         yamd,
         Arc::from(|path: &str| {
+            let cache: Cache<String> = Cache::new("alt_text", 1);
             let generator = generator.clone();
             let path = path.to_string();
             let config = config.clone();
             Box::pin(async move {
-                let path_buf = str_to_path(&path).await.map_err(|e| e.to_string())?;
-                let alt_text = generator
-                    .as_ref()
-                    .run(&path_buf, &config.prompt, config.temperature)
-                    .await
-                    .map_err(|e| e.to_string())?;
-                Ok(alt_text.to_string())
+                let cache_key = format!("{}:{}:{}", path, config.prompt, config.temperature);
+                let cache_key = BASE64URL_NOPAD
+                    .encode(seahash::hash(cache_key.as_bytes()).to_be_bytes().as_ref());
+                let cache_key = format!(
+                    "{}/{}/{}",
+                    cache_key.chars().take(2).collect::<String>(),
+                    cache_key.chars().skip(2).take(2).collect::<String>(),
+                    cache_key
+                );
+                if let Some(cached) = cache.get(&cache_key).map_err(|e| e.to_string())? {
+                    Ok(cached)
+                } else {
+                    let path_buf = str_to_path(&path).await.map_err(|e| e.to_string())?;
+                    let alt_text = generator
+                        .as_ref()
+                        .run(&path_buf, &config.prompt, config.temperature)
+                        .await
+                        .map_err(|e| e.to_string())?
+                        .to_string();
+
+                    cache
+                        .set(&cache_key, &alt_text)
+                        .await
+                        .map_err(|e| e.to_string())?;
+
+                    Ok(alt_text.to_string())
+                }
             })
         }),
     )
