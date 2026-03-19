@@ -15,7 +15,7 @@ reqwest = { version = "0.13.1", features = [
 	"stream",
 ], optional = true }
 candle-core = "0.9.2"
-candle-nn = "0.9.1"
+candle-nn = "0.9.2"
 candle-transformers = "0.9.1"
 clap = { version = "4.5.60", features = ["derive"], optional = true }
 clap-verbosity-flag = { version = "3.0.4", default-features = false, features = [
