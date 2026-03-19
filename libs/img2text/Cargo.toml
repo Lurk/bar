@@ -14,7 +14,7 @@ reqwest = { version = "0.13.1", features = [
 	"multipart",
 	"stream",
 ], optional = true }
-candle-core = "0.9.1"
+candle-core = "0.9.2"
 candle-nn = "0.9.1"
 candle-transformers = "0.9.1"
 clap = { version = "4.5.60", features = ["derive"], optional = true }
