@@ -67,7 +67,7 @@ where
     F: Fn(&str) -> Pin<Box<Fut>> + Sync + Send,
 {
     let mut nodes: Vec<YamdNodes> = Vec::with_capacity(yamd.body.len());
-    for node in yamd.body.into_iter() {
+    for node in yamd.body {
         match node {
             YamdNodes::Image(image) => {
                 nodes.push(
@@ -78,7 +78,7 @@ where
             }
             YamdNodes::Images(images) => {
                 let mut new_images: Vec<Image> = Vec::with_capacity(images.body.len());
-                for image in images.body.into_iter() {
+                for image in images.body {
                     new_images.push(yamd_image(&image, getter.clone()).await?.unwrap_or(image));
                 }
                 nodes.push(YamdNodes::Images(Images { body: new_images }));

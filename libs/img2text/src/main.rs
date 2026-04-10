@@ -87,7 +87,7 @@ async fn main() {
                     Width::increase(width as usize).priority(Priority::min(true)),
                 ));
                 table.with(Style::modern());
-                println!("{}", table);
+                println!("{table}");
             }
         },
     }
@@ -108,7 +108,12 @@ async fn get_cache_path(url: &str) -> Result<PathBuf, String> {
 
     create_dir_all(p.parent().expect("cache path to have parent"))
         .await
-        .map_err(|e| format!("creating folders for cache path {p:?} failed with error:\n{e:?}"))?;
+        .map_err(|e| {
+            format!(
+                "creating folders for cache path {} failed with error:\n{e}",
+                p.display()
+            )
+        })?;
 
     Ok(p)
 }
@@ -122,7 +127,7 @@ async fn read_file(url: Arc<str>) -> Result<PathBuf, String> {
     if !destination.exists() {
         let response = reqwest::Client::builder()
             // TODO: add url to repo to user agent
-            .user_agent(format!("{}/{}", name, version))
+            .user_agent(format!("{name}/{version}"))
             .build()
             .expect("Failed to build reqwest client")
             .get(url.as_ref())
@@ -155,13 +160,18 @@ async fn read_file(url: Arc<str>) -> Result<PathBuf, String> {
             .truncate(true)
             .open(&destination)
             .await
-            .map_err(|e| format!("Failed to open cache file at {destination:?}.\n{e}"))?;
+            .map_err(|e| {
+                format!(
+                    "Failed to open cache file at {}.\n{e}",
+                    destination.display()
+                )
+            })?;
         file.write_all(&bytes)
             .await
-            .map_err(|e| format!("Failed to write to {destination:?}.\n{e}"))?;
+            .map_err(|e| format!("Failed to write to {}.\n{e}", destination.display()))?;
         file.flush()
             .await
-            .map_err(|e| format!("Failed flush the cache file {destination:?}\n{e}"))?;
+            .map_err(|e| format!("Failed flush the cache file {}\n{e}", destination.display()))?;
         return Ok(destination);
     }
 
@@ -179,7 +189,7 @@ async fn generate(
     generator: Arc<Img2Text>,
 ) -> Result<Vec<Res>, Img2TextError> {
     let mut captions = Vec::new();
-    for source in args.source.iter() {
+    for source in &args.source {
         debug!("processing source: {}", source);
         let path = if source.starts_with("http") {
             let path_buf = read_file(source.clone())

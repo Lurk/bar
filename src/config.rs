@@ -58,7 +58,7 @@ fn default_temperature() -> f64 {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct AltTextGenerator {
     /// Prompt for the alt text generator.
-    /// Default: "Describe this image in detail".to_string()
+    /// Default: "Describe this image in `detail".to_string()`
     #[serde(default = "default_prompt")]
     pub prompt: Arc<str>,
     /// The temperature for the alt text generator.
@@ -70,8 +70,8 @@ pub struct AltTextGenerator {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct GpxEmbeddingConfig {
     /// Base URLs for tile servers.
-    /// Example: ["https://a.tile.openstreetmap.org", "https://b.tile.openstreetmap.org"]
-    /// Default: ["https://tile.openstreetmap.org"]
+    /// Example: `["https://a.tile.openstreetmap.org", "https://b.tile.openstreetmap.org"]`
+    /// Default: `["https://tile.openstreetmap.org"]`
     /// The URLs should support {z}/{x}/{y} pattern.
     pub base: Vec<Arc<str>>,
     /// Optional copyright notice to be displayed on the map.
@@ -97,7 +97,7 @@ pub struct Config {
     pub static_source_path: PathBuf,
     /// White list of file extensions to be copied to the dist directory.
     /// The extensions should not include the dot.
-    /// Default: ["css", "js", "png", "jpg", "jpeg", "gif", "svg", "webmanifest", "ico", "txt"]
+    /// Default: `["css", "js", "png", "jpg", "jpeg", "gif", "svg", "webmanifest", "ico", "txt"]`
     #[serde(default = "default_extension")]
     pub static_files_extensions: Vec<String>,
     pub template: PathBuf,
@@ -119,9 +119,9 @@ impl TryFrom<&PathBuf> for Config {
     fn try_from(value: &PathBuf) -> Result<Self, BarErr> {
         let config_path = value.join("config.yaml");
         info!("initializing config");
-        debug!("reading config at: {:?}", config_path);
-        let f =
-            File::open(&config_path).with_context(|| format!("config file: {:?}", &config_path))?;
+        debug!("reading config at: {}", config_path.display());
+        let f = File::open(&config_path)
+            .with_context(|| format!("config file: {}", config_path.display()))?;
         Ok(serde_yaml::from_reader(f)?)
     }
 }

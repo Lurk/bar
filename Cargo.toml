@@ -40,5 +40,14 @@ reqwest = { version = "0.13.2" }
 linked-hash-map = { version = "0.5.6", features = ["serde", "serde_impl"] }
 seahash = "4.1.0"
 
+[lints]
+workspace = true
+
+[workspace.lints.rust]
+unsafe_code = "deny"
+
+[workspace.lints.clippy]
+pedantic = { level = "warn", priority = -1 }
+
 [dev-dependencies]
 pretty_assertions = "1.4.1"

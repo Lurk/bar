@@ -22,6 +22,7 @@ pub struct FeedItem {
 }
 
 impl FeedItem {
+    #[must_use]
     pub fn new(page: &Page, base_url: &Url) -> Self {
         let mut url = base_url.clone();
         url.set_path(format!("{}.html", &page.pid).as_str());
@@ -45,7 +46,7 @@ impl FeedItem {
             id: page.pid.clone(),
             title: page.get_title().into(),
             image,
-            content_text: page.metadata.preview.clone().unwrap_or("".into()).into(),
+            content_text: page.metadata.preview.clone().unwrap_or_default().into(),
 
             url,
             date_published: page.metadata.date.format("%+").to_string().into(),
@@ -53,6 +54,7 @@ impl FeedItem {
         }
     }
 
+    #[must_use]
     pub fn to_rss_item(&self) -> Item {
         ItemBuilder::default()
             .title(Some(self.title.as_ref().into()))
@@ -98,6 +100,7 @@ pub struct JsonFeedBuilder {
 }
 
 impl JsonFeedBuilder {
+    #[must_use]
     pub fn build(self) -> JsonFeed {
         JsonFeed::new(
             self.title,
@@ -111,6 +114,7 @@ impl JsonFeedBuilder {
 }
 
 impl JsonFeed {
+    #[must_use]
     pub fn new(
         title: Arc<str>,
         home_page_url: Arc<Url>,

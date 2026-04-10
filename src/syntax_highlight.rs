@@ -31,6 +31,8 @@ fn map_language(supported: &[Arc<str>], language: Arc<str>) -> Result<Arc<str>, 
     }
 }
 
+/// # Panics
+/// Panics if the `code` or `language` arguments are missing or the syntax cannot be found.
 pub fn code(syntax_set: Arc<SyntaxSet>) -> impl Function + 'static {
     let supported = syntax_set
         .syntaxes()
@@ -53,6 +55,8 @@ pub fn code(syntax_set: Arc<SyntaxSet>) -> impl Function + 'static {
     }
 }
 
+/// # Errors
+/// Returns error if the syntax set cannot be deserialized.
 pub fn init() -> Result<Arc<SyntaxSet>, BarErr> {
     Ok(Arc::new(from_uncompressed_data(include_bytes!(
         "./syntaxes.bin"

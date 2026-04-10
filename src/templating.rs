@@ -22,13 +22,18 @@ use tera::{Function, Result, Tera, Value};
 use tracing::info;
 use url::Url;
 
+#[must_use]
+#[allow(clippy::implicit_hasher)]
 pub fn get_string_arg(args: &HashMap<String, Value>, key: &str) -> Option<String> {
     match args.get(key) {
-        Some(value) => value.as_str().map(|string| string.to_string()),
+        Some(value) => value.as_str().map(std::string::ToString::to_string),
         None => None,
     }
 }
 
+/// # Errors
+/// Returns error if the value cannot be parsed as a URL.
+#[allow(clippy::implicit_hasher)]
 pub fn get_url_arg(
     args: &HashMap<String, Value>,
     key: &str,
@@ -44,6 +49,7 @@ pub fn get_url_arg(
     }
 }
 
+#[allow(clippy::implicit_hasher)]
 pub fn get_arc_str_arg(args: &HashMap<String, Value>, key: &str) -> Option<Arc<str>> {
     match args.get(key) {
         Some(value) => value.as_str().map(Arc::from),
@@ -51,10 +57,11 @@ pub fn get_arc_str_arg(args: &HashMap<String, Value>, key: &str) -> Option<Arc<s
     }
 }
 
+#[allow(clippy::cast_possible_truncation)]
 fn get_usize_arg(args: &HashMap<String, Value>, key: &str) -> Option<usize> {
     args.get(key)
         .and_then(|value| value.as_number())
-        .and_then(|number| number.as_u64())
+        .and_then(serde_json::Number::as_u64)
         .map(|n| n as usize)
 }
 
@@ -62,8 +69,8 @@ fn add_page(site: Arc<Site>) -> impl Function + 'static {
     move |args: &HashMap<String, Value>| {
         let path = get_string_arg(args, "path").unwrap_or("/".to_string());
         let template = get_string_arg(args, "template").unwrap_or("index.html".to_string());
-        let title = get_string_arg(args, "title").unwrap_or("".to_string());
-        let description = get_string_arg(args, "description").unwrap_or("".to_string());
+        let title = get_string_arg(args, "title").unwrap_or_default();
+        let description = get_string_arg(args, "description").unwrap_or_default();
         let page_num = get_usize_arg(args, "page_num").unwrap_or(0);
         site.add_page(
             DynamicPage {
@@ -147,7 +154,7 @@ fn get_static_file(site: Arc<Site>) -> impl Function + 'static {
 
 fn get_pages_by_tag(pages: Arc<Pages>) -> impl Function + 'static {
     move |args: &HashMap<String, Value>| {
-        let tag = get_string_arg(args, "tag").unwrap_or("".to_string());
+        let tag = get_string_arg(args, "tag").unwrap_or_default();
         let limit = get_usize_arg(args, "limit").unwrap_or(3);
         let offset = get_usize_arg(args, "offset").unwrap_or(0);
         let pages = pages
@@ -185,6 +192,7 @@ fn get_page_by_pid(pages: Arc<Pages>) -> impl Function + 'static {
     }
 }
 
+#[allow(clippy::cast_possible_truncation, clippy::similar_names)]
 fn get_transformations(
     with: Option<usize>,
     height: Option<usize>,
@@ -200,9 +208,7 @@ fn get_transformations(
         (Some(width), None) => Ok(Transformations::Pad(PadMode::PadByWidth {
             width: width as u32,
             ar: Some(
-                aspect_ratio
-                    .map(|(w, h)| AspectRatio::Sides(w, h))
-                    .unwrap_or(AspectRatio::Sides(16, 9)),
+                aspect_ratio.map_or(AspectRatio::Sides(16, 9), |(w, h)| AspectRatio::Sides(w, h)),
             ),
             gravity: Some(Gravity::Center),
             background: Some(
@@ -223,6 +229,7 @@ fn get_transformations(
     }
 }
 
+#[allow(clippy::cast_possible_truncation)]
 fn get_image_url(site: Arc<Site>) -> impl Function + 'static {
     move |args: &HashMap<String, Value>| {
         let src = get_string_arg(args, "src")
@@ -243,7 +250,9 @@ fn get_image_url(site: Arc<Site>) -> impl Function + 'static {
 
             return Ok(tera::to_value(src)?);
         }
-        if !src.is_empty() {
+        if src.is_empty() {
+            Ok(tera::to_value(src)?)
+        } else {
             let src = Url::parse(src.as_str())
                 .map_err(|e| tera::Error::msg(format!("failed to parse url '{src}': {e}")))?;
             match Image::try_from(src.clone()) {
@@ -265,12 +274,11 @@ fn get_image_url(site: Arc<Site>) -> impl Function + 'static {
                 }
                 Err(_) => Ok(tera::to_value(src.to_string())?),
             }
-        } else {
-            Ok(tera::to_value(src)?)
         }
     }
 }
 
+#[allow(clippy::cast_precision_loss)]
 fn render_gpx(site: Arc<Site>) -> impl Function + 'static {
     move |args: &HashMap<String, Value>| {
         let input = get_string_arg(args, "input")
@@ -320,14 +328,14 @@ fn get_gpx_stats() -> impl Function + 'static {
             .expect("Path to be initialized")
             .join(input_arg.trim().trim_start_matches('/'));
 
-        let stats = calculate_stats(StatsArgs {
+        let stats = calculate_stats(&StatsArgs {
             input: vec![input.clone()],
         })
         .map_err(|e| format!("{e}"))?;
 
         let stat = stats
             .first()
-            .ok_or_else(|| tera::Error::msg(format!("no stats for {input:?}")))?;
+            .ok_or_else(|| tera::Error::msg(format!("no stats for {}", input.display())))?;
 
         Ok(tera::to_value(stat)?)
     }
@@ -342,10 +350,12 @@ fn crc32(value: &Value, _: &HashMap<String, Value>) -> Result<Value> {
     ))?)
 }
 
+/// # Errors
+/// Returns error if templates cannot be loaded or parsed.
 pub fn initialize(
     template_path: &Path,
-    posts: Arc<Pages>,
-    site: Arc<Site>,
+    posts: &Arc<Pages>,
+    site: &Arc<Site>,
     syntax_highlighter: Arc<SyntaxSet>,
 ) -> Result<Tera> {
     let templates = format!(
@@ -353,7 +363,8 @@ pub fn initialize(
         template_path
             .to_str()
             .ok_or_else(|| tera::Error::msg(format!(
-                "template path is not valid UTF-8: {template_path:?}"
+                "template path is not valid UTF-8: {}",
+                template_path.display()
             )))?
     );
     info!("initialize teplates: {}", templates);

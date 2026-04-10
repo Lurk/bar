@@ -16,12 +16,15 @@ pub struct BarErr {
 }
 
 impl BarErr {
+    #[must_use]
     pub fn new(err: Errors, context: Vec<String>) -> Self {
         Self { err, context }
     }
 }
 
 pub trait ContextExt<T> {
+    /// # Errors
+    /// Returns error if the underlying result is an error, with added context.
     fn with_context<V>(self, v: V) -> Result<T, BarErr>
     where
         V: FnOnce() -> String;
@@ -190,7 +193,7 @@ fn stringify_error_with_source(err: &(dyn Error + 'static)) -> String {
     if let Some(source) = &err.source() {
         format!("\n{}\n{}", err, stringify_error_with_source(*source))
     } else {
-        format!("{}", err)
+        format!("{err}")
     }
 }
 
@@ -201,11 +204,11 @@ impl Display for Errors {
             Errors::YamlParseError(err) => f.write_str(err.to_string().as_str()),
             Errors::JsonParseError(err) => f.write_str(err.to_string().as_str()),
             Errors::TerraError(err) => f.write_str(stringify_error_with_source(err).as_str()),
-            Errors::OsStringError(err) => f.write_str(format!("{err:#?}").as_str()),
+            Errors::OsStringError(err) => f.write_str(&err.to_string_lossy()),
             Errors::BinErr(err) => f.write_str(err.to_string().as_str()),
             Errors::StripPrefixError(err) => f.write_str(err.to_string().as_str()),
             Errors::ParseError(err) => f.write_str(err.to_string().as_str()),
-            Errors::Str(err) => f.write_str(err.to_string().as_str()),
+            Errors::Str(err) => f.write_str(err.clone().as_str()),
             Errors::JoinError(err) => f.write_str(err.to_string().as_str()),
             Errors::ReqwestError(err) => f.write_str(err.to_string().as_str()),
             Errors::Boxed(err) => f.write_str(err.to_string().as_str()),
@@ -217,7 +220,7 @@ impl Display for Errors {
 impl Display for BarErr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let context = if self.context.is_empty() {
-            "".to_string()
+            String::new()
         } else {
             format!(
                 "context:\n{}",
@@ -236,7 +239,7 @@ impl Display for BarErr {
 impl Debug for BarErr {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let context = if self.context.is_empty() {
-            "".to_string()
+            String::new()
         } else {
             format!(
                 "context:\n{}",
@@ -268,7 +271,7 @@ mod tests {
 
         if let Err(bar) = err {
             assert_eq!(bar.to_string(), error_message);
-        };
+        }
     }
 
     #[test]
@@ -280,7 +283,7 @@ mod tests {
 
         if let Err(bar) = err {
             assert_eq!(format!("{bar:?}"), error_message);
-        };
+        }
     }
 
     #[test]

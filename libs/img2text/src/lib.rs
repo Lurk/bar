@@ -53,6 +53,7 @@ impl Img2TextInner {
         //
         // Nothing guarantees that the safetensors file is not updated afterwards. For more info look at
         // [`memmap2::MmapOptions`]
+        #[allow(unsafe_code)]
         let vb =
             unsafe { VarBuilder::from_mmaped_safetensors(&[model_file], DType::F16, &device)? };
         let model = Model::new(&config, vb)?;
@@ -89,12 +90,20 @@ impl Default for Img2Text {
 }
 
 impl Img2Text {
+    #[must_use]
     pub fn new() -> Self {
         Self {
             inner: Mutex::new(OnceCell::const_new()),
         }
     }
 
+    /// Run inference on an image with the given prompt and temperature.
+    ///
+    /// # Errors
+    /// Returns error if image loading, model initialization, or inference fails.
+    ///
+    /// # Panics
+    /// Panics if the model inner state is not initialized after successful init.
     pub async fn run(
         &self,
         path: &PathBuf,

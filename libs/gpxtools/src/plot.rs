@@ -47,6 +47,12 @@ pub struct PlotArgs {
 /// * `Ok(())` if the plot was generated and saved successfully.
 /// * `Err(GPXError)` if an error occurred during processing.
 ///
+/// # Errors
+/// Returns error if the GPX file cannot be read or tile fetching fails.
+///
+/// # Panics
+/// Panics if the output directory cannot be created or the pixmap cannot be saved.
+///
 /// # Example
 /// ```rust
 /// use gpxtools::plot::{plot, PlotArgs};
@@ -91,10 +97,10 @@ where
     let mut map = Map::new(View::from((br, plot.width, plot.height)));
 
     map.fill_tiles(&getter, plot.base).await?;
-    map.plot_path(Line::new(&gpx.tracks).map(|wpt| wpt.point()));
+    map.plot_path(Line::new(&gpx.tracks).map(gpx::Waypoint::point));
 
     if let Some(attribution_path) = plot.attribution_png {
-        map.add_attribution(attribution_path);
+        map.add_attribution(&attribution_path);
     }
 
     create_dir_all(plot.output.parent().unwrap())
@@ -212,7 +218,7 @@ impl Zoom {
     /// Converts longitude and latitude to tile coordinates at the current zoom level.
     pub fn lonlat2tile(&self, lon: f64, lat: f64) -> (f64, f64) {
         let lat_rad = lat.to_radians();
-        let zz: f64 = 2f64.powf(self.zoom as f64);
+        let zz: f64 = 2f64.powf(f64::from(self.zoom));
         let x: f64 = (lon + 180f64) / 360f64 * zz;
         let y: f64 = (1f64 - (lat_rad.tan() + (1f64 / lat_rad.cos())).ln() / PI) / 2f64 * zz;
         (x, y)
@@ -225,6 +231,7 @@ struct Map {
 }
 
 impl Map {
+    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
     pub fn new(view: View) -> Self {
         let (width, height) = view.get_dimensions();
         let pixmap =
@@ -232,6 +239,11 @@ impl Map {
         Self { view, pixmap }
     }
 
+    #[allow(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        clippy::cast_possible_wrap
+    )]
     async fn fill_tiles<F, Fut>(
         &mut self,
         getter: F,
@@ -250,11 +262,10 @@ impl Map {
             (min.1 as i32..=max.1 as i32 + 1).map(move |y_tile| (x_tile, y_tile))
         });
 
-        // two request in parallel.
         for (x_tile, y_tile) in iter.by_ref().take(2) {
             let url = format!(
                 "{}/{}/{}/{}.png",
-                base[((x_tile + y_tile) % base.len() as i32) as usize].trim_start_matches("/"),
+                base[((x_tile + y_tile) % base.len() as i32) as usize].trim_start_matches('/'),
                 zoom,
                 x_tile,
                 y_tile
@@ -270,8 +281,8 @@ impl Map {
             let bytes = Pixmap::decode_png(&bytes).expect("Tile should be loaded as Pixmap");
             let (x_tile, y_tile) = ctx.get(&url).expect("context should exist");
 
-            let x_offset = (*x_tile as f64 - min.0) * 256.;
-            let y_offset = (*y_tile as f64 - min.1) * 256.;
+            let x_offset = (f64::from(*x_tile) - min.0) * 256.;
+            let y_offset = (f64::from(*y_tile) - min.1) * 256.;
 
             self.pixmap.draw_pixmap(
                 x_offset as i32,
@@ -299,6 +310,7 @@ impl Map {
         Ok(())
     }
 
+    #[allow(clippy::cast_possible_truncation)]
     pub fn plot_path<I: IntoIterator<Item = Point>>(&mut self, points: I) {
         let (min, _) = self.view.min_max();
         let mut pb = PathBuilder::new();
@@ -348,9 +360,15 @@ impl Map {
         );
     }
 
-    pub fn add_attribution(&mut self, attribution_path: PathBuf) {
+    #[allow(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        clippy::cast_precision_loss,
+        clippy::cast_possible_wrap
+    )]
+    pub fn add_attribution(&mut self, attribution_path: &PathBuf) {
         let attribution_pixmap =
-            Pixmap::load_png(&attribution_path).expect("Attribution image should be loaded");
+            Pixmap::load_png(attribution_path).expect("Attribution image should be loaded");
 
         let attribution_pixmap = if attribution_pixmap.width() > self.pixmap.width() {
             let scale_factor = self.pixmap.width() as f32 / attribution_pixmap.width() as f32;
@@ -388,6 +406,7 @@ mod tests {
     use super::*;
 
     #[test]
+    #[allow(clippy::unreadable_literal, clippy::float_cmp)]
     fn test_lonlat2tile_known_values() {
         let zoom = Zoom::new(8);
         let (x, y) = zoom.lonlat2tile(48.1372, 11.5761);
@@ -396,6 +415,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::unreadable_literal, clippy::float_cmp)]
     fn test_lonlat2xy_known_values() {
         let zoom = Zoom::new(5);
         let (x, y) = zoom.lonlat2xy(48.1372, 11.5761);
@@ -404,6 +424,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::unreadable_literal)]
     fn test_view_new_and_get_dimensions() {
         let rect = Rect::new(Point::new(0.0, 0.0), Point::new(2.0, 2.0));
         let view = View::new(Zoom::new(2), rect);

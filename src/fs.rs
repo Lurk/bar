@@ -14,14 +14,19 @@ use tokio::{
 
 use crate::error::{BarErr, ContextExt};
 
+/// # Errors
+/// Returns error if the path cannot be canonicalized.
 pub async fn canonicalize_with_context(path: &PathBuf) -> Result<PathBuf, BarErr> {
     canonicalize(path)
         .await
-        .with_context(|| format!("canonicalize path: {path:?}"))
+        .with_context(|| format!("canonicalize path: {}", path.display()))
 }
 
 /// Get all files with given extensions in the given directory and its subdirectories.
 /// The extension should not include the dot.
+///
+/// # Errors
+/// Returns error if the directory cannot be read.
 pub async fn get_files_by_ext_deep(path: &Path, ext: &[&str]) -> Result<Vec<PathBuf>, BarErr> {
     let mut files = Vec::new();
     let mut dirs = vec![path.to_path_buf()];
@@ -46,17 +51,21 @@ pub async fn get_files_by_ext_deep(path: &Path, ext: &[&str]) -> Result<Vec<Path
     Ok(files)
 }
 
+/// # Errors
+/// Returns error if the file cannot be read.
 pub async fn read_to_string(path: &Path) -> Result<Arc<str>, BarErr> {
     let content = tokio::fs::read_to_string(path)
         .await
-        .with_context(|| format!("Failed to read file: {path:?}"))?;
+        .with_context(|| format!("Failed to read file: {}", path.display()))?;
     Ok(Arc::from(content))
 }
 
+/// # Errors
+/// Returns error if the file cannot be written.
 pub async fn write_file(path: &Path, content: &[u8]) -> Result<(), BarErr> {
     let prefix = path
         .parent()
-        .ok_or_else(|| BarErr::from(format!("path has no parent directory: {path:?}")))?;
+        .ok_or_else(|| BarErr::from(format!("path has no parent directory: {}", path.display())))?;
     create_dir_all(prefix).await?;
     let mut file = OpenOptions::new()
         .write(true)
@@ -69,6 +78,8 @@ pub async fn write_file(path: &Path, content: &[u8]) -> Result<(), BarErr> {
     Ok(())
 }
 
+/// # Errors
+/// Returns error if the file cannot be read.
 pub fn seahash_checksum(path: &PathBuf) -> Result<String, BarErr> {
     let input = File::open(path)?;
     let mut reader = BufReader::new(input);

@@ -25,6 +25,11 @@ struct TrackData {
     time: Time,
 }
 
+/// # Errors
+/// Returns error if any input GPX file cannot be read.
+///
+/// # Panics
+/// Panics if waypoints lack timestamps, no waypoints exist, or the output file cannot be created.
 pub fn join(paths: PathsArgs) -> Result<(), GPXError> {
     let mut tracks_data: Vec<TrackData> = Vec::new();
     for path in paths.input {
@@ -62,7 +67,7 @@ pub fn join(paths: PathsArgs) -> Result<(), GPXError> {
                     .first()
                     .and_then(|d| d.gpx.tracks.first().and_then(|t| t.name.clone()))
                     .unwrap_or("Joined Track".to_string())
-                    .to_string(),
+                    .clone(),
             ),
             segments: Vec::new(),
             ..Default::default()
@@ -74,16 +79,15 @@ pub fn join(paths: PathsArgs) -> Result<(), GPXError> {
         t.segments
             .extend(track_data.gpx.tracks.into_iter().flat_map(|tr| tr.segments));
     }
-    if paths.output.exists() && !paths.force {
-        panic!(
-            "Output file {:?} already exists. Use --force to overwrite.",
-            paths.output
-        );
-    }
+    assert!(
+        !paths.output.exists() || paths.force,
+        "Output file {} already exists. Use --force to overwrite.",
+        paths.output.display()
+    );
 
     let output_file = File::create(&paths.output).expect("Failed to create output file");
     gpx::write(&joined_gpx, output_file).expect("Failed to write GPX file");
-    println!("Joined GPX file written to {:?}", paths.output);
+    println!("Joined GPX file written to {}", paths.output.display());
 
     Ok(())
 }

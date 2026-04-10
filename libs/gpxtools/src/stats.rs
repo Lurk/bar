@@ -26,7 +26,9 @@ pub struct Stats {
     pub total_ascent_m: f64,
 }
 
-pub fn calculate_stats(stats: StatsArgs) -> Result<Vec<Stats>, GPXError> {
+/// # Errors
+/// Returns error if any input GPX file cannot be read.
+pub fn calculate_stats(stats: &StatsArgs) -> Result<Vec<Stats>, GPXError> {
     let mut results = Vec::new();
     for input in &stats.input {
         let gpx = read_gpx_file(input)?;

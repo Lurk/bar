@@ -5,10 +5,16 @@ use tokio::task::JoinSet;
 
 use crate::error::BarErr;
 
-/// try_map spawns a future for each item in the iterator and waits for all of them to complete.
-/// If any of the futures return an error, try_map will return that error.
+/// `try_map` spawns a future for each item in the iterator and waits for all of them to complete.
+/// If any of the futures return an error, `try_map` will return that error.
 /// It will run no more than [size] futures concurrently.
 /// There is no guarantee that the order of the output will match the order of the input.
+///
+/// # Errors
+/// Returns error if any spawned future returns an error.
+///
+/// # Panics
+/// Panics if a spawned task panics.
 pub async fn try_map<T, I, F, O, Fut>(size: usize, input: I, f: F) -> Result<Vec<O>, BarErr>
 where
     I: IntoIterator<Item = T>,
@@ -43,9 +49,12 @@ where
     Ok(output)
 }
 
-/// try_for_each spawns a future for each item in the iterator and waits for all of them to complete.
-/// If any of the futures return an error, try_for_each will return that error.
+/// `try_for_each` spawns a future for each item in the iterator and waits for all of them to complete.
+/// If any of the futures return an error, `try_for_each` will return that error.
 /// It will run no more than [size] futures concurrently.
+///
+/// # Errors
+/// Returns error if any spawned future returns an error.
 pub async fn try_for_each<T, I, F, Fut>(size: usize, input: I, f: F) -> Result<(), BarErr>
 where
     I: IntoIterator<Item = T>,
@@ -81,7 +90,7 @@ mod tests {
         let mut result = try_map(50, input.clone(), |x| async move { Ok(x * 2) })
             .await
             .unwrap();
-        result.sort();
+        result.sort_unstable();
         assert_eq!(result, input.iter().map(|x| x * 2).collect::<Vec<usize>>());
     }
 

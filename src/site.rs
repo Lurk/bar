@@ -90,6 +90,7 @@ impl From<Feed> for Page {
 }
 
 impl Page {
+    #[must_use]
     pub fn get_path(&self) -> Arc<str> {
         match self {
             Self::Static(page) => page.destination.clone(),
@@ -105,6 +106,7 @@ pub struct Site {
 }
 
 impl Site {
+    #[must_use]
     pub fn new(path: PathBuf) -> Self {
         Self {
             dist_folder: path,
@@ -112,6 +114,8 @@ impl Site {
         }
     }
 
+    /// # Panics
+    /// Panics if the pages mutex is poisoned.
     pub fn add_page(&self, page: Page) {
         let path = page.get_path();
         let mut pages = self.pages.lock().expect("Site pages mutex poisoned");
@@ -120,11 +124,15 @@ impl Site {
         }
     }
 
+    /// # Panics
+    /// Panics if the pages mutex is poisoned.
     pub fn get_page(&self, path: &str) -> Option<Arc<Page>> {
         let pages = self.pages.lock().expect("Site pages mutex poisoned");
         pages.get(path).cloned()
     }
 
+    /// # Panics
+    /// Panics if the pages mutex is poisoned.
     pub fn next_unrendered_dynamic_page(&self) -> Option<DynamicPage> {
         let pages = self.pages.lock().expect("Site pages mutex poisoned");
         let page = pages
@@ -149,6 +157,8 @@ impl Site {
         }
     }
 
+    /// # Panics
+    /// Panics if the pages mutex is poisoned.
     pub fn next_unrendered_feed(&self) -> Option<Feed> {
         let pages = self.pages.lock().expect("Site pages mutex poisoned");
         let page = pages
@@ -173,7 +183,9 @@ impl Site {
         }
     }
 
-    pub fn set_page_content(&self, path: Arc<str>, content: Arc<str>) {
+    /// # Panics
+    /// Panics if the pages mutex is poisoned.
+    pub fn set_page_content(&self, path: &Arc<str>, content: Arc<str>) {
         let mut pages = self.pages.lock().expect("Site pages mutex poisoned");
         pages
             .entry(path.clone())
@@ -201,6 +213,11 @@ impl Site {
             });
     }
 
+    /// # Errors
+    /// Returns error if files cannot be written to the dist folder.
+    ///
+    /// # Panics
+    /// Panics if the pages mutex is poisoned.
     pub async fn save(&self) -> Result<(), BarErr> {
         info!("clean up dist folder");
         create_dir_all(&self.dist_folder)
@@ -246,7 +263,11 @@ async fn save_page((dist_folder, page): (Arc<PathBuf>, Arc<Page>)) -> Result<(),
                     .await
                     .with_context(|| format!("create directory: {}", prefix.display()))?;
                 copy(source, &destination).await.with_context(|| {
-                    format!("copy file: {:?} -> {}", source, &destination.display())
+                    format!(
+                        "copy file: {} -> {}",
+                        source.display(),
+                        destination.display()
+                    )
                 })?;
             } else {
                 return Err("static page must have either source or fallback".into());
@@ -272,17 +293,21 @@ async fn save_page((dist_folder, page): (Arc<PathBuf>, Arc<Page>)) -> Result<(),
                 write_file(&path, content.as_bytes()).await?;
             }
         }
-    };
+    }
     Ok(())
 }
 
 fn create_destination_path(source: &Path, prefix: &PathBuf) -> Result<String, BarErr> {
-    let stripped = source
-        .strip_prefix(prefix)
-        .with_context(|| format!("strip prefix {prefix:?} from {source:?}"))?;
+    let stripped = source.strip_prefix(prefix).with_context(|| {
+        format!(
+            "strip prefix {} from {}",
+            prefix.display(),
+            source.display()
+        )
+    })?;
     let s = stripped
         .to_str()
-        .ok_or_else(|| BarErr::from(format!("path is not valid UTF-8: {stripped:?}")))?;
+        .ok_or_else(|| BarErr::from(format!("path is not valid UTF-8: {}", stripped.display())))?;
     Ok(s.replace('\\', "/"))
 }
 
@@ -293,6 +318,12 @@ fn create_destination_path(source: &Path, prefix: &PathBuf) -> Result<String, Ba
 /// 1. Source files
 /// 2. Template files
 /// 3. BAR defaults
+///
+/// # Errors
+/// Returns error if static files cannot be discovered or paths are invalid.
+///
+/// # Panics
+/// Panics if global `PATH` or `CONFIG` are not initialized.
 pub async fn init_site() -> Result<Arc<Site>, BarErr> {
     info!("init static files");
     let base_path = PATH.get().expect("Path to be initialized");
@@ -308,7 +339,7 @@ pub async fn init_site() -> Result<Arc<Site>, BarErr> {
     let extensions = config
         .static_files_extensions
         .iter()
-        .map(|s| s.as_str())
+        .map(std::string::String::as_str)
         .collect::<Vec<&str>>();
 
     for file in get_files_by_ext_deep(&source_path, &extensions).await? {

@@ -64,6 +64,7 @@ pub struct PagesSlice {
 }
 
 impl Page {
+    #[must_use]
     pub fn new(pid: Arc<str>, content: Yamd, metadata: Metadata) -> Self {
         Self {
             pid,
@@ -72,10 +73,12 @@ impl Page {
         }
     }
 
+    #[must_use]
     pub fn get_title(&self) -> String {
         self.metadata.title.clone()
     }
 
+    #[must_use]
     pub fn get_image(&self, base_url: &Url) -> Option<Url> {
         self.metadata.image.as_ref().and_then(|image| {
             if image.starts_with("http") {
@@ -96,6 +99,7 @@ pub struct Pages {
 }
 
 impl Pages {
+    #[must_use]
     pub fn new() -> Self {
         Self {
             pages: HashMap::new(),
@@ -103,8 +107,10 @@ impl Pages {
         }
     }
 
-    pub fn add(&mut self, key: String, value: Yamd) -> Result<(), BarErr> {
-        let pid: Arc<str> = Arc::from(key.as_str());
+    /// # Errors
+    /// Returns error if the page is missing or has invalid metadata.
+    pub fn add(&mut self, key: &str, value: Yamd) -> Result<(), BarErr> {
+        let pid: Arc<str> = Arc::from(key);
         let metadata_str = value
             .metadata
             .as_ref()
@@ -125,24 +131,27 @@ impl Pages {
             return;
         };
 
-        tags.iter().for_each(|tag| {
+        for tag in tags {
             self.tags
                 .entry(tag.clone())
                 .and_modify(|pages| {
                     pages.insert(page.clone());
                 })
                 .or_insert(BTreeSet::from([page.clone()]));
-        });
+        }
     }
 
+    #[must_use]
     pub fn keys(&self) -> Vec<Arc<str>> {
         self.pages.keys().cloned().collect()
     }
 
+    #[must_use]
     pub fn get(&self, pid: &str) -> Option<&Page> {
-        self.pages.get(pid).map(|page| page.as_ref())
+        self.pages.get(pid).map(std::convert::AsRef::as_ref)
     }
 
+    #[must_use]
     pub fn get_tags(&self) -> HashSet<Arc<str>> {
         let mut tags: HashSet<Arc<str>> = HashSet::new();
 
@@ -152,6 +161,12 @@ impl Pages {
         tags
     }
 
+    #[must_use]
+    #[allow(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        clippy::cast_precision_loss
+    )]
     pub fn get_posts_by_tag(&self, tag: &str, limit: usize, offset: usize) -> Option<PagesSlice> {
         let pages = self.tags.get(tag)?;
 
@@ -181,6 +196,7 @@ impl Pages {
         Some(slice)
     }
 
+    #[must_use]
     pub fn get_similar(&self, pid: &str, max: usize) -> Vec<Arc<str>> {
         let Some(page) = self.get(pid) else {
             return vec![];
@@ -192,7 +208,7 @@ impl Pages {
 
         let mut leaderboard: HashMap<Arc<str>, usize> = HashMap::new();
 
-        for tag in tags.iter() {
+        for tag in tags {
             let Some(tag_pages) = self.tags.get(tag) else {
                 continue;
             };
@@ -236,11 +252,17 @@ async fn path_to_yamd(
     let yamd = deserialize(file_contents.as_str());
 
     let path_no_ext = path.with_extension("");
-    let path_str = path_no_ext
-        .to_str()
-        .ok_or_else(|| BarErr::from(format!("path is not valid UTF-8: {path_no_ext:?}")))?;
+    let path_str = path_no_ext.to_str().ok_or_else(|| {
+        BarErr::from(format!(
+            "path is not valid UTF-8: {}",
+            path_no_ext.display()
+        ))
+    })?;
     let content_str = content_path.to_str().ok_or_else(|| {
-        BarErr::from(format!("content path is not valid UTF-8: {content_path:?}"))
+        BarErr::from(format!(
+            "content path is not valid UTF-8: {}",
+            content_path.display()
+        ))
     })?;
     let pid = path_str
         .trim_start_matches(content_str)
@@ -250,6 +272,11 @@ async fn path_to_yamd(
     Ok((pid, yamd))
 }
 
+/// # Errors
+/// Returns error if content files cannot be read or parsed.
+///
+/// # Panics
+/// Panics if global `PATH` or `CONFIG` are not initialized.
 pub async fn init_pages() -> Result<Arc<Pages>, BarErr> {
     let content_path = Arc::new(
         canonicalize_with_context(
@@ -306,7 +333,7 @@ pub async fn init_pages() -> Result<Arc<Pages>, BarErr> {
 
     let mut pages = Pages::new();
     for (pid, yamd) in pages_vec {
-        pages.add(pid, yamd)?;
+        pages.add(&pid, yamd)?;
     }
 
     Ok(Arc::new(pages))

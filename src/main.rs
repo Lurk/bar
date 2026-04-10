@@ -42,7 +42,6 @@ use crate::pages::init_pages;
 use crate::syntax_highlight::init;
 
 static CONFIG: OnceLock<Config> = OnceLock::new();
-// Global path to the project root.
 static PATH: OnceLock<PathBuf> = OnceLock::new();
 
 #[tokio::main]
@@ -94,16 +93,11 @@ async fn build(args: BuildArgs) -> Result<(), BarErr> {
 
     let syntax_highlighter = init()?;
 
-    let tera = initialize(
-        &template_path,
-        pages.clone(),
-        site.clone(),
-        syntax_highlighter,
-    )?;
+    let tera = initialize(&template_path, &pages, &site, syntax_highlighter)?;
 
     let s = site.clone();
 
-    tokio::task::spawn_blocking(move || render(s, &tera, &pages)).await??;
+    tokio::task::spawn_blocking(move || render(&s, &tera, &pages)).await??;
 
     site.save().await?;
     Ok(())
@@ -117,8 +111,9 @@ async fn create_article(args: ArticleArgs) -> Result<(), BarErr> {
             remove_file(&path).await?;
         } else {
             return Err(format!(
-                "Article with title '{}' already exists at path '{:?}'",
-                args.title, path
+                "Article with title '{}' already exists at path '{}'",
+                args.title,
+                path.display()
             )
             .as_str()
             .into());
@@ -128,8 +123,8 @@ async fn create_article(args: ArticleArgs) -> Result<(), BarErr> {
     let metadata = Metadata {
         title: args.title.clone(),
         date: chrono::Utc::now().into(),
-        image: Some("".to_string()),
-        preview: Some("".to_string()),
+        image: Some(String::new()),
+        preview: Some(String::new()),
         tags: Some(vec![]),
         is_draft: Some(true),
     };
@@ -141,7 +136,7 @@ async fn create_article(args: ArticleArgs) -> Result<(), BarErr> {
 
     write_file(&path, article.to_string().as_bytes()).await?;
 
-    println!("Article '{}' is written to: {:?}", args.title, path);
+    println!("Article '{}' is written to: {}", args.title, path.display());
 
     Ok(())
 }

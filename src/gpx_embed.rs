@@ -75,9 +75,12 @@ async fn read_tile(url: String) -> Result<(String, Vec<u8>), String> {
 
     if destination.exists() {
         debug!("Tile found in cache: {}", url);
-        let bytes = tokio::fs::read(&destination)
-            .await
-            .map_err(|e| format!("Failed to read cached tile at {:?}.\n{e}", &destination))?;
+        let bytes = tokio::fs::read(&destination).await.map_err(|e| {
+            format!(
+                "Failed to read cached tile at {}.\n{e}",
+                destination.display()
+            )
+        })?;
         return Ok((url, bytes));
     }
 
@@ -101,9 +104,12 @@ async fn read_tile(url: String) -> Result<(String, Vec<u8>), String> {
         .map_err(|e| format!("Failed to read bytes from \"{url}\".\n{e}"))?
         .to_vec();
 
-    write_file(&destination, &bytes)
-        .await
-        .map_err(|e| format!("Failed to write tile to cache at {:?}.\n{e}", &destination))?;
+    write_file(&destination, &bytes).await.map_err(|e| {
+        format!(
+            "Failed to write tile to cache at {}.\n{e}",
+            destination.display()
+        )
+    })?;
 
     debug!("Tile cached: {}", url);
     Ok((url, bytes))

@@ -97,10 +97,9 @@ impl<'a> Iterator for Line<'a> {
                     let point = &segment.points[self.current_point];
                     self.current_point += 1;
                     return Some(point);
-                } else {
-                    self.current_segment += 1;
-                    self.current_point = 0;
                 }
+                self.current_segment += 1;
+                self.current_point = 0;
             } else {
                 self.current_track += 1;
                 self.current_segment = 0;
@@ -191,6 +190,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::float_cmp)]
     fn test_line_get_bounding_rect_single_point() {
         let tracks = vec![track_with_segments(vec![segment_with_points(vec![
             waypoint(5.0, 6.0),
@@ -203,6 +203,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::float_cmp)]
     fn test_line_get_bounding_rect_multiple_points() {
         let seg1 = segment_with_points(vec![waypoint(1.0, 2.0), waypoint(3.0, 4.0)]);
         let seg2 = segment_with_points(vec![waypoint(-1.0, 10.0)]);

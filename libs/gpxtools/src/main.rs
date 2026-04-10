@@ -35,7 +35,7 @@ async fn main() {
         Command::Join(paths) => join(paths),
         Command::Plot(p) => plot(|src| Box::pin(async move { read_tile(src).await }), p).await,
         Command::Stats(s) => {
-            let stats = calculate_stats(s);
+            let stats = calculate_stats(&s);
             match stats {
                 Ok(mut results) => {
                     let sum = results.iter().fold(
@@ -54,7 +54,7 @@ async fn main() {
                     let mut table = Table::new(results);
                     table.with(Style::sharp());
                     table.modify(Rows::last(), Border::inherit(Style::modern()));
-                    println!("{}", table);
+                    println!("{table}");
                     Ok(())
                 }
                 Err(e) => Err(e),
@@ -80,7 +80,12 @@ async fn get_cache_path(url: &str) -> Result<PathBuf, String> {
 
     create_dir_all(p.parent().expect("cache path to have parent"))
         .await
-        .map_err(|e| format!("creating folders for cache path {p:?} failed with error:\n{e:?}"))?;
+        .map_err(|e| {
+            format!(
+                "creating folders for cache path {} failed with error:\n{e}",
+                p.display()
+            )
+        })?;
 
     Ok(p)
 }
@@ -94,7 +99,7 @@ async fn read_tile(url: String) -> Result<(String, Vec<u8>), String> {
     if !destination.exists() {
         let response = reqwest::Client::builder()
             // TODO: add url to repo to user agent
-            .user_agent(format!("{}/{}", name, version))
+            .user_agent(format!("{name}/{version}"))
             .build()
             .expect("Failed to build reqwest client")
             .get(&url)
@@ -127,19 +132,24 @@ async fn read_tile(url: String) -> Result<(String, Vec<u8>), String> {
             .truncate(true)
             .open(&destination)
             .await
-            .map_err(|e| format!("Failed to open cache file at {destination:?}.\n{e}"))?;
+            .map_err(|e| {
+                format!(
+                    "Failed to open cache file at {}.\n{e}",
+                    destination.display()
+                )
+            })?;
         file.write_all(&bytes)
             .await
-            .map_err(|e| format!("Failed to write to {destination:?}.\n{e}"))?;
+            .map_err(|e| format!("Failed to write to {}.\n{e}", destination.display()))?;
         file.flush()
             .await
-            .map_err(|e| format!("Failed flush the cache file {destination:?}\n{e}"))?;
+            .map_err(|e| format!("Failed flush the cache file {}\n{e}", destination.display()))?;
         return Ok((url, bytes));
     }
 
     let bytes = tokio::fs::read(&destination)
         .await
-        .map_err(|e| format!("Failed to read file {destination:?}: {e}"))?;
+        .map_err(|e| format!("Failed to read file {}: {e}", destination.display()))?;
 
     Ok((url, bytes))
 }

@@ -12,7 +12,12 @@ use crate::{
     site::{FeedType, Site},
 };
 
-pub fn render(site: Arc<Site>, tera: &Tera, pages: &Pages) -> Result<(), BarErr> {
+/// # Errors
+/// Returns error if page rendering or feed generation fails.
+///
+/// # Panics
+/// Panics if global `CONFIG` is not initialized.
+pub fn render(site: &Arc<Site>, tera: &Tera, pages: &Pages) -> Result<(), BarErr> {
     info!("render dynamic pages and feeds");
     let mut feed_items: Vec<FeedItem> = vec![];
     let config = CONFIG.get().expect("Config to be initialized");
@@ -26,7 +31,7 @@ pub fn render(site: Arc<Site>, tera: &Tera, pages: &Pages) -> Result<(), BarErr>
         context.insert("path", &page.path);
         context.insert("page_num", &page.page_num);
         let result = tera.render(&page.template, &context)?;
-        site.set_page_content(page.path.clone(), result.into());
+        site.set_page_content(&page.path, result.into());
         if let Some(page) = pages.get(page.path.trim_end_matches(".html")) {
             feed_items.push(FeedItem::new(page, config.domain.as_ref()));
         }
@@ -61,7 +66,7 @@ pub fn render(site: Arc<Site>, tera: &Tera, pages: &Pages) -> Result<(), BarErr>
                 .build();
 
                 feed.add_items(feed_items.clone());
-                site.set_page_content(page.path.clone(), feed.to_string().into());
+                site.set_page_content(&page.path, feed.to_string().into());
             }
             FeedType::Atom => {
                 let channel = ChannelBuilder::default()
@@ -80,11 +85,11 @@ pub fn render(site: Arc<Site>, tera: &Tera, pages: &Pages) -> Result<(), BarErr>
                     .items(
                         feed_items
                             .iter()
-                            .map(|item| item.to_rss_item())
+                            .map(super::json_feed::FeedItem::to_rss_item)
                             .collect::<Vec<Item>>(),
                     )
                     .build();
-                site.set_page_content(page.path.clone(), channel.to_string().into());
+                site.set_page_content(&page.path, channel.to_string().into());
             }
         }
     }

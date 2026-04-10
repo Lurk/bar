@@ -57,7 +57,7 @@ async fn cloudinary_gallery_to_image_gallery(embed: &Embed) -> Result<Images, Ba
 #[async_recursion]
 async fn process_collapsible(collapsible: &Collapsible) -> Result<Collapsible, BarErr> {
     let mut nodes_vec: Vec<YamdNodes> = Vec::with_capacity(collapsible.body.len());
-    for node in collapsible.body.iter() {
+    for node in &collapsible.body {
         match node {
             YamdNodes::Embed(embed) if embed.kind == "cloudinary_gallery" => {
                 nodes_vec.push(cloudinary_gallery_to_image_gallery(embed).await?.into());
@@ -73,7 +73,7 @@ async fn process_collapsible(collapsible: &Collapsible) -> Result<Collapsible, B
 
 pub async fn unwrap_cloudinary((pid, yamd): (String, Yamd)) -> Result<(String, Yamd), BarErr> {
     let mut nodes: Vec<YamdNodes> = Vec::with_capacity(yamd.body.len());
-    for node in yamd.body.iter() {
+    for node in &yamd.body {
         match node {
             YamdNodes::Embed(embed) if embed.kind == "cloudinary_gallery" => {
                 nodes.push(cloudinary_gallery_to_image_gallery(embed).await?.into());

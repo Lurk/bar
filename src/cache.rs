@@ -63,7 +63,7 @@ impl<T: Debug + Serialize + DeserializeOwned> Cache<T> {
         }
 
         if !full_path.is_file() {
-            return Err(format!("Cache path {full_path:?} is not a file").into());
+            return Err(format!("Cache path {} is not a file", full_path.display()).into());
         }
 
         let rdr = std::fs::File::open(&full_path)
