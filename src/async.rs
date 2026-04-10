@@ -14,7 +14,7 @@ where
     I: IntoIterator<Item = T>,
     F: Fn(T) -> Fut + Send + 'static,
     Fut: Future<Output = Result<O, BarErr>> + Send + 'static,
-    T: Send + Send + 'static,
+    T: Send + 'static,
     O: Send + 'static,
 {
     let mut iterator = input.into_iter();
@@ -51,7 +51,7 @@ where
     I: IntoIterator<Item = T>,
     F: Fn(T) -> Fut + Send + 'static,
     Fut: Future<Output = Result<(), BarErr>> + Send + 'static,
-    T: Send + Send + 'static,
+    T: Send + 'static,
 {
     let mut iterator = input.into_iter();
     let mut set = JoinSet::new();

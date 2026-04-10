@@ -24,17 +24,23 @@ use url::Url;
 
 pub fn get_string_arg(args: &HashMap<String, Value>, key: &str) -> Option<String> {
     match args.get(key) {
-        Some(value) => value.as_str().map(|string| string.to_string().clone()),
+        Some(value) => value.as_str().map(|string| string.to_string()),
         None => None,
     }
 }
 
-pub fn get_url_arg(args: &HashMap<String, Value>, key: &str) -> Option<Url> {
+pub fn get_url_arg(
+    args: &HashMap<String, Value>,
+    key: &str,
+) -> std::result::Result<Option<Url>, tera::Error> {
     match args.get(key) {
-        Some(value) => value.as_str().map(|string| {
-            Url::parse(string).unwrap_or_else(|_| panic!("could not parse {string} to url"))
-        }),
-        None => None,
+        Some(value) => match value.as_str() {
+            Some(string) => Url::parse(string)
+                .map(Some)
+                .map_err(|e| tera::Error::msg(format!("could not parse '{string}' to url: {e}"))),
+            None => Ok(None),
+        },
+        None => Ok(None),
     }
 }
 
@@ -46,12 +52,10 @@ pub fn get_arc_str_arg(args: &HashMap<String, Value>, key: &str) -> Option<Arc<s
 }
 
 fn get_usize_arg(args: &HashMap<String, Value>, key: &str) -> Option<usize> {
-    match args.get(key) {
-        Some(value) => value
-            .as_number()
-            .map(|number| number.as_u64().unwrap() as usize),
-        None => None,
-    }
+    args.get(key)
+        .and_then(|value| value.as_number())
+        .and_then(|number| number.as_u64())
+        .map(|n| n as usize)
 }
 
 fn add_page(site: Arc<Site>) -> impl Function + 'static {
@@ -78,7 +82,8 @@ fn add_page(site: Arc<Site>) -> impl Function + 'static {
 
 fn add_static_file(site: Arc<Site>) -> impl Function + 'static {
     move |args: &HashMap<String, Value>| {
-        let path = get_arc_str_arg(args, "path").expect("path is required");
+        let path = get_arc_str_arg(args, "path")
+            .ok_or_else(|| tera::Error::msg("path is required for add_static_file"))?;
         let p = PATH.get().expect("Path to be initialized");
         let source = if let Some(source) = get_arc_str_arg(args, "source") {
             p.join(source.trim().trim_start_matches('/'))
@@ -100,8 +105,12 @@ fn add_static_file(site: Arc<Site>) -> impl Function + 'static {
 
 fn add_feed(site: Arc<Site>) -> impl Function + 'static {
     move |args: &HashMap<String, Value>| {
-        let path = get_arc_str_arg(args, "path").unwrap();
-        let typ: FeedType = get_arc_str_arg(args, "type").unwrap().into();
+        let path = get_arc_str_arg(args, "path")
+            .ok_or_else(|| tera::Error::msg("path is required for add_feed"))?;
+        let typ_str = get_arc_str_arg(args, "type")
+            .ok_or_else(|| tera::Error::msg("type is required for add_feed"))?;
+        let typ: FeedType =
+            FeedType::try_from(typ_str).map_err(|e| tera::Error::msg(format!("{e}")))?;
         site.add_page(
             Feed {
                 path: path.clone(),
@@ -119,13 +128,11 @@ fn get_static_file(site: Arc<Site>) -> impl Function + 'static {
         if let Some(path) = get_string_arg(args, "path") {
             if let Some(page) = site.get_page(path.trim_start_matches('/')) {
                 if let Page::Static(inner) = page.as_ref() {
-                    let hash = seahash_checksum(
-                        inner
-                            .source
-                            .as_ref()
-                            .expect("source of static file to be present"),
-                    )
-                    .unwrap();
+                    let source = inner.source.as_ref().ok_or_else(|| {
+                        tera::Error::msg(format!("static file '{path}' has no source"))
+                    })?;
+                    let hash = seahash_checksum(source)
+                        .map_err(|e| tera::Error::msg(format!("failed to hash '{path}': {e}")))?;
                     return Ok(tera::to_value(format!("{path}?cb={hash}"))?);
                 }
                 return Err(tera::Error::msg(format!(
@@ -143,14 +150,17 @@ fn get_pages_by_tag(pages: Arc<Pages>) -> impl Function + 'static {
         let tag = get_string_arg(args, "tag").unwrap_or("".to_string());
         let limit = get_usize_arg(args, "limit").unwrap_or(3);
         let offset = get_usize_arg(args, "offset").unwrap_or(0);
-        let pages = pages.get_posts_by_tag(tag.as_str(), limit, offset);
+        let pages = pages
+            .get_posts_by_tag(tag.as_str(), limit, offset)
+            .ok_or_else(|| tera::Error::msg(format!("tag '{tag}' not found")))?;
         Ok(tera::to_value(pages)?)
     }
 }
 
 fn get_similar(pages: Arc<Pages>) -> impl Function + 'static {
     move |args: &HashMap<String, Value>| {
-        let pid = get_string_arg(args, "pid").expect("pid is required");
+        let pid = get_string_arg(args, "pid")
+            .ok_or_else(|| tera::Error::msg("pid is required for get_similar"))?;
         let limit = get_usize_arg(args, "limit").unwrap_or(3);
         Ok(tera::to_value(pages.get_similar(&pid, limit))?)
     }
@@ -158,7 +168,8 @@ fn get_similar(pages: Arc<Pages>) -> impl Function + 'static {
 
 fn get_page_by_path(pages: Arc<Pages>) -> impl Function + 'static {
     move |args: &HashMap<String, Value>| {
-        let path = get_string_arg(args, "path").expect("path is required");
+        let path = get_string_arg(args, "path")
+            .ok_or_else(|| tera::Error::msg("path is required for get_page_by_path"))?;
         let pid = path.trim_end_matches(".html");
         let page = pages.get(pid);
         Ok(tera::to_value(page)?)
@@ -167,24 +178,32 @@ fn get_page_by_path(pages: Arc<Pages>) -> impl Function + 'static {
 
 fn get_page_by_pid(pages: Arc<Pages>) -> impl Function + 'static {
     move |args: &HashMap<String, Value>| {
-        let pid = get_string_arg(args, "pid").expect("pid is required");
+        let pid = get_string_arg(args, "pid")
+            .ok_or_else(|| tera::Error::msg("pid is required for get_page_by_pid"))?;
         let page = pages.get(&pid);
         Ok(tera::to_value(page)?)
     }
 }
 
-fn get_transformations(with: Option<usize>, height: Option<usize>) -> Result<Transformations> {
+fn get_transformations(
+    with: Option<usize>,
+    height: Option<usize>,
+    aspect_ratio: Option<(u32, u32)>,
+) -> Result<Transformations> {
     match (with, height) {
         (None, None) => Err(tera::Error::msg("width or height is required")),
         (None, Some(height)) => Ok(Transformations::Crop(CropMode::FillByHeight {
             height: height as u32,
-            ar: None,
+            ar: aspect_ratio.map(|(w, h)| AspectRatio::Sides(w, h)),
             gravity: Some(Gravity::Center),
         })),
         (Some(width), None) => Ok(Transformations::Pad(PadMode::PadByWidth {
             width: width as u32,
-            // TODO control aspect_ratio from template
-            ar: Some(AspectRatio::Sides(16, 9)),
+            ar: Some(
+                aspect_ratio
+                    .map(|(w, h)| AspectRatio::Sides(w, h))
+                    .unwrap_or(AspectRatio::Sides(16, 9)),
+            ),
             gravity: Some(Gravity::Center),
             background: Some(
                 Auto {
@@ -206,7 +225,8 @@ fn get_transformations(with: Option<usize>, height: Option<usize>) -> Result<Tra
 
 fn get_image_url(site: Arc<Site>) -> impl Function + 'static {
     move |args: &HashMap<String, Value>| {
-        let src = get_string_arg(args, "src").expect("get url from src");
+        let src = get_string_arg(args, "src")
+            .ok_or_else(|| tera::Error::msg("src is required for get_image_url"))?;
         if src.starts_with('/') {
             site.add_page(
                 StaticPage {
@@ -224,12 +244,21 @@ fn get_image_url(site: Arc<Site>) -> impl Function + 'static {
             return Ok(tera::to_value(src)?);
         }
         if !src.is_empty() {
-            let src = Url::parse(src.as_str()).expect("parse url from src");
+            let src = Url::parse(src.as_str())
+                .map_err(|e| tera::Error::msg(format!("failed to parse url '{src}': {e}")))?;
             match Image::try_from(src.clone()) {
                 Ok(image) => {
+                    let ar = match (
+                        get_usize_arg(args, "ar_width"),
+                        get_usize_arg(args, "ar_height"),
+                    ) {
+                        (Some(w), Some(h)) => Some((w as u32, h as u32)),
+                        _ => None,
+                    };
                     let transformation = get_transformations(
                         get_usize_arg(args, "width"),
                         get_usize_arg(args, "height"),
+                        ar,
                     )?;
                     let result = image.clone().add_transformation(transformation);
                     Ok(tera::to_value(result.to_string())?)
@@ -244,7 +273,8 @@ fn get_image_url(site: Arc<Site>) -> impl Function + 'static {
 
 fn render_gpx(site: Arc<Site>) -> impl Function + 'static {
     move |args: &HashMap<String, Value>| {
-        let input = get_string_arg(args, "input").expect("input is required");
+        let input = get_string_arg(args, "input")
+            .ok_or_else(|| tera::Error::msg("input is required for render_gpx"))?;
         let width = get_usize_arg(args, "width").unwrap_or(800) as f64;
         let height = get_usize_arg(args, "height").unwrap_or(600) as f64;
         let base = CONFIG
@@ -283,19 +313,21 @@ fn render_gpx(site: Arc<Site>) -> impl Function + 'static {
 
 fn get_gpx_stats() -> impl Function + 'static {
     move |args: &HashMap<String, Value>| {
-        let input = PATH.get().expect("Path to be initialized").join(
-            get_string_arg(args, "input")
-                .expect("input is required")
-                .trim()
-                .trim_start_matches('/'),
-        );
+        let input_arg = get_string_arg(args, "input")
+            .ok_or_else(|| tera::Error::msg("input is required for get_gpx_stats"))?;
+        let input = PATH
+            .get()
+            .expect("Path to be initialized")
+            .join(input_arg.trim().trim_start_matches('/'));
 
         let stats = calculate_stats(StatsArgs {
             input: vec![input.clone()],
         })
         .map_err(|e| format!("{e}"))?;
 
-        let stat = stats.first().expect("to have at least one stat ");
+        let stat = stats
+            .first()
+            .ok_or_else(|| tera::Error::msg(format!("no stats for {input:?}")))?;
 
         Ok(tera::to_value(stat)?)
     }
@@ -316,7 +348,14 @@ pub fn initialize(
     site: Arc<Site>,
     syntax_highlighter: Arc<SyntaxSet>,
 ) -> Result<Tera> {
-    let templates = format!("{}/**/*.html", template_path.to_str().unwrap());
+    let templates = format!(
+        "{}/**/*.html",
+        template_path
+            .to_str()
+            .ok_or_else(|| tera::Error::msg(format!(
+                "template path is not valid UTF-8: {template_path:?}"
+            )))?
+    );
     info!("initialize teplates: {}", templates);
     let mut tera = Tera::new(&templates)?;
     tera.register_function("add_feed", add_feed(site.clone()));
@@ -344,9 +383,11 @@ mod tests {
 
     #[test]
     fn get_transformations_test() {
-        assert!(get_transformations(None, None).is_err());
-        assert!(get_transformations(Some(100), None).is_ok());
-        assert!(get_transformations(None, Some(100)).is_ok());
-        assert!(get_transformations(Some(100), Some(100)).is_ok());
+        assert!(get_transformations(None, None, None).is_err());
+        assert!(get_transformations(Some(100), None, None).is_ok());
+        assert!(get_transformations(None, Some(100), None).is_ok());
+        assert!(get_transformations(Some(100), Some(100), None).is_ok());
+        assert!(get_transformations(Some(100), None, Some((4, 3))).is_ok());
+        assert!(get_transformations(None, Some(100), Some((4, 3))).is_ok());
     }
 }

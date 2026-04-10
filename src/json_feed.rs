@@ -49,7 +49,7 @@ impl FeedItem {
 
             url,
             date_published: page.metadata.date.format("%+").to_string().into(),
-            tags: page.metadata.tags.clone().expect("tags are required"),
+            tags: page.metadata.tags.clone().unwrap_or_default(),
         }
     }
 

@@ -137,7 +137,7 @@ pub async fn generate_alt_text(
                         .await
                         .map_err(|e| e.to_string())?;
 
-                    Ok(alt_text.to_string())
+                    Ok(alt_text)
                 }
             })
         }),

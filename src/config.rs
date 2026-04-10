@@ -18,6 +18,10 @@ pub enum TemplateConfigValue {
     Usize(usize),
 }
 
+fn default_language() -> Arc<str> {
+    Arc::from("en")
+}
+
 fn default_extension() -> Vec<String> {
     vec![
         "css".to_string(),
@@ -100,6 +104,8 @@ pub struct Config {
     pub domain: Arc<Url>,
     pub title: Arc<str>,
     pub description: Arc<str>,
+    #[serde(default = "default_language")]
+    pub language: Arc<str>,
     pub template_config: HashMap<Arc<str>, TemplateConfigValue>,
     /// pre render yamd transformations
     pub yamd_processors: YamdProcessors,

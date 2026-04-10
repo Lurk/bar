@@ -14,6 +14,8 @@ use crate::{
     fs::{canonicalize_with_context, get_files_by_ext_deep, write_file},
 };
 
+use tracing::warn;
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct DynamicPage {
     pub path: Arc<str>,
@@ -44,23 +46,21 @@ pub enum FeedType {
     Atom,
 }
 
-impl From<&str> for FeedType {
-    fn from(value: &str) -> Self {
+impl TryFrom<&str> for FeedType {
+    type Error = BarErr;
+    fn try_from(value: &str) -> Result<Self, BarErr> {
         match value {
-            "json" => Self::Json,
-            "atom" => Self::Atom,
-            _ => panic!("invalid feed type"),
+            "json" => Ok(Self::Json),
+            "atom" => Ok(Self::Atom),
+            _ => Err(format!("invalid feed type: {value}").into()),
         }
     }
 }
 
-impl From<Arc<str>> for FeedType {
-    fn from(value: Arc<str>) -> Self {
-        match value.as_ref() {
-            "json" => Self::Json,
-            "atom" => Self::Atom,
-            _ => panic!("invalid feed type"),
-        }
+impl TryFrom<Arc<str>> for FeedType {
+    type Error = BarErr;
+    fn try_from(value: Arc<str>) -> Result<Self, BarErr> {
+        FeedType::try_from(value.as_ref())
     }
 }
 
@@ -114,19 +114,19 @@ impl Site {
 
     pub fn add_page(&self, page: Page) {
         let path = page.get_path();
-        let mut pages = self.pages.lock().unwrap();
+        let mut pages = self.pages.lock().expect("Site pages mutex poisoned");
         if !pages.contains_key(path.as_ref()) {
             pages.insert(path.clone(), Arc::new(page));
         }
     }
 
     pub fn get_page(&self, path: &str) -> Option<Arc<Page>> {
-        let pages = self.pages.lock().unwrap();
+        let pages = self.pages.lock().expect("Site pages mutex poisoned");
         pages.get(path).cloned()
     }
 
     pub fn next_unrendered_dynamic_page(&self) -> Option<DynamicPage> {
-        let pages = self.pages.lock().unwrap();
+        let pages = self.pages.lock().expect("Site pages mutex poisoned");
         let page = pages
             .iter()
             .find(|(_, page)| {
@@ -150,7 +150,7 @@ impl Site {
     }
 
     pub fn next_unrendered_feed(&self) -> Option<Feed> {
-        let pages = self.pages.lock().unwrap();
+        let pages = self.pages.lock().expect("Site pages mutex poisoned");
         let page = pages
             .iter()
             .find(|(_, page)| {
@@ -174,11 +174,13 @@ impl Site {
     }
 
     pub fn set_page_content(&self, path: Arc<str>, content: Arc<str>) {
-        let mut pages = self.pages.lock().unwrap();
+        let mut pages = self.pages.lock().expect("Site pages mutex poisoned");
         pages
             .entry(path.clone())
             .and_modify(|page| match page.as_ref() {
-                Page::Static(_) => panic!("cannot set content on static page"),
+                Page::Static(_) => {
+                    warn!("attempted to set content on static page: {path}");
+                }
                 Page::Dynamic(dynamic) => {
                     *page = Arc::new(Page::Dynamic(DynamicPage {
                         path: dynamic.path.clone(),
@@ -215,7 +217,7 @@ impl Site {
         let input: Vec<(Arc<PathBuf>, Arc<Page>)> = self
             .pages
             .lock()
-            .unwrap()
+            .expect("Site pages mutex poisoned")
             .values()
             .map(|page| (dist_folder.clone(), page.clone()))
             .collect();
@@ -247,7 +249,7 @@ async fn save_page((dist_folder, page): (Arc<PathBuf>, Arc<Page>)) -> Result<(),
                     format!("copy file: {:?} -> {}", source, &destination.display())
                 })?;
             } else {
-                panic!("source or fallback is required");
+                return Err("static page must have either source or fallback".into());
             }
         }
         Page::Dynamic(page) => {
@@ -274,13 +276,14 @@ async fn save_page((dist_folder, page): (Arc<PathBuf>, Arc<Page>)) -> Result<(),
     Ok(())
 }
 
-fn create_destination_path(source: &Path, prefix: &PathBuf) -> String {
-    source
+fn create_destination_path(source: &Path, prefix: &PathBuf) -> Result<String, BarErr> {
+    let stripped = source
         .strip_prefix(prefix)
-        .unwrap()
+        .with_context(|| format!("strip prefix {prefix:?} from {source:?}"))?;
+    let s = stripped
         .to_str()
-        .unwrap()
-        .replace('\\', "/")
+        .ok_or_else(|| BarErr::from(format!("path is not valid UTF-8: {stripped:?}")))?;
+    Ok(s.replace('\\', "/"))
 }
 
 /// Initialize the site with static files and entry point.
@@ -309,9 +312,10 @@ pub async fn init_site() -> Result<Arc<Site>, BarErr> {
         .collect::<Vec<&str>>();
 
     for file in get_files_by_ext_deep(&source_path, &extensions).await? {
+        let destination = create_destination_path(&file, &source_path)?;
         site.add_page(
             StaticPage {
-                destination: Arc::from(create_destination_path(&file, &source_path)),
+                destination: Arc::from(destination),
                 source: Some(file),
                 fallback: None,
             }
@@ -320,9 +324,10 @@ pub async fn init_site() -> Result<Arc<Site>, BarErr> {
     }
 
     for file in get_files_by_ext_deep(&template_static_path, &extensions).await? {
+        let destination = create_destination_path(&file, &template_static_path)?;
         site.add_page(
             StaticPage {
-                destination: Arc::from(create_destination_path(&file, &template_static_path)),
+                destination: Arc::from(destination),
                 source: Some(file),
                 fallback: None,
             }
@@ -375,14 +380,22 @@ mod tests {
 
     #[test]
     fn feed_type_from_string() {
-        assert_eq!(FeedType::from("json"), FeedType::Json);
-        assert_eq!(FeedType::from("atom"), FeedType::Atom);
+        assert_eq!(FeedType::try_from("json").unwrap(), FeedType::Json);
+        assert_eq!(FeedType::try_from("atom").unwrap(), FeedType::Atom);
+        assert!(FeedType::try_from("invalid").is_err());
     }
 
     #[test]
     fn feed_type_from_arc_str() {
-        assert_eq!(FeedType::from(Arc::from("json")), FeedType::Json);
-        assert_eq!(FeedType::from(Arc::from("atom")), FeedType::Atom);
+        assert_eq!(
+            FeedType::try_from(Arc::from("json")).unwrap(),
+            FeedType::Json
+        );
+        assert_eq!(
+            FeedType::try_from(Arc::from("atom")).unwrap(),
+            FeedType::Atom
+        );
+        assert!(FeedType::try_from(Arc::from("invalid")).is_err());
     }
 
     #[test]

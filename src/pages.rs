@@ -77,15 +77,15 @@ impl Page {
     }
 
     pub fn get_image(&self, base_url: &Url) -> Option<Url> {
-        self.metadata.image.as_ref().map(|image| {
+        self.metadata.image.as_ref().and_then(|image| {
             if image.starts_with("http") {
-                return Url::parse(image.as_str()).unwrap();
+                return Url::parse(image.as_str()).ok();
             }
 
             let mut url = base_url.clone();
             url.set_path(image.as_str());
 
-            url
+            Some(url)
         })
     }
 }
@@ -103,18 +103,17 @@ impl Pages {
         }
     }
 
-    pub fn add(&mut self, key: String, value: Yamd) {
+    pub fn add(&mut self, key: String, value: Yamd) -> Result<(), BarErr> {
         let pid: Arc<str> = Arc::from(key.as_str());
-        let metadata = serde_yaml::from_str(
-            value
-                .metadata
-                .as_ref()
-                .unwrap_or_else(|| panic!("{pid} to have metadata"))
-                .as_str(),
-        )
-        .unwrap_or_else(|_| panic!("{pid} to have valid yaml metadata"));
+        let metadata_str = value
+            .metadata
+            .as_ref()
+            .ok_or_else(|| BarErr::from(format!("{pid} is missing metadata")))?;
+        let metadata: Metadata = serde_yaml::from_str(metadata_str.as_str())
+            .map_err(|e| BarErr::from(format!("{pid} has invalid yaml metadata: {e}")))?;
 
         self.push(Page::new(pid.clone(), value, metadata));
+        Ok(())
     }
 
     pub fn push(&mut self, page: Page) {
@@ -153,11 +152,8 @@ impl Pages {
         tags
     }
 
-    pub fn get_posts_by_tag(&self, tag: &str, limit: usize, offset: usize) -> PagesSlice {
-        let pages = self
-            .tags
-            .get(tag)
-            .unwrap_or_else(|| panic!("{tag} must be present"));
+    pub fn get_posts_by_tag(&self, tag: &str, limit: usize, offset: usize) -> Option<PagesSlice> {
+        let pages = self.tags.get(tag)?;
 
         let current_slice = offset / limit;
         let total_slices: usize = (pages.len() as f64 / limit as f64).ceil() as usize;
@@ -182,13 +178,13 @@ impl Pages {
         for page in pages.iter().skip(offset).take(limit) {
             slice.pages.insert(page.clone());
         }
-        slice
+        Some(slice)
     }
 
     pub fn get_similar(&self, pid: &str, max: usize) -> Vec<Arc<str>> {
-        let page = self
-            .get(pid)
-            .unwrap_or_else(|| panic!("article with {pid} is not found"));
+        let Some(page) = self.get(pid) else {
+            return vec![];
+        };
 
         let Some(tags) = page.metadata.tags.as_ref() else {
             return vec![];
@@ -197,11 +193,10 @@ impl Pages {
         let mut leaderboard: HashMap<Arc<str>, usize> = HashMap::new();
 
         for tag in tags.iter() {
-            for other in self
-                .tags
-                .get(tag)
-                .unwrap_or_else(|| panic!("{tag} must be present"))
-            {
+            let Some(tag_pages) = self.tags.get(tag) else {
+                continue;
+            };
+            for other in tag_pages {
                 if page.pid == other.pid {
                     continue;
                 }
@@ -240,11 +235,15 @@ async fn path_to_yamd(
 
     let yamd = deserialize(file_contents.as_str());
 
-    let pid = path
-        .with_extension("")
+    let path_no_ext = path.with_extension("");
+    let path_str = path_no_ext
         .to_str()
-        .unwrap()
-        .trim_start_matches(content_path.to_str().unwrap())
+        .ok_or_else(|| BarErr::from(format!("path is not valid UTF-8: {path_no_ext:?}")))?;
+    let content_str = content_path.to_str().ok_or_else(|| {
+        BarErr::from(format!("content path is not valid UTF-8: {content_path:?}"))
+    })?;
+    let pid = path_str
+        .trim_start_matches(content_str)
         .to_string()
         .replace('\\', "/");
 
@@ -306,8 +305,8 @@ pub async fn init_pages() -> Result<Arc<Pages>, BarErr> {
     }
 
     let mut pages = Pages::new();
-    for page in pages_vec {
-        pages.add(page.0, page.1);
+    for (pid, yamd) in pages_vec {
+        pages.add(pid, yamd)?;
     }
 
     Ok(Arc::new(pages))

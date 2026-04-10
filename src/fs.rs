@@ -36,7 +36,7 @@ pub async fn get_files_by_ext_deep(path: &Path, ext: &[&str]) -> Result<Vec<Path
                     .extension()
                     .unwrap_or_default()
                     .to_str()
-                    .expect("file extension to be valid UTF-8"),
+                    .unwrap_or_default(),
             ) {
                 files.push(path);
             }
@@ -54,7 +54,9 @@ pub async fn read_to_string(path: &Path) -> Result<Arc<str>, BarErr> {
 }
 
 pub async fn write_file(path: &Path, content: &[u8]) -> Result<(), BarErr> {
-    let prefix = path.parent().unwrap();
+    let prefix = path
+        .parent()
+        .ok_or_else(|| BarErr::from(format!("path has no parent directory: {path:?}")))?;
     create_dir_all(prefix).await?;
     let mut file = OpenOptions::new()
         .write(true)

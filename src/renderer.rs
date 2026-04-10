@@ -56,7 +56,7 @@ pub fn render(site: Arc<Site>, tera: &Tera, pages: &Pages) -> Result<(), BarErr>
                     feed_url,
                     icon,
                     favicon,
-                    language: Arc::from("en"), // TODO: make this configurable
+                    language: config.language.clone(),
                 }
                 .build();
 
@@ -68,7 +68,7 @@ pub fn render(site: Arc<Site>, tera: &Tera, pages: &Pages) -> Result<(), BarErr>
                     .title(config.title.as_ref().to_string())
                     .link(config.domain.to_string())
                     .description(config.description.as_ref().to_string())
-                    .language(Some("en".into())) // TODO: make this configurable
+                    .language(Some(config.language.as_ref().into()))
                     .image(icon.map(|url| rss::Image {
                         url: url.to_string(),
                         title: config.title.as_ref().to_string(),

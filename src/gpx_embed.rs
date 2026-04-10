@@ -99,8 +99,7 @@ async fn read_tile(url: String) -> Result<(String, Vec<u8>), String> {
         .bytes()
         .await
         .map_err(|e| format!("Failed to read bytes from \"{url}\".\n{e}"))?
-        .into_iter()
-        .collect();
+        .to_vec();
 
     write_file(&destination, &bytes)
         .await
