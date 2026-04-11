@@ -8,8 +8,8 @@ use tokio::fs::{copy, create_dir_all, remove_dir_all};
 use tracing::{debug, info};
 
 use crate::{
-    CONFIG, PATH,
     r#async::try_for_each,
+    context::BuildConfig,
     error::{BarErr, ContextExt},
     fs::{canonicalize_with_context, get_files_by_ext_deep, write_file},
 };
@@ -321,13 +321,10 @@ fn create_destination_path(source: &Path, prefix: &PathBuf) -> Result<String, Ba
 ///
 /// # Errors
 /// Returns error if static files cannot be discovered or paths are invalid.
-///
-/// # Panics
-/// Panics if global `PATH` or `CONFIG` are not initialized.
-pub async fn init_site() -> Result<Arc<Site>, BarErr> {
+pub async fn init_site(build_config: &BuildConfig) -> Result<Arc<Site>, BarErr> {
     info!("init static files");
-    let base_path = PATH.get().expect("Path to be initialized");
-    let config = CONFIG.get().expect("Config to be initialized");
+    let base_path = &build_config.path;
+    let config = &build_config.config;
     let site = Arc::new(Site::new(base_path.join(&config.dist_path)));
     let source_path = base_path.join(&config.static_source_path);
     let template_static_path = base_path.join(&config.template).join("static/");

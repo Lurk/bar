@@ -3,6 +3,7 @@ pub mod r#async;
 mod cache;
 mod cloudinary;
 pub mod config;
+pub mod context;
 pub mod error;
 pub mod fs;
 mod gpx_embed;
@@ -19,6 +20,7 @@ pub mod templating;
 use args::{Args, ArticleArgs, BuildArgs, Commands};
 use clap::Parser;
 use config::Config;
+use context::{BuildConfig, BuildContext};
 use error::BarErr;
 use fs::write_file;
 use metadata::Metadata;
@@ -26,7 +28,7 @@ use renderer::render;
 use site::init_site;
 use std::path::PathBuf;
 use std::str::FromStr;
-use std::sync::OnceLock;
+use std::sync::Arc;
 use templating::initialize;
 use tokio::fs::{create_dir_all, remove_dir_all, remove_file, try_exists};
 use tokio::try_join;
@@ -40,9 +42,6 @@ use crate::error::ContextExt;
 use crate::fs::canonicalize_with_context;
 use crate::pages::init_pages;
 use crate::syntax_highlight::init;
-
-static CONFIG: OnceLock<Config> = OnceLock::new();
-static PATH: OnceLock<PathBuf> = OnceLock::new();
 
 #[tokio::main]
 async fn main() {
@@ -74,32 +73,34 @@ async fn main() {
 }
 
 async fn build(args: BuildArgs) -> Result<(), BarErr> {
-    PATH.set(args.path.clone())
-        .expect("Failed to set global path");
-    CONFIG
-        .set(Config::try_from(
-            PATH.get().expect("Path to be initialized"),
-        )?)
-        .expect("Failed to set global config");
-    let template_path = args
-        .path
-        .join(&CONFIG.get().expect("Config to be initialized").template);
+    let build_config = BuildConfig {
+        config: Config::try_from(&args.path)?,
+        path: args.path,
+    };
+
+    let template_path = build_config.path.join(&build_config.config.template);
 
     let (template_path, pages, site) = try_join!(
         canonicalize_with_context(&template_path),
-        init_pages(),
-        init_site()
+        init_pages(&build_config),
+        init_site(&build_config)
     )?;
 
-    let syntax_highlighter = init()?;
+    let syntax_set = init()?;
 
-    let tera = initialize(&template_path, &pages, &site, syntax_highlighter)?;
+    let ctx = Arc::new(BuildContext {
+        config: build_config,
+        pages,
+        site,
+        syntax_set,
+    });
 
-    let s = site.clone();
+    let tera = initialize(&ctx, &template_path)?;
 
-    tokio::task::spawn_blocking(move || render(&s, &tera, &pages)).await??;
+    let ctx_clone = ctx.clone();
+    tokio::task::spawn_blocking(move || render(&ctx_clone, &tera)).await??;
 
-    site.save().await?;
+    ctx.site.save().await?;
     Ok(())
 }
 
@@ -142,18 +143,12 @@ async fn create_article(args: ArticleArgs) -> Result<(), BarErr> {
 }
 
 async fn clear(args: BuildArgs) -> Result<(), BarErr> {
-    PATH.set(args.path.clone())
-        .expect("Failed to set global path");
-    CONFIG
-        .set(Config::try_from(
-            PATH.get().expect("Path to be initialized"),
-        )?)
-        .expect("Failed to set global config");
-    let cache_path = PATH.get().expect("Path to be initialized").join(".cache");
-    let dist_path = PATH
-        .get()
-        .expect("Path to be initialized")
-        .join(&CONFIG.get().expect("Config to be initialized").dist_path);
+    let build_config = BuildConfig {
+        config: Config::try_from(&args.path)?,
+        path: args.path,
+    };
+    let cache_path = build_config.path.join(".cache");
+    let dist_path = build_config.path.join(&build_config.config.dist_path);
 
     create_dir_all(&dist_path)
         .await

@@ -7,7 +7,7 @@ use url::Url;
 
 use crate::error::{BarErr, ContextExt};
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum TemplateConfigValue {
     VecOfStrings(Vec<String>),
@@ -37,7 +37,7 @@ fn default_extension() -> Vec<String> {
     ]
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct YamdProcessors {
     /// converts cloudinary embed to image gallery
     #[serde(default)]
@@ -67,7 +67,7 @@ pub struct AltTextGenerator {
     pub temperature: f64,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GpxEmbeddingConfig {
     /// Base URLs for tile servers.
     /// Example: `["https://a.tile.openstreetmap.org", "https://b.tile.openstreetmap.org"]`
@@ -89,7 +89,7 @@ impl Default for GpxEmbeddingConfig {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
     pub dist_path: PathBuf,
     pub content_path: PathBuf,

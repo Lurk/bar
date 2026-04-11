@@ -5,7 +5,6 @@ use gpxtools::{PlotArgs, plot};
 use tracing::debug;
 
 use crate::{
-    PATH,
     error::BarErr,
     fs::write_file,
     req::get_client,
@@ -19,6 +18,7 @@ pub async fn gpx(
     input: PathBuf,
     width: f64,
     height: f64,
+    base_path: PathBuf,
 ) -> Result<String, BarErr> {
     let filename = BASE64URL_NOPAD.encode(
         seahash::hash(format!("{}{}", input.to_string_lossy(), base.join("")).as_bytes())
@@ -26,21 +26,20 @@ pub async fn gpx(
             .as_ref(),
     );
 
-    let destination = PATH
-        .get()
-        .expect("PATH should be initialized")
-        .join(format!(".cache/gpx_embed/{width}/{height}/{filename}.png"));
+    let destination = base_path.join(format!(".cache/gpx_embed/{width}/{height}/{filename}.png"));
 
     if !destination.exists() {
         plot(
-            |url| Box::pin(async move { read_tile(url).await }),
+            |url| {
+                let bp = base_path.clone();
+                Box::pin(async move { read_tile(url, bp).await })
+            },
             PlotArgs {
                 input,
                 width,
                 height,
                 base,
-                attribution_png: attribution_png
-                    .map(|p| PATH.get().expect("PATH should be initialized").join(p)),
+                attribution_png: attribution_png.map(|p| base_path.join(p)),
                 output: destination.clone(),
                 force: false,
             },
@@ -61,17 +60,14 @@ pub async fn gpx(
     Ok(url)
 }
 
-async fn read_tile(url: String) -> Result<(String, Vec<u8>), String> {
+async fn read_tile(url: String, base_path: PathBuf) -> Result<(String, Vec<u8>), String> {
     debug!("Fetching tile: {}", url);
 
     let key = url
         .trim_start_matches("https://")
         .trim_start_matches("http://");
 
-    let destination = PATH
-        .get()
-        .expect("PATH should be initialized")
-        .join(format!(".cache/gpx_tile/{key}"));
+    let destination = base_path.join(format!(".cache/gpx_tile/{key}"));
 
     if destination.exists() {
         debug!("Tile found in cache: {}", url);

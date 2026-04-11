@@ -1,4 +1,8 @@
-use std::{path::PathBuf, pin::Pin, sync::Arc};
+use std::{
+    path::{Path, PathBuf},
+    pin::Pin,
+    sync::Arc,
+};
 
 use async_recursion::async_recursion;
 use data_encoding::BASE64URL_NOPAD;
@@ -9,14 +13,11 @@ use yamd::{
     nodes::{Image, Images, YamdNodes},
 };
 
-use crate::{PATH, cache::Cache, config::AltTextGenerator, error::BarErr, fs::write_file};
+use crate::{cache::Cache, config::AltTextGenerator, error::BarErr, fs::write_file};
 
-async fn str_to_path(path: &str) -> Result<PathBuf, BarErr> {
+async fn str_to_path(path: &str, base_path: &Path) -> Result<PathBuf, BarErr> {
     if path.starts_with("http") {
-        let destination = PATH
-            .get()
-            .expect("PATH should be initialized")
-            .join(format!(".cache/remote_images/{path}"));
+        let destination = base_path.join(format!(".cache/remote_images/{path}"));
 
         if !destination.exists() {
             debug!(
@@ -102,15 +103,22 @@ where
 }
 
 pub async fn generate_alt_text(
-    (generator, pid, yamd, config): (Arc<Img2Text>, String, Yamd, Arc<AltTextGenerator>),
+    (generator, pid, yamd, config, base_path): (
+        Arc<Img2Text>,
+        String,
+        Yamd,
+        Arc<AltTextGenerator>,
+        Arc<PathBuf>,
+    ),
 ) -> Result<(String, Yamd), BarErr> {
     let yamd = add_alt_text(
         yamd,
         Arc::from(|path: &str| {
-            let cache: Cache<String> = Cache::new("alt_text", 1);
+            let cache: Cache<String> = Cache::new("alt_text", 1, &base_path);
             let generator = generator.clone();
             let path = path.to_string();
             let config = config.clone();
+            let base_path = base_path.clone();
             Box::pin(async move {
                 let cache_key = format!("{}:{}:{}", path, config.prompt, config.temperature);
                 let cache_key = BASE64URL_NOPAD
@@ -124,7 +132,9 @@ pub async fn generate_alt_text(
                 if let Some(cached) = cache.get(&cache_key).map_err(|e| e.to_string())? {
                     Ok(cached)
                 } else {
-                    let path_buf = str_to_path(&path).await.map_err(|e| e.to_string())?;
+                    let path_buf = str_to_path(&path, &base_path)
+                        .await
+                        .map_err(|e| e.to_string())?;
                     let alt_text = generator
                         .as_ref()
                         .run(&path_buf, &config.prompt, config.temperature)

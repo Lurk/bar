@@ -1,5 +1,5 @@
 use crate::{
-    CONFIG, PATH,
+    context::BuildContext,
     fs::seahash_checksum,
     gpx_embed::gpx,
     pages::Pages,
@@ -16,8 +16,11 @@ use cloudinary::transformation::{
 };
 use data_encoding::BASE64URL_NOPAD;
 use gpxtools::{StatsArgs, calculate_stats};
-use std::{collections::HashMap, path::Path, sync::Arc};
-use syntect::parsing::SyntaxSet;
+use std::{
+    collections::HashMap,
+    path::{Path, PathBuf},
+    sync::Arc,
+};
 use tera::{Function, Result, Tera, Value};
 use tracing::info;
 use url::Url;
@@ -87,11 +90,11 @@ fn add_page(site: Arc<Site>) -> impl Function + 'static {
     }
 }
 
-fn add_static_file(site: Arc<Site>) -> impl Function + 'static {
+fn add_static_file(site: Arc<Site>, project_path: Arc<PathBuf>) -> impl Function + 'static {
     move |args: &HashMap<String, Value>| {
         let path = get_arc_str_arg(args, "path")
             .ok_or_else(|| tera::Error::msg("path is required for add_static_file"))?;
-        let p = PATH.get().expect("Path to be initialized");
+        let p = &project_path;
         let source = if let Some(source) = get_arc_str_arg(args, "source") {
             p.join(source.trim().trim_start_matches('/'))
         } else {
@@ -230,7 +233,7 @@ fn get_transformations(
 }
 
 #[allow(clippy::cast_possible_truncation)]
-fn get_image_url(site: Arc<Site>) -> impl Function + 'static {
+fn get_image_url(site: Arc<Site>, project_path: Arc<PathBuf>) -> impl Function + 'static {
     move |args: &HashMap<String, Value>| {
         let src = get_string_arg(args, "src")
             .ok_or_else(|| tera::Error::msg("src is required for get_image_url"))?;
@@ -238,11 +241,7 @@ fn get_image_url(site: Arc<Site>) -> impl Function + 'static {
             site.add_page(
                 StaticPage {
                     destination: src.trim().into(),
-                    source: Some(
-                        PATH.get()
-                            .expect("Path to be initialized")
-                            .join(src.trim().trim_start_matches('/')),
-                    ),
+                    source: Some(project_path.join(src.trim().trim_start_matches('/'))),
                     fallback: None,
                 }
                 .into(),
@@ -279,25 +278,18 @@ fn get_image_url(site: Arc<Site>) -> impl Function + 'static {
 }
 
 #[allow(clippy::cast_precision_loss)]
-fn render_gpx(site: Arc<Site>) -> impl Function + 'static {
+fn render_gpx(
+    site: Arc<Site>,
+    config: Arc<crate::config::Config>,
+    project_path: Arc<PathBuf>,
+) -> impl Function + 'static {
     move |args: &HashMap<String, Value>| {
         let input = get_string_arg(args, "input")
             .ok_or_else(|| tera::Error::msg("input is required for render_gpx"))?;
         let width = get_usize_arg(args, "width").unwrap_or(800) as f64;
         let height = get_usize_arg(args, "height").unwrap_or(600) as f64;
-        let base = CONFIG
-            .get()
-            .expect("CONFIG to be initialized")
-            .gpx_embedding
-            .base
-            .clone();
-
-        let copyright = CONFIG
-            .get()
-            .expect("CONFIG to be initialized")
-            .gpx_embedding
-            .attribution_png
-            .clone();
+        let base = config.gpx_embedding.base.clone();
+        let copyright = config.gpx_embedding.attribution_png.clone();
 
         let map_url = tokio::runtime::Handle::try_current()
             .map_err(|e| format!("{e}"))?
@@ -306,11 +298,10 @@ fn render_gpx(site: Arc<Site>) -> impl Function + 'static {
                     site.clone(),
                     base,
                     copyright,
-                    PATH.get()
-                        .expect("Path to be initialized")
-                        .join(input.trim().trim_start_matches('/')),
+                    project_path.join(input.trim().trim_start_matches('/')),
                     width,
                     height,
+                    project_path.as_ref().clone(),
                 )
                 .await
             })
@@ -319,14 +310,11 @@ fn render_gpx(site: Arc<Site>) -> impl Function + 'static {
     }
 }
 
-fn get_gpx_stats() -> impl Function + 'static {
+fn get_gpx_stats(project_path: Arc<PathBuf>) -> impl Function + 'static {
     move |args: &HashMap<String, Value>| {
         let input_arg = get_string_arg(args, "input")
             .ok_or_else(|| tera::Error::msg("input is required for get_gpx_stats"))?;
-        let input = PATH
-            .get()
-            .expect("Path to be initialized")
-            .join(input_arg.trim().trim_start_matches('/'));
+        let input = project_path.join(input_arg.trim().trim_start_matches('/'));
 
         let stats = calculate_stats(&StatsArgs {
             input: vec![input.clone()],
@@ -352,12 +340,7 @@ fn crc32(value: &Value, _: &HashMap<String, Value>) -> Result<Value> {
 
 /// # Errors
 /// Returns error if templates cannot be loaded or parsed.
-pub fn initialize(
-    template_path: &Path,
-    posts: &Arc<Pages>,
-    site: &Arc<Site>,
-    syntax_highlighter: Arc<SyntaxSet>,
-) -> Result<Tera> {
+pub fn initialize(ctx: &BuildContext, template_path: &Path) -> Result<Tera> {
     let templates = format!(
         "{}/**/*.html",
         template_path
@@ -368,19 +351,30 @@ pub fn initialize(
             )))?
     );
     info!("initialize teplates: {}", templates);
+    let project_path = Arc::new(ctx.config.path.clone());
+    let config = Arc::new(ctx.config.config.clone());
     let mut tera = Tera::new(&templates)?;
-    tera.register_function("add_feed", add_feed(site.clone()));
-    tera.register_function("add_page", add_page(site.clone()));
-    tera.register_function("add_static_file", add_static_file(site.clone()));
-    tera.register_function("code", code(syntax_highlighter));
-    tera.register_function("get_gpx_stats", get_gpx_stats());
-    tera.register_function("get_image_url", get_image_url(site.clone()));
-    tera.register_function("get_pages_by_tag", get_pages_by_tag(posts.clone()));
-    tera.register_function("get_page_by_path", get_page_by_path(posts.clone()));
-    tera.register_function("get_page_by_pid", get_page_by_pid(posts.clone()));
-    tera.register_function("get_similar", get_similar(posts.clone()));
-    tera.register_function("get_static_file", get_static_file(site.clone()));
-    tera.register_function("render_gpx", render_gpx(site.clone()));
+    tera.register_function("add_feed", add_feed(ctx.site.clone()));
+    tera.register_function("add_page", add_page(ctx.site.clone()));
+    tera.register_function(
+        "add_static_file",
+        add_static_file(ctx.site.clone(), project_path.clone()),
+    );
+    tera.register_function("code", code(ctx.syntax_set.clone()));
+    tera.register_function("get_gpx_stats", get_gpx_stats(project_path.clone()));
+    tera.register_function(
+        "get_image_url",
+        get_image_url(ctx.site.clone(), project_path.clone()),
+    );
+    tera.register_function("get_pages_by_tag", get_pages_by_tag(ctx.pages.clone()));
+    tera.register_function("get_page_by_path", get_page_by_path(ctx.pages.clone()));
+    tera.register_function("get_page_by_pid", get_page_by_pid(ctx.pages.clone()));
+    tera.register_function("get_similar", get_similar(ctx.pages.clone()));
+    tera.register_function("get_static_file", get_static_file(ctx.site.clone()));
+    tera.register_function(
+        "render_gpx",
+        render_gpx(ctx.site.clone(), config, project_path),
+    );
 
     tera.register_filter("crc32", crc32);
 

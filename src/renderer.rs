@@ -1,26 +1,22 @@
-use std::sync::Arc;
-
 use rss::{ChannelBuilder, Item};
 use tera::{Context, Tera};
 use tracing::{debug, info};
 
 use crate::{
-    CONFIG,
+    context::BuildContext,
     error::BarErr,
     json_feed::{FeedItem, JsonFeedBuilder},
-    pages::Pages,
-    site::{FeedType, Site},
+    site::FeedType,
 };
 
 /// # Errors
 /// Returns error if page rendering or feed generation fails.
-///
-/// # Panics
-/// Panics if global `CONFIG` is not initialized.
-pub fn render(site: &Arc<Site>, tera: &Tera, pages: &Pages) -> Result<(), BarErr> {
+pub fn render(ctx: &BuildContext, tera: &Tera) -> Result<(), BarErr> {
     info!("render dynamic pages and feeds");
     let mut feed_items: Vec<FeedItem> = vec![];
-    let config = CONFIG.get().expect("Config to be initialized");
+    let config = &ctx.config.config;
+    let site = &ctx.site;
+    let pages = &ctx.pages;
 
     while let Some(page) = site.next_unrendered_dynamic_page() {
         debug!("Rendering page: {}", page.path);

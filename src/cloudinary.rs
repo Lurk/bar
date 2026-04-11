@@ -6,10 +6,19 @@ use yamd::{
     nodes::{Collapsible, Embed, Image, Images, YamdNodes},
 };
 
-use crate::{CONFIG, cache::Cache, error::BarErr};
+use std::{
+    path::{Path, PathBuf},
+    sync::Arc,
+};
 
-async fn cloudinary_gallery_to_image_gallery(embed: &Embed) -> Result<Images, BarErr> {
-    let cache = Cache::<Images>::new("cloudinary_gallery", 1);
+use crate::{cache::Cache, error::BarErr};
+
+async fn cloudinary_gallery_to_image_gallery(
+    embed: &Embed,
+    should_alt_text_be_empty: bool,
+    base_path: &Path,
+) -> Result<Images, BarErr> {
+    let cache = Cache::<Images>::new("cloudinary_gallery", 1, base_path);
 
     if let Some(images) = cache.get(&embed.args)? {
         return Ok(images);
@@ -22,13 +31,6 @@ async fn cloudinary_gallery_to_image_gallery(embed: &Embed) -> Result<Images, Ba
 
         tags.resources
             .sort_by(|a, b| cmp(&a.public_id, &b.public_id));
-
-        let should_alt_text_be_empty = CONFIG
-            .get()
-            .expect("Config should be initialized")
-            .yamd_processors
-            .generate_alt_text
-            .is_some();
 
         let images = tags
             .resources
@@ -55,15 +57,27 @@ async fn cloudinary_gallery_to_image_gallery(embed: &Embed) -> Result<Images, Ba
 }
 
 #[async_recursion]
-async fn process_collapsible(collapsible: &Collapsible) -> Result<Collapsible, BarErr> {
+async fn process_collapsible(
+    collapsible: &Collapsible,
+    should_alt_text_be_empty: bool,
+    base_path: &Path,
+) -> Result<Collapsible, BarErr> {
     let mut nodes_vec: Vec<YamdNodes> = Vec::with_capacity(collapsible.body.len());
     for node in &collapsible.body {
         match node {
             YamdNodes::Embed(embed) if embed.kind == "cloudinary_gallery" => {
-                nodes_vec.push(cloudinary_gallery_to_image_gallery(embed).await?.into());
+                nodes_vec.push(
+                    cloudinary_gallery_to_image_gallery(embed, should_alt_text_be_empty, base_path)
+                        .await?
+                        .into(),
+                );
             }
             YamdNodes::Collapsible(collapsible) => {
-                nodes_vec.push(process_collapsible(collapsible).await?.into());
+                nodes_vec.push(
+                    process_collapsible(collapsible, should_alt_text_be_empty, base_path)
+                        .await?
+                        .into(),
+                );
             }
             _ => nodes_vec.push(node.clone()),
         }
@@ -71,15 +85,29 @@ async fn process_collapsible(collapsible: &Collapsible) -> Result<Collapsible, B
     Ok(Collapsible::new(collapsible.title.clone(), nodes_vec))
 }
 
-pub async fn unwrap_cloudinary((pid, yamd): (String, Yamd)) -> Result<(String, Yamd), BarErr> {
+pub async fn unwrap_cloudinary(
+    (pid, yamd, should_alt_text_be_empty, base_path): (String, Yamd, bool, Arc<PathBuf>),
+) -> Result<(String, Yamd), BarErr> {
     let mut nodes: Vec<YamdNodes> = Vec::with_capacity(yamd.body.len());
     for node in &yamd.body {
         match node {
             YamdNodes::Embed(embed) if embed.kind == "cloudinary_gallery" => {
-                nodes.push(cloudinary_gallery_to_image_gallery(embed).await?.into());
+                nodes.push(
+                    cloudinary_gallery_to_image_gallery(
+                        embed,
+                        should_alt_text_be_empty,
+                        &base_path,
+                    )
+                    .await?
+                    .into(),
+                );
             }
             YamdNodes::Collapsible(collapsible) => {
-                nodes.push(process_collapsible(collapsible).await?.into());
+                nodes.push(
+                    process_collapsible(collapsible, should_alt_text_be_empty, &base_path)
+                        .await?
+                        .into(),
+                );
             }
             _ => nodes.push(node.clone()),
         }

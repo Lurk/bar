@@ -1,7 +1,7 @@
 use crate::{
-    CONFIG, PATH,
     r#async::try_map,
     cloudinary::unwrap_cloudinary,
+    context::BuildConfig,
     error::BarErr,
     fs::{canonicalize_with_context, get_files_by_ext_deep},
     image_alt::generate_alt_text,
@@ -274,21 +274,11 @@ async fn path_to_yamd(
 
 /// # Errors
 /// Returns error if content files cannot be read or parsed.
-///
-/// # Panics
-/// Panics if global `PATH` or `CONFIG` are not initialized.
-pub async fn init_pages() -> Result<Arc<Pages>, BarErr> {
+pub async fn init_pages(build_config: &BuildConfig) -> Result<Arc<Pages>, BarErr> {
+    let base_path = Arc::new(build_config.path.clone());
     let content_path = Arc::new(
-        canonicalize_with_context(
-            &PATH.get().expect("Path to be initialized").join(
-                CONFIG
-                    .get()
-                    .expect("Config to be initialized")
-                    .content_path
-                    .clone(),
-            ),
-        )
-        .await?,
+        canonicalize_with_context(&build_config.path.join(&build_config.config.content_path))
+            .await?,
     );
     info!("processing YAMD from {:?}", content_path);
     let input = get_files_by_ext_deep(&content_path, &["yamd"])
@@ -299,20 +289,27 @@ pub async fn init_pages() -> Result<Arc<Pages>, BarErr> {
     let mut pages_vec = try_map(50, input, path_to_yamd).await?;
     info!("processing YAMD complete");
 
-    if CONFIG
-        .get()
-        .expect("Config to be initialized")
+    let should_generate_alt_text = build_config
+        .config
         .yamd_processors
-        .convert_cloudinary_embed
-    {
+        .generate_alt_text
+        .is_some();
+
+    if build_config.config.yamd_processors.convert_cloudinary_embed {
         info!("unwrapping cloudinary");
-        pages_vec = try_map(50, pages_vec, unwrap_cloudinary).await?;
+        pages_vec = try_map(
+            50,
+            pages_vec
+                .into_iter()
+                .map(|(pid, yamd)| (pid, yamd, should_generate_alt_text, base_path.clone())),
+            unwrap_cloudinary,
+        )
+        .await?;
         info!("unwrapping cloudinary complete");
     }
 
-    if let Some(config) = CONFIG
-        .get()
-        .expect("Config to be initialized")
+    if let Some(config) = build_config
+        .config
         .yamd_processors
         .generate_alt_text
         .as_ref()
@@ -322,9 +319,15 @@ pub async fn init_pages() -> Result<Arc<Pages>, BarErr> {
         let config = Arc::new(config.clone());
         pages_vec = try_map(
             2,
-            pages_vec
-                .into_iter()
-                .map(|(pid, yamd)| (alt_text.clone(), pid, yamd, config.clone())),
+            pages_vec.into_iter().map(|(pid, yamd)| {
+                (
+                    alt_text.clone(),
+                    pid,
+                    yamd,
+                    config.clone(),
+                    base_path.clone(),
+                )
+            }),
             generate_alt_text,
         )
         .await?;
@@ -346,18 +349,18 @@ mod test {
     use chrono::prelude::*;
     use yamd::Yamd;
 
-    use crate::{CONFIG, PATH, config::Config, metadata::Metadata, pages::init_pages};
+    use crate::{config::Config, context::BuildConfig, metadata::Metadata, pages::init_pages};
 
     use super::{Page, Pages};
 
     #[tokio::test]
     async fn init_from_path_test() {
         let config_path = Path::new("./test/fixtures/").to_path_buf();
-        PATH.get_or_init(|| config_path.clone());
-        CONFIG
-            .set(Config::try_from(&config_path).unwrap())
-            .expect("Failed to set global config");
-        let pages = init_pages().await.unwrap();
+        let build_config = BuildConfig {
+            config: Config::try_from(&config_path).unwrap(),
+            path: config_path,
+        };
+        let pages = init_pages(&build_config).await.unwrap();
 
         assert_eq!(pages.keys().len(), 2);
         assert_eq!(

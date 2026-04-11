@@ -1,9 +1,12 @@
-use std::{fmt::Debug, path::PathBuf, time::Duration};
+use std::{
+    fmt::Debug,
+    path::{Path, PathBuf},
+    time::Duration,
+};
 
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 
 use crate::{
-    PATH,
     error::{BarErr, ContextExt},
     fs::write_file,
 };
@@ -20,21 +23,22 @@ pub struct Cache<T> {
     kind: String,
     ttl: Option<Duration>,
     version: usize,
+    base_path: PathBuf,
 }
 
 impl<T> Cache<T> {
-    pub fn new(kind: &str, version: usize) -> Self {
+    pub fn new(kind: &str, version: usize, base_path: &Path) -> Self {
         Cache {
             kind: kind.to_string(),
             version,
             ttl: None,
+            base_path: base_path.to_path_buf(),
             __phantom: std::marker::PhantomData,
         }
     }
 
     fn get_path(&self, key: &str) -> PathBuf {
-        PATH.get()
-            .expect("PATH should be initialized")
+        self.base_path
             .join(format!(".cache/{}/{}.json", self.kind, key))
     }
 }
@@ -92,8 +96,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_cache_manager() {
-        PATH.get_or_init(|| PathBuf::from("./test/fixtures"));
-        let cache = Cache::new("test", 1);
+        let cache = Cache::new("test", 1, Path::new("./test/fixtures"));
 
         let key = "test_key";
         let value = "test_value".to_string();
