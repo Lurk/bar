@@ -7,7 +7,7 @@ edition = "2024"
 workspace = true
 
 [target.'cfg(target_os = "macos")'.dependencies]
-candle-core = { version = "0.9.2", features = ["metal"] }
+candle-core = { version = "0.10.2", features = ["metal"] }
 candle-nn = { version = "0.9.2", features = ["metal"] }
 candle-transformers = { version = "0.9.2", features = ["metal"] }
 
