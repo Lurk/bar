@@ -4,10 +4,11 @@ use crate::{
     context::BuildConfig,
     error::BarErr,
     fs::{canonicalize_with_context, get_files_by_ext_deep},
-    image_alt::generate_alt_text,
+    image_alt::add_alt_text,
     metadata::Metadata,
 };
 
+use futures_core::Stream;
 use img2text::Img2Text;
 use itertools::Itertools;
 use serde::Serialize;
@@ -15,12 +16,17 @@ use std::{
     cmp::Ordering,
     collections::{BTreeSet, HashMap, HashSet},
     path::PathBuf,
+    pin::Pin,
     sync::Arc,
 };
 use tokio::fs::read_to_string;
+use tokio_stream::StreamExt;
 use tracing::info;
 use url::Url;
-use yamd::{deserialize, nodes::Yamd};
+use yamd::{
+    nodes::Yamd,
+    op::{self, Op},
+};
 
 #[derive(Debug, Serialize, PartialEq, Eq)]
 pub struct Page {
@@ -245,11 +251,11 @@ impl Default for Pages {
 
 async fn path_to_yamd(
     (path, content_path): (PathBuf, Arc<PathBuf>),
-) -> Result<(String, Yamd), BarErr> {
+) -> Result<(String, String, Vec<Op>), BarErr> {
     let path = canonicalize_with_context(&path).await?;
     let file_contents = read_to_string(&path).await?;
 
-    let yamd = deserialize(file_contents.as_str());
+    let ops = op::parse(&file_contents);
 
     let path_no_ext = path.with_extension("");
     let path_str = path_no_ext.to_str().ok_or_else(|| {
@@ -269,7 +275,7 @@ async fn path_to_yamd(
         .to_string()
         .replace('\\', "/");
 
-    Ok((pid, yamd))
+    Ok((pid, file_contents, ops))
 }
 
 /// # Errors
@@ -286,7 +292,7 @@ pub async fn init_pages(build_config: &BuildConfig) -> Result<Arc<Pages>, BarErr
         .into_iter()
         .map(|path| (path, content_path.clone()));
 
-    let mut pages_vec = try_map(50, input, path_to_yamd).await?;
+    let pages_vec = try_map(50, input, path_to_yamd).await?;
     info!("processing YAMD complete");
 
     let should_generate_alt_text = build_config
@@ -295,47 +301,55 @@ pub async fn init_pages(build_config: &BuildConfig) -> Result<Arc<Pages>, BarErr
         .generate_alt_text
         .is_some();
 
-    if build_config.config.yamd_processors.convert_cloudinary_embed {
-        info!("unwrapping cloudinary");
-        pages_vec = try_map(
-            50,
-            pages_vec
-                .into_iter()
-                .map(|(pid, yamd)| (pid, yamd, should_generate_alt_text, base_path.clone())),
-            unwrap_cloudinary,
-        )
-        .await?;
-        info!("unwrapping cloudinary complete");
-    }
+    let convert_cloudinary = build_config.config.yamd_processors.convert_cloudinary_embed;
 
-    if let Some(config) = build_config
+    let alt_text_config = build_config
         .config
         .yamd_processors
         .generate_alt_text
         .as_ref()
-    {
-        info!("generating alt text for images");
-        let alt_text = Arc::from(Img2Text::new());
-        let config = Arc::new(config.clone());
-        pages_vec = try_map(
-            2,
-            pages_vec.into_iter().map(|(pid, yamd)| {
-                (
-                    alt_text.clone(),
-                    pid,
-                    yamd,
-                    config.clone(),
-                    base_path.clone(),
-                )
-            }),
-            generate_alt_text,
-        )
-        .await?;
-        info!("generating alt text for images complete");
-    }
+        .map(|config| {
+            let generator = Arc::from(Img2Text::new());
+            let config = Arc::new(config.clone());
+            (generator, config)
+        });
 
     let mut pages = Pages::new();
-    for (pid, yamd) in pages_vec {
+
+    for (pid, source_text, ops) in pages_vec {
+        let stream: Pin<Box<dyn Stream<Item = Result<Op, BarErr>> + Send>> =
+            Box::pin(tokio_stream::iter(ops.into_iter().map(Ok)));
+
+        let stream = if convert_cloudinary {
+            unwrap_cloudinary(
+                stream,
+                &source_text,
+                should_generate_alt_text,
+                base_path.clone(),
+            )
+        } else {
+            stream
+        };
+
+        let stream = if let Some((ref generator, ref config)) = alt_text_config {
+            add_alt_text(
+                stream,
+                &source_text,
+                generator.clone(),
+                config.clone(),
+                base_path.clone(),
+            )
+        } else {
+            stream
+        };
+
+        let ops: Vec<Op> = stream
+            .collect::<Vec<_>>()
+            .await
+            .into_iter()
+            .collect::<Result<Vec<_>, _>>()?;
+
+        let yamd = op::to_yamd(&ops, &source_text);
         pages.add(&pid, yamd)?;
     }
 

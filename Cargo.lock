@@ -168,10 +168,21 @@ dependencies = [
 ]
 
 [[package]]
-name = "async-recursion"
-version = "1.1.1"
+name = "async-stream"
+version = "0.3.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3b43422f69d8ff38f95f1b2bb76517c91589a924d1559a0e935d7c8ce0274c11"
+checksum = "0b5a71a6f37880a80d1d7f19efd781e4b5de42c88f0722cc13bcb6cc2cfe8476"
+dependencies = [
+ "async-stream-impl",
+ "futures-core",
+ "pin-project-lite",
+]
+
+[[package]]
+name = "async-stream-impl"
+version = "0.3.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c7c24de15d275a1ecfd47a380fb4d5ec9bfe0933f309ed5e705b775596a3574d"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -272,13 +283,14 @@ dependencies = [
 name = "bar"
 version = "0.1.0"
 dependencies = [
- "async-recursion",
+ "async-stream",
  "bincode",
  "chrono",
  "clap",
  "clap-verbosity-flag",
  "cloudinary",
  "data-encoding",
+ "futures-core",
  "gpxtools",
  "img2text",
  "itertools 0.14.0",
@@ -294,6 +306,7 @@ dependencies = [
  "syntect",
  "tera",
  "tokio",
+ "tokio-stream",
  "tracing",
  "tracing-log",
  "tracing-subscriber",
@@ -4655,6 +4668,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "tokio-stream"
+version = "0.1.18"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "32da49809aab5c3bc678af03902d4ccddea2a87d028d86392a4b1560c6906c70"
+dependencies = [
+ "futures-core",
+ "pin-project-lite",
+ "tokio",
+]
+
+[[package]]
 name = "tokio-util"
 version = "0.7.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5493,9 +5517,9 @@ checksum = "7a5a4b21e1a62b67a2970e6831bc091d7b87e119e7f9791aef9702e3bef04448"
 
 [[package]]
 name = "yamd"
-version = "0.17.0"
+version = "0.18.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "74a0229d4d591da2e424d3b8bd9d32f933095181903201efe83ff65b42a5fcff"
+checksum = "ee1ef31aa8b1364e0d7fa5e0b28a19ce9355aaf8d7fc16a2b86d8271e720dc8d"
 dependencies = [
  "serde",
 ]
