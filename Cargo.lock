@@ -252,6 +252,7 @@ dependencies = [
  "serde_json",
  "serde_yaml",
  "syntect",
+ "tempfile",
  "tera",
  "tokio",
  "tokio-stream",

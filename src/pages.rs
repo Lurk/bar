@@ -2,7 +2,7 @@ use crate::{
     r#async::try_map,
     cloudinary::unwrap_cloudinary,
     context::BuildConfig,
-    diagnostic::BarDiagnostic,
+    diagnostic::{BarDiagnostic, ContextExt},
     fs::{canonicalize_with_context, get_files_by_ext_deep},
     image_alt::add_alt_text,
     metadata::Metadata,
@@ -23,17 +23,25 @@ use tokio::fs::read_to_string;
 use tokio_stream::StreamExt;
 use tracing::info;
 use url::Url;
-use yamd::{
-    nodes::Yamd,
-    op::{self, Op},
-};
+use yamd::op::{self, Node, Op, OpKind};
 
-#[derive(Debug, Serialize, PartialEq, Eq)]
+#[derive(Debug, Serialize)]
 pub struct Page {
     pub pid: Arc<str>,
-    pub content: Yamd,
+    #[serde(skip)]
+    pub ops: Vec<Op>,
+    #[serde(skip)]
+    pub source: String,
     pub metadata: Metadata,
 }
+
+impl PartialEq for Page {
+    fn eq(&self, other: &Self) -> bool {
+        self.pid == other.pid
+    }
+}
+
+impl Eq for Page {}
 
 impl PartialOrd for Page {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
@@ -71,10 +79,11 @@ pub struct PagesSlice {
 
 impl Page {
     #[must_use]
-    pub fn new(pid: Arc<str>, content: Yamd, metadata: Metadata) -> Self {
+    pub fn new(pid: Arc<str>, ops: Vec<Op>, source: String, metadata: Metadata) -> Self {
         Self {
             pid,
-            content,
+            ops,
+            source,
             metadata,
         }
     }
@@ -113,19 +122,9 @@ impl Pages {
         }
     }
 
-    /// # Errors
-    /// Returns error if the page is missing or has invalid metadata.
-    pub fn add(&mut self, key: &str, value: Yamd) -> Result<(), BarDiagnostic> {
+    pub fn add(&mut self, key: &str, ops: Vec<Op>, source: String, metadata: Metadata) {
         let pid: Arc<str> = Arc::from(key);
-        let metadata_str = value
-            .metadata
-            .as_ref()
-            .ok_or_else(|| BarDiagnostic::from(format!("{pid} is missing metadata")))?;
-        let metadata: Metadata = serde_yaml::from_str(metadata_str.as_str())
-            .map_err(|e| BarDiagnostic::from(format!("{pid} has invalid yaml metadata: {e}")))?;
-
-        self.push(Page::new(pid.clone(), value, metadata));
-        Ok(())
+        self.push(Page::new(pid, ops, source, metadata));
     }
 
     pub fn push(&mut self, page: Page) {
@@ -168,16 +167,11 @@ impl Pages {
     }
 
     #[must_use]
-    #[allow(
-        clippy::cast_possible_truncation,
-        clippy::cast_sign_loss,
-        clippy::cast_precision_loss
-    )]
     pub fn get_posts_by_tag(&self, tag: &str, limit: usize, offset: usize) -> Option<PagesSlice> {
         let pages = self.tags.get(tag)?;
 
         let current_slice = offset / limit;
-        let total_slices: usize = (pages.len() as f64 / limit as f64).ceil() as usize;
+        let total_slices: usize = pages.len().div_ceil(limit);
 
         let mut numbers: Vec<SliceNumber> = Vec::with_capacity(total_slices);
 
@@ -278,6 +272,19 @@ async fn path_to_yamd(
     Ok((pid, file_contents, ops))
 }
 
+fn extract_metadata<'a>(ops: &'a [Op], source: &'a str) -> Option<&'a str> {
+    let mut in_metadata = false;
+    for op in ops {
+        match &op.kind {
+            OpKind::Start(Node::Metadata) => in_metadata = true,
+            OpKind::Value if in_metadata => return Some(op.content.as_str(source)),
+            OpKind::End(Node::Metadata) => return None,
+            _ => {}
+        }
+    }
+    None
+}
+
 /// # Errors
 /// Returns error if content files cannot be read or parsed.
 pub async fn init_pages(build_config: &BuildConfig) -> Result<Arc<Pages>, BarDiagnostic> {
@@ -347,10 +354,20 @@ pub async fn init_pages(build_config: &BuildConfig) -> Result<Arc<Pages>, BarDia
             .collect::<Vec<_>>()
             .await
             .into_iter()
-            .collect::<Result<Vec<_>, _>>()?;
+            .collect::<Result<Vec<_>, _>>()
+            .with_context(|| format!("processing content file: {pid}.yamd"))?;
 
-        let yamd = op::to_yamd(&ops, &source_text);
-        pages.add(&pid, yamd)?;
+        let metadata_str = extract_metadata(&ops, &source_text)
+            .ok_or_else(|| BarDiagnostic::from(format!("{pid} is missing metadata")))?;
+        let metadata: Metadata = serde_yaml::from_str(metadata_str)
+            .map_err(|e| BarDiagnostic::from(format!("{pid} has invalid yaml metadata: {e}")))?;
+
+        if metadata.is_draft.unwrap_or(false) {
+            info!("skipping draft: {pid}");
+            continue;
+        }
+
+        pages.add(&pid, ops, source_text, metadata);
     }
 
     Ok(Arc::new(pages))
@@ -361,7 +378,6 @@ mod test {
     use std::path::Path;
 
     use chrono::prelude::*;
-    use yamd::Yamd;
 
     use crate::{config::Config, context::BuildConfig, metadata::Metadata, pages::init_pages};
 
@@ -393,7 +409,8 @@ mod test {
         let mut pages = Pages::new();
         pages.push(Page::new(
             "1".into(),
-            Yamd::new(None, vec![]),
+            vec![],
+            String::new(),
             Metadata {
                 title: "1".into(),
                 date: Utc::now().into(),
@@ -405,7 +422,8 @@ mod test {
         ));
         pages.push(Page::new(
             "2".into(),
-            Yamd::new(None, vec![]),
+            vec![],
+            String::new(),
             Metadata {
                 title: "2".into(),
                 date: Utc::now().into(),
@@ -417,7 +435,8 @@ mod test {
         ));
         pages.push(Page::new(
             "3".into(),
-            Yamd::new(None, vec![]),
+            vec![],
+            String::new(),
             Metadata {
                 title: "3".into(),
                 date: Utc::now().into(),
@@ -429,7 +448,8 @@ mod test {
         ));
         pages.push(Page::new(
             "4".into(),
-            Yamd::new(None, vec![]),
+            vec![],
+            String::new(),
             Metadata {
                 title: "4".into(),
                 date: Utc::now().into(),
@@ -441,7 +461,8 @@ mod test {
         ));
         pages.push(Page::new(
             "5".into(),
-            Yamd::new(None, vec![]),
+            vec![],
+            String::new(),
             Metadata {
                 title: "5".into(),
                 date: Utc::now().into(),
@@ -459,7 +480,8 @@ mod test {
         ));
         pages.push(Page::new(
             "6".into(),
-            Yamd::new(None, vec![]),
+            vec![],
+            String::new(),
             Metadata {
                 title: "6".into(),
                 date: Utc::now().into(),
@@ -480,7 +502,8 @@ mod test {
     fn cmp_for_page_with_different_times() {
         let one = Page::new(
             "1".into(),
-            Yamd::new(None, vec![]),
+            vec![],
+            String::new(),
             Metadata {
                 title: "1".into(),
                 date: Utc::now().into(),
@@ -492,7 +515,8 @@ mod test {
         );
         let two = Page::new(
             "2".into(),
-            Yamd::new(None, vec![]),
+            vec![],
+            String::new(),
             Metadata {
                 title: "2".into(),
                 date: Utc::now().into(),
@@ -512,7 +536,8 @@ mod test {
 
         let one = Page::new(
             "1".into(),
-            Yamd::new(None, vec![]),
+            vec![],
+            String::new(),
             Metadata {
                 title: "1".into(),
                 date: time.into(),
@@ -524,7 +549,8 @@ mod test {
         );
         let two = Page::new(
             "2".into(),
-            Yamd::new(None, vec![]),
+            vec![],
+            String::new(),
             Metadata {
                 title: "2".into(),
                 date: time.into(),

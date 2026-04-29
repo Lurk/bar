@@ -1,59 +1,8 @@
-use std::{collections::HashMap, sync::Arc};
+use std::sync::Arc;
 
-use itertools::Itertools;
-use syntect::{
-    dumps::from_uncompressed_data,
-    html::{ClassStyle, ClassedHTMLGenerator},
-    parsing::SyntaxSet,
-    util::LinesWithEndings,
-};
-use tera::{Function, Value};
+use syntect::{dumps::from_uncompressed_data, parsing::SyntaxSet};
 
-use crate::{diagnostic::BarDiagnostic, templating::get_arc_str_arg};
-
-fn map_language(supported: &[Arc<str>], language: Arc<str>) -> Result<Arc<str>, tera::Error> {
-    let language: Arc<str> = match language.to_lowercase().as_ref() {
-        "js" | "javascript" => "JavaScript".into(),
-        "ts" | "typescript" | "jsx" => "TypeScriptReact".into(),
-        "rs" | "rust" => "Rust".into(),
-        "bash" | "sh" => "Bourne Again Shell (bash)".into(),
-        "yaml" | "yml" => "YAML".into(),
-        "md" | "yamd" => "Markdown".into(),
-        _ => language,
-    };
-    if supported.contains(&language) {
-        Ok(language)
-    } else {
-        Err(tera::Error::from(format!(
-            "Language '{language}' is not supported\nSupported languages are:\n{}",
-            supported.iter().map(|s| format!(" - {s}")).join("\n")
-        )))
-    }
-}
-
-/// # Panics
-/// Panics if the `code` or `language` arguments are missing or the syntax cannot be found.
-pub fn code(syntax_set: Arc<SyntaxSet>) -> impl Function + 'static {
-    let supported = syntax_set
-        .syntaxes()
-        .iter()
-        .map(|syntax| Arc::from(syntax.name.clone()))
-        .collect::<Vec<Arc<str>>>();
-    move |args: &HashMap<String, Value>| {
-        let code = get_arc_str_arg(args, "code").unwrap();
-        let language = map_language(&supported, get_arc_str_arg(args, "language").unwrap())?;
-        let sr_rs = syntax_set.find_syntax_by_name(language.as_ref()).unwrap();
-        let mut rs_html_generator =
-            ClassedHTMLGenerator::new_with_class_style(sr_rs, &syntax_set, ClassStyle::Spaced);
-        for line in LinesWithEndings::from(code.as_ref()) {
-            rs_html_generator
-                .parse_html_for_line_which_includes_newline(line)
-                .unwrap();
-        }
-        let html_rs = rs_html_generator.finalize();
-        Ok(tera::to_value(html_rs)?)
-    }
-}
+use crate::diagnostic::BarDiagnostic;
 
 /// # Errors
 /// Returns error if the syntax set cannot be deserialized.
@@ -61,46 +10,4 @@ pub fn init() -> Result<Arc<SyntaxSet>, BarDiagnostic> {
     Ok(Arc::new(from_uncompressed_data(include_bytes!(
         "./syntaxes.bin"
     ))?))
-}
-
-#[cfg(test)]
-mod tests {
-    use std::sync::Arc;
-
-    #[test]
-    fn map_language_test() {
-        use super::map_language;
-        let supported = vec![
-            "JavaScript".into(),
-            "TypeScriptReact".into(),
-            "Rust".into(),
-            "Bourne Again Shell (bash)".into(),
-            "YAML".into(),
-            "Markdown".into(),
-        ];
-        let test_cases = vec![
-            ("js", "JavaScript"),
-            ("javascript", "JavaScript"),
-            ("ts", "TypeScriptReact"),
-            ("typescript", "TypeScriptReact"),
-            ("jsx", "TypeScriptReact"),
-            ("rs", "Rust"),
-            ("rust", "Rust"),
-            ("bash", "Bourne Again Shell (bash)"),
-            ("sh", "Bourne Again Shell (bash)"),
-            ("yaml", "YAML"),
-            ("yml", "YAML"),
-            ("md", "Markdown"),
-            ("yamd", "Markdown"),
-            ("Python", "Python"),
-        ];
-        for (input, expected) in test_cases {
-            let result = map_language(&supported, input.into());
-            if supported.contains(&expected.into()) {
-                assert_eq!(result.unwrap(), Arc::from(expected));
-            } else {
-                assert!(result.is_err());
-            }
-        }
-    }
 }
