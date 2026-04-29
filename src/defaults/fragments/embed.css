@@ -1,0 +1,4 @@
+.embed { margin: 1em 0; }
+.embed iframe { width: 100%; aspect-ratio: 16/9; border: none; }
+.gpx-embed.with-icon { display: flex; gap: 1rem; padding: 0.5rem 0; align-items: center; }
+.gpx-embed.with-icon div { display: flex; align-items: center; gap: 0.25rem; }

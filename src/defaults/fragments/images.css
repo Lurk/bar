@@ -1,0 +1,10 @@
+.ig { margin: 1em 0; }
+.ig .image { position: relative; overflow-x: auto; scroll-snap-type: x mandatory; display: flex; }
+.ig .image > div { scroll-snap-align: start; min-width: 100%; }
+.ig .image picture { display: block; width: 100%; }
+.ig .image picture img { width: 100%; display: block; }
+.ig .image .left, .ig .image .right { position: absolute; top: 50%; transform: translateY(-50%); z-index: 1; font-size: 2rem; text-decoration: none; padding: 0.5rem; }
+.ig .image .left { left: 0.5rem; }
+.ig .image .right { right: 0.5rem; }
+.ig .thumb { display: flex; flex-wrap: wrap; gap: 0.25em; margin-top: 0.5em; }
+.ig .thumb img { display: block; }
