@@ -5,8 +5,8 @@ use gpxtools::{PlotArgs, plot};
 use tracing::debug;
 
 use crate::{
+    cache::Cache,
     diagnostic::BarDiagnostic,
-    fs::write_file,
     req::get_client,
     site::{Site, StaticPage},
 };
@@ -63,20 +63,17 @@ pub async fn gpx(
 async fn read_tile(url: String, base_path: PathBuf) -> Result<(String, Vec<u8>), String> {
     debug!("Fetching tile: {}", url);
 
+    let cache: Cache<()> = Cache::new("gpx_tile", 1, &base_path);
     let key = url
         .trim_start_matches("https://")
         .trim_start_matches("http://");
+    let dest = cache.raw_path(key, "png");
 
-    let destination = base_path.join(format!(".cache/gpx_tile/{key}"));
-
-    if destination.exists() {
+    if dest.exists() {
         debug!("Tile found in cache: {}", url);
-        let bytes = tokio::fs::read(&destination).await.map_err(|e| {
-            format!(
-                "Failed to read cached tile at {}.\n{e}",
-                destination.display()
-            )
-        })?;
+        let bytes = tokio::fs::read(&dest)
+            .await
+            .map_err(|e| format!("Failed to read cached tile at {}.\n{e}", dest.display()))?;
         return Ok((url, bytes));
     }
 
@@ -100,12 +97,10 @@ async fn read_tile(url: String, base_path: PathBuf) -> Result<(String, Vec<u8>),
         .map_err(|e| format!("Failed to read bytes from \"{url}\".\n{e}"))?
         .to_vec();
 
-    write_file(&destination, &bytes).await.map_err(|e| {
-        format!(
-            "Failed to write tile to cache at {}.\n{e}",
-            destination.display()
-        )
-    })?;
+    cache
+        .set_raw(key, "png", &bytes)
+        .await
+        .map_err(|e| format!("Failed to write tile to cache at {}.\n{e}", dest.display()))?;
 
     debug!("Tile cached: {}", url);
     Ok((url, bytes))
