@@ -5,7 +5,7 @@ use gpxtools::{PlotArgs, plot};
 use tracing::debug;
 
 use crate::{
-    error::BarErr,
+    diagnostic::BarDiagnostic,
     fs::write_file,
     req::get_client,
     site::{Site, StaticPage},
@@ -19,7 +19,7 @@ pub async fn gpx(
     width: f64,
     height: f64,
     base_path: PathBuf,
-) -> Result<String, BarErr> {
+) -> Result<String, BarDiagnostic> {
     let filename = BASE64URL_NOPAD.encode(
         seahash::hash(format!("{}{}", input.to_string_lossy(), base.join("")).as_bytes())
             .to_be_bytes()

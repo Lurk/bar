@@ -11,9 +11,9 @@ use tokio_stream::StreamExt;
 use tracing::debug;
 use yamd::op::{Content, Node, Op, OpKind};
 
-use crate::{cache::Cache, config::AltTextGenerator, error::BarErr, fs::write_file};
+use crate::{cache::Cache, config::AltTextGenerator, diagnostic::BarDiagnostic, fs::write_file};
 
-async fn str_to_path(path: &str, base_path: &Path) -> Result<PathBuf, BarErr> {
+async fn str_to_path(path: &str, base_path: &Path) -> Result<PathBuf, BarDiagnostic> {
     if path.starts_with("http") {
         let destination = base_path.join(format!(".cache/remote_images/{path}"));
 
@@ -48,7 +48,7 @@ async fn generate_alt_for_image(
     generator: &Img2Text,
     config: &AltTextGenerator,
     base_path: &Path,
-) -> Result<String, BarErr> {
+) -> Result<String, BarDiagnostic> {
     let cache: Cache<String> = Cache::new("alt_text", 1, base_path);
     let cache_key = format!("{}:{}:{}", src, config.prompt, config.temperature);
     let cache_key =
@@ -68,7 +68,7 @@ async fn generate_alt_for_image(
     let alt_text = generator
         .run(&path_buf, &config.prompt, config.temperature)
         .await
-        .map_err(|e| BarErr::from(e.to_string()))?
+        .map_err(|e| BarDiagnostic::from(e.to_string()))?
         .to_string();
 
     cache.set(&cache_key, &alt_text).await?;
@@ -76,12 +76,12 @@ async fn generate_alt_for_image(
 }
 
 pub fn add_alt_text<'a>(
-    stream: Pin<Box<dyn Stream<Item = Result<Op, BarErr>> + Send + 'a>>,
+    stream: Pin<Box<dyn Stream<Item = Result<Op, BarDiagnostic>> + Send + 'a>>,
     source: &'a str,
     generator: Arc<Img2Text>,
     config: Arc<AltTextGenerator>,
     base_path: Arc<PathBuf>,
-) -> Pin<Box<dyn Stream<Item = Result<Op, BarErr>> + Send + 'a>> {
+) -> Pin<Box<dyn Stream<Item = Result<Op, BarDiagnostic>> + Send + 'a>> {
     let mut buffer: Vec<Op> = Vec::new();
     let mut in_image = false;
 
@@ -193,7 +193,7 @@ mod tests {
     #[tokio::test]
     async fn non_image_ops_pass_through() {
         let ops = make_paragraph_ops();
-        let stream: Pin<Box<dyn Stream<Item = Result<Op, BarErr>> + Send>> =
+        let stream: Pin<Box<dyn Stream<Item = Result<Op, BarDiagnostic>> + Send>> =
             Box::pin(iter(ops.into_iter().map(Ok)));
         let result: Vec<Op> = add_alt_text(
             stream,
@@ -215,7 +215,7 @@ mod tests {
     async fn image_with_existing_alt_passes_through() {
         let ops = make_image_ops_with_alt("existing alt", "img.jpg");
         let expected_len = ops.len();
-        let stream: Pin<Box<dyn Stream<Item = Result<Op, BarErr>> + Send>> =
+        let stream: Pin<Box<dyn Stream<Item = Result<Op, BarDiagnostic>> + Send>> =
             Box::pin(iter(ops.into_iter().map(Ok)));
         let result: Vec<Op> = add_alt_text(
             stream,

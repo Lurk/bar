@@ -2,7 +2,7 @@ use crate::{
     r#async::try_map,
     cloudinary::unwrap_cloudinary,
     context::BuildConfig,
-    error::BarErr,
+    diagnostic::BarDiagnostic,
     fs::{canonicalize_with_context, get_files_by_ext_deep},
     image_alt::add_alt_text,
     metadata::Metadata,
@@ -115,14 +115,14 @@ impl Pages {
 
     /// # Errors
     /// Returns error if the page is missing or has invalid metadata.
-    pub fn add(&mut self, key: &str, value: Yamd) -> Result<(), BarErr> {
+    pub fn add(&mut self, key: &str, value: Yamd) -> Result<(), BarDiagnostic> {
         let pid: Arc<str> = Arc::from(key);
         let metadata_str = value
             .metadata
             .as_ref()
-            .ok_or_else(|| BarErr::from(format!("{pid} is missing metadata")))?;
+            .ok_or_else(|| BarDiagnostic::from(format!("{pid} is missing metadata")))?;
         let metadata: Metadata = serde_yaml::from_str(metadata_str.as_str())
-            .map_err(|e| BarErr::from(format!("{pid} has invalid yaml metadata: {e}")))?;
+            .map_err(|e| BarDiagnostic::from(format!("{pid} has invalid yaml metadata: {e}")))?;
 
         self.push(Page::new(pid.clone(), value, metadata));
         Ok(())
@@ -251,7 +251,7 @@ impl Default for Pages {
 
 async fn path_to_yamd(
     (path, content_path): (PathBuf, Arc<PathBuf>),
-) -> Result<(String, String, Vec<Op>), BarErr> {
+) -> Result<(String, String, Vec<Op>), BarDiagnostic> {
     let path = canonicalize_with_context(&path).await?;
     let file_contents = read_to_string(&path).await?;
 
@@ -259,13 +259,13 @@ async fn path_to_yamd(
 
     let path_no_ext = path.with_extension("");
     let path_str = path_no_ext.to_str().ok_or_else(|| {
-        BarErr::from(format!(
+        BarDiagnostic::from(format!(
             "path is not valid UTF-8: {}",
             path_no_ext.display()
         ))
     })?;
     let content_str = content_path.to_str().ok_or_else(|| {
-        BarErr::from(format!(
+        BarDiagnostic::from(format!(
             "content path is not valid UTF-8: {}",
             content_path.display()
         ))
@@ -280,7 +280,7 @@ async fn path_to_yamd(
 
 /// # Errors
 /// Returns error if content files cannot be read or parsed.
-pub async fn init_pages(build_config: &BuildConfig) -> Result<Arc<Pages>, BarErr> {
+pub async fn init_pages(build_config: &BuildConfig) -> Result<Arc<Pages>, BarDiagnostic> {
     let base_path = Arc::new(build_config.path.clone());
     let content_path = Arc::new(
         canonicalize_with_context(&build_config.path.join(&build_config.config.content_path))
@@ -317,7 +317,7 @@ pub async fn init_pages(build_config: &BuildConfig) -> Result<Arc<Pages>, BarErr
     let mut pages = Pages::new();
 
     for (pid, source_text, ops) in pages_vec {
-        let stream: Pin<Box<dyn Stream<Item = Result<Op, BarErr>> + Send>> =
+        let stream: Pin<Box<dyn Stream<Item = Result<Op, BarDiagnostic>> + Send>> =
             Box::pin(tokio_stream::iter(ops.into_iter().map(Ok)));
 
         let stream = if convert_cloudinary {

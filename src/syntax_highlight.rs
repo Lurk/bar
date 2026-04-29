@@ -9,7 +9,7 @@ use syntect::{
 };
 use tera::{Function, Value};
 
-use crate::{error::BarErr, templating::get_arc_str_arg};
+use crate::{diagnostic::BarDiagnostic, templating::get_arc_str_arg};
 
 fn map_language(supported: &[Arc<str>], language: Arc<str>) -> Result<Arc<str>, tera::Error> {
     let language: Arc<str> = match language.to_lowercase().as_ref() {
@@ -57,7 +57,7 @@ pub fn code(syntax_set: Arc<SyntaxSet>) -> impl Function + 'static {
 
 /// # Errors
 /// Returns error if the syntax set cannot be deserialized.
-pub fn init() -> Result<Arc<SyntaxSet>, BarErr> {
+pub fn init() -> Result<Arc<SyntaxSet>, BarDiagnostic> {
     Ok(Arc::new(from_uncompressed_data(include_bytes!(
         "./syntaxes.bin"
     ))?))

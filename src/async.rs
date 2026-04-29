@@ -3,7 +3,7 @@ use std::future::Future;
 
 use tokio::task::JoinSet;
 
-use crate::error::BarErr;
+use crate::diagnostic::BarDiagnostic;
 
 /// `try_map` spawns a future for each item in the iterator and waits for all of them to complete.
 /// If any of the futures return an error, `try_map` will return that error.
@@ -15,11 +15,11 @@ use crate::error::BarErr;
 ///
 /// # Panics
 /// Panics if a spawned task panics.
-pub async fn try_map<T, I, F, O, Fut>(size: usize, input: I, f: F) -> Result<Vec<O>, BarErr>
+pub async fn try_map<T, I, F, O, Fut>(size: usize, input: I, f: F) -> Result<Vec<O>, BarDiagnostic>
 where
     I: IntoIterator<Item = T>,
     F: Fn(T) -> Fut + Send + 'static,
-    Fut: Future<Output = Result<O, BarErr>> + Send + 'static,
+    Fut: Future<Output = Result<O, BarDiagnostic>> + Send + 'static,
     T: Send + 'static,
     O: Send + 'static,
 {
@@ -55,11 +55,11 @@ where
 ///
 /// # Errors
 /// Returns error if any spawned future returns an error.
-pub async fn try_for_each<T, I, F, Fut>(size: usize, input: I, f: F) -> Result<(), BarErr>
+pub async fn try_for_each<T, I, F, Fut>(size: usize, input: I, f: F) -> Result<(), BarDiagnostic>
 where
     I: IntoIterator<Item = T>,
     F: Fn(T) -> Fut + Send + 'static,
-    Fut: Future<Output = Result<(), BarErr>> + Send + 'static,
+    Fut: Future<Output = Result<(), BarDiagnostic>> + Send + 'static,
     T: Send + 'static,
 {
     let mut iterator = input.into_iter();

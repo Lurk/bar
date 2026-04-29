@@ -4,14 +4,14 @@ use tracing::{debug, info};
 
 use crate::{
     context::BuildContext,
-    error::BarErr,
+    diagnostic::BarDiagnostic,
     json_feed::{FeedItem, JsonFeedBuilder},
     site::FeedType,
 };
 
 /// # Errors
 /// Returns error if page rendering or feed generation fails.
-pub fn render(ctx: &BuildContext, tera: &Tera) -> Result<(), BarErr> {
+pub fn render(ctx: &BuildContext, tera: &Tera) -> Result<(), BarDiagnostic> {
     info!("render dynamic pages and feeds");
     let mut feed_items: Vec<FeedItem> = vec![];
     let config = &ctx.config.config;

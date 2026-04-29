@@ -7,7 +7,7 @@ use std::{
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 
 use crate::{
-    error::{BarErr, ContextExt},
+    diagnostic::{BarDiagnostic, ContextExt},
     fs::write_file,
 };
 
@@ -44,7 +44,7 @@ impl<T> Cache<T> {
 }
 
 impl<T: Debug + Serialize + DeserializeOwned> Cache<T> {
-    pub async fn set(&self, key: &str, data: &T) -> Result<(), BarErr> {
+    pub async fn set(&self, key: &str, data: &T) -> Result<(), BarDiagnostic> {
         let cache = Value {
             data,
             version: self.version,
@@ -59,7 +59,7 @@ impl<T: Debug + Serialize + DeserializeOwned> Cache<T> {
             .with_context(|| format!("Failed to write cache for key: {key}"))
     }
 
-    pub fn get(&self, key: &str) -> Result<Option<T>, BarErr> {
+    pub fn get(&self, key: &str) -> Result<Option<T>, BarDiagnostic> {
         let full_path = self.get_path(key);
 
         if !full_path.exists() {

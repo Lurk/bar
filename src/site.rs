@@ -10,7 +10,7 @@ use tracing::{debug, info};
 use crate::{
     r#async::try_for_each,
     context::BuildConfig,
-    error::{BarErr, ContextExt},
+    diagnostic::{BarDiagnostic, ContextExt},
     fs::{canonicalize_with_context, get_files_by_ext_deep, write_file},
 };
 
@@ -47,8 +47,8 @@ pub enum FeedType {
 }
 
 impl TryFrom<&str> for FeedType {
-    type Error = BarErr;
-    fn try_from(value: &str) -> Result<Self, BarErr> {
+    type Error = BarDiagnostic;
+    fn try_from(value: &str) -> Result<Self, BarDiagnostic> {
         match value {
             "json" => Ok(Self::Json),
             "atom" => Ok(Self::Atom),
@@ -58,8 +58,8 @@ impl TryFrom<&str> for FeedType {
 }
 
 impl TryFrom<Arc<str>> for FeedType {
-    type Error = BarErr;
-    fn try_from(value: Arc<str>) -> Result<Self, BarErr> {
+    type Error = BarDiagnostic;
+    fn try_from(value: Arc<str>) -> Result<Self, BarDiagnostic> {
         FeedType::try_from(value.as_ref())
     }
 }
@@ -218,7 +218,7 @@ impl Site {
     ///
     /// # Panics
     /// Panics if the pages mutex is poisoned.
-    pub async fn save(&self) -> Result<(), BarErr> {
+    pub async fn save(&self) -> Result<(), BarDiagnostic> {
         info!("clean up dist folder");
         create_dir_all(&self.dist_folder)
             .await
@@ -245,7 +245,7 @@ impl Site {
     }
 }
 
-async fn save_page((dist_folder, page): (Arc<PathBuf>, Arc<Page>)) -> Result<(), BarErr> {
+async fn save_page((dist_folder, page): (Arc<PathBuf>, Arc<Page>)) -> Result<(), BarDiagnostic> {
     match page.as_ref() {
         Page::Static(page) => {
             let destination = dist_folder.join(page.destination.trim_start_matches('/'));
@@ -297,7 +297,7 @@ async fn save_page((dist_folder, page): (Arc<PathBuf>, Arc<Page>)) -> Result<(),
     Ok(())
 }
 
-fn create_destination_path(source: &Path, prefix: &PathBuf) -> Result<String, BarErr> {
+fn create_destination_path(source: &Path, prefix: &PathBuf) -> Result<String, BarDiagnostic> {
     let stripped = source.strip_prefix(prefix).with_context(|| {
         format!(
             "strip prefix {} from {}",
@@ -305,9 +305,9 @@ fn create_destination_path(source: &Path, prefix: &PathBuf) -> Result<String, Ba
             source.display()
         )
     })?;
-    let s = stripped
-        .to_str()
-        .ok_or_else(|| BarErr::from(format!("path is not valid UTF-8: {}", stripped.display())))?;
+    let s = stripped.to_str().ok_or_else(|| {
+        BarDiagnostic::from(format!("path is not valid UTF-8: {}", stripped.display()))
+    })?;
     Ok(s.replace('\\', "/"))
 }
 
@@ -321,7 +321,7 @@ fn create_destination_path(source: &Path, prefix: &PathBuf) -> Result<String, Ba
 ///
 /// # Errors
 /// Returns error if static files cannot be discovered or paths are invalid.
-pub async fn init_site(build_config: &BuildConfig) -> Result<Arc<Site>, BarErr> {
+pub async fn init_site(build_config: &BuildConfig) -> Result<Arc<Site>, BarDiagnostic> {
     info!("init static files");
     let base_path = &build_config.path;
     let config = &build_config.config;

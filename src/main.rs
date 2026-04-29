@@ -4,7 +4,7 @@ mod cache;
 mod cloudinary;
 pub mod config;
 pub mod context;
-pub mod error;
+pub mod diagnostic;
 pub mod fs;
 mod gpx_embed;
 mod image_alt;
@@ -21,7 +21,7 @@ use args::{Args, ArticleArgs, BuildArgs, Commands};
 use clap::Parser;
 use config::Config;
 use context::{BuildConfig, BuildContext};
-use error::BarErr;
+use diagnostic::BarDiagnostic;
 use fs::write_file;
 use metadata::Metadata;
 use renderer::render;
@@ -38,7 +38,7 @@ use tracing_subscriber::FmtSubscriber;
 use yamd::Yamd;
 use yamd::nodes::Paragraph;
 
-use crate::error::ContextExt;
+use crate::diagnostic::ContextExt;
 use crate::fs::canonicalize_with_context;
 use crate::pages::init_pages;
 use crate::syntax_highlight::init;
@@ -65,14 +65,14 @@ async fn main() {
             }
         };
         if let Err(e) = res {
-            eprintln!("{e}");
+            eprintln!("{e:?}");
         }
     });
 
     handle.await.expect("tokio task panicked");
 }
 
-async fn build(args: BuildArgs) -> Result<(), BarErr> {
+async fn build(args: BuildArgs) -> Result<(), BarDiagnostic> {
     let build_config = BuildConfig {
         config: Config::try_from(&args.path)?,
         path: args.path,
@@ -104,7 +104,7 @@ async fn build(args: BuildArgs) -> Result<(), BarErr> {
     Ok(())
 }
 
-async fn create_article(args: ArticleArgs) -> Result<(), BarErr> {
+async fn create_article(args: ArticleArgs) -> Result<(), BarDiagnostic> {
     let path = PathBuf::from(format!("./{}.yamd", args.title));
 
     if try_exists(&path).await? {
@@ -142,7 +142,7 @@ async fn create_article(args: ArticleArgs) -> Result<(), BarErr> {
     Ok(())
 }
 
-async fn clear(args: BuildArgs) -> Result<(), BarErr> {
+async fn clear(args: BuildArgs) -> Result<(), BarDiagnostic> {
     let build_config = BuildConfig {
         config: Config::try_from(&args.path)?,
         path: args.path,
