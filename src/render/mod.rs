@@ -58,7 +58,7 @@ pub(super) fn render_node(
         }
     };
 
-    let ctx = build_fragment_context(ops, source, node, start, end, render_ctx)
+    let ctx = build_fragment_context(ops, source, node, start, end, render_ctx, used_nodes)
         .map_err(&wrap_with_yamd_context)?;
 
     let template_name = fragment_template_name(key);
@@ -127,10 +127,10 @@ pub(super) fn render_ops_to_html(
     ops: &[Op],
     source: &str,
     render_ctx: RenderCtx<'_>,
+    used_nodes: &mut HashSet<&'static str>,
 ) -> Result<String, BarDiagnostic> {
     let mut html = String::new();
-    let mut used_nodes: HashSet<&'static str> = HashSet::new();
-    walk_ops(ops, source, render_ctx, &mut html, &mut used_nodes)?;
+    walk_ops(ops, source, render_ctx, &mut html, used_nodes)?;
     Ok(html)
 }
 
@@ -725,6 +725,72 @@ css = "fragments/paragraph.css"
         assert!(
             result.css.contains("hr"),
             "thematic break css: {}",
+            result.css
+        );
+    }
+
+    #[test]
+    fn css_includes_nested_node_defaults_inside_collapsible() {
+        let result = render_full("{% wrapper\n\n# nested heading\n\n%}");
+        assert!(
+            result.css.contains("margin-top"),
+            "heading css must be collected when nested in a collapsible: {}",
+            result.css
+        );
+    }
+
+    fn render_with_anchor_override(source: &str, marker_css: &str) -> RenderedContent {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let fragments_dir = dir.path().join("fragments");
+        std::fs::create_dir_all(&fragments_dir).expect("mkdir");
+        std::fs::write(
+            fragments_dir.join("anchor.html"),
+            "<a href=\"{{ href }}\">{{ text }}</a>",
+        )
+        .expect("write anchor template");
+        std::fs::write(fragments_dir.join("anchor.css"), marker_css).expect("write anchor css");
+
+        let theme_toml = r#"
+[theme]
+name = "test"
+version = "1.0.0"
+description = "Test"
+compatible_bar_versions = ">=0.1.0"
+tags = []
+
+[render]
+lazy_images = false
+heading_anchors = false
+
+[render.fragments.anchor]
+template = "fragments/anchor.html"
+css = "fragments/anchor.css"
+"#;
+        let theme = Theme::parse(theme_toml).expect("parse");
+        let ops = op::parse(source);
+        let ss = test_syntax_set();
+        let engine = FragmentEngine::build(dir.path(), &theme, None).expect("engine");
+        render_html(&ops, source, &engine, &theme, &ss, "test").expect("render")
+    }
+
+    #[test]
+    fn css_includes_overridden_anchor_inside_list_item() {
+        let marker = ".my-anchor { color: red; }";
+        let result = render_with_anchor_override("- [link](/x)", marker);
+        assert!(
+            result.css.contains(".my-anchor"),
+            "anchor css must be collected when nested in a list item: {}",
+            result.css
+        );
+    }
+
+    #[test]
+    fn css_includes_overridden_anchor_inside_highlight() {
+        let marker = ".my-anchor { color: red; }";
+        let result = render_with_anchor_override("!! note\n! lightbulb\n[link](/x)\n!!", marker);
+        assert!(
+            result.css.contains(".my-anchor"),
+            "anchor css must be collected when nested in a highlight: {}",
             result.css
         );
     }

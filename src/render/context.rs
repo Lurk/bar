@@ -115,6 +115,7 @@ pub(super) fn build_fragment_context(
     start: usize,
     end: usize,
     render_ctx: RenderCtx<'_>,
+    used_nodes: &mut HashSet<&'static str>,
 ) -> Result<tera::Context, BarDiagnostic> {
     let RenderCtx {
         theme,
@@ -265,7 +266,7 @@ pub(super) fn build_fragment_context(
 
             let toggle_icon = render_icon(engine, "play")?;
 
-            let body_html = render_ops_to_html(&inner_ops[pos..], source, render_ctx)?;
+            let body_html = render_ops_to_html(&inner_ops[pos..], source, render_ctx, used_nodes)?;
             ctx.insert("id", &id);
             ctx.insert("title", &title);
             ctx.insert("toggle_icon", &toggle_icon);
@@ -291,13 +292,13 @@ pub(super) fn build_fragment_context(
                 pos = icon_end + 1;
             }
 
-            let body_html = render_ops_to_html(&inner_ops[pos..], source, render_ctx)?;
+            let body_html = render_ops_to_html(&inner_ops[pos..], source, render_ctx, used_nodes)?;
             ctx.insert("icon", &icon_html);
             ctx.insert("title", &title);
             ctx.insert("content", &body_html);
         }
         Node::Images => {
-            let inner = render_ops_to_html(&ops[start + 1..end], source, render_ctx)?;
+            let inner = render_ops_to_html(&ops[start + 1..end], source, render_ctx, used_nodes)?;
             ctx.insert("content", &inner);
 
             let mut images: Vec<serde_json::Value> = Vec::new();
@@ -339,7 +340,6 @@ pub(super) fn build_fragment_context(
         Node::ListItem => {
             let inner_ops = &ops[start + 1..end];
             let mut html = String::new();
-            let mut inner_used: HashSet<&str> = HashSet::new();
             let mut j = 0;
             while j < inner_ops.len() {
                 match &inner_ops[j].kind {
@@ -347,14 +347,8 @@ pub(super) fn build_fragment_context(
                         j += 1;
                     }
                     OpKind::Start(inner_node) => {
-                        let (rendered, next_j) = render_node(
-                            inner_ops,
-                            source,
-                            inner_node,
-                            j,
-                            &mut inner_used,
-                            render_ctx,
-                        )?;
+                        let (rendered, next_j) =
+                            render_node(inner_ops, source, inner_node, j, used_nodes, render_ctx)?;
                         html.push_str(&rendered);
                         j = next_j;
                     }
@@ -367,7 +361,7 @@ pub(super) fn build_fragment_context(
             ctx.insert("content", &html);
         }
         _ => {
-            let inner = render_ops_to_html(&ops[start + 1..end], source, render_ctx)?;
+            let inner = render_ops_to_html(&ops[start + 1..end], source, render_ctx, used_nodes)?;
             ctx.insert("content", &inner);
         }
     }

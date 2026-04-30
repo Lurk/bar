@@ -404,6 +404,30 @@ mod test {
         assert_eq!(pages.get_tags().len(), 4);
     }
 
+    #[tokio::test]
+    async fn init_pages_excludes_drafts() {
+        let config_path = Path::new("./test/fixtures/").to_path_buf();
+        let build_config = BuildConfig {
+            config: Config::try_from(&config_path).unwrap(),
+            path: config_path,
+        };
+        let pages = init_pages(&build_config).await.unwrap();
+
+        assert!(
+            pages.get("/draft").is_none(),
+            "draft yamd must be excluded from Pages, got keys: {:?}",
+            pages.keys()
+        );
+        assert!(
+            !pages
+                .get_tags()
+                .iter()
+                .any(|t| t.as_ref() == "draft only tag"),
+            "tags from a draft must not appear in get_tags(): {:?}",
+            pages.get_tags()
+        );
+    }
+
     #[test]
     fn get_similar() {
         let mut pages = Pages::new();

@@ -114,6 +114,7 @@ mod tests {
         assert_eq!(
             files,
             vec![
+                PathBuf::from("./test/fixtures/content/draft.yamd"),
                 PathBuf::from("./test/fixtures/content/test.yamd"),
                 PathBuf::from("./test/fixtures/content/test2.yamd")
             ]
