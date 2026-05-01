@@ -1,1 +1,1 @@
-<div class="collapsible"><input type="checkbox" id="{{ id }}" /><label for="{{ id }}">{{ toggle_icon }}{{ title }}</label><div class="body">{{ content }}</div></div>
+<div class="collapsible"><input type="checkbox" id="{{ id }}" /><label for="{{ id }}">{{ toggle_icon | safe }}{{ title }}</label><div class="body">{{ content | safe }}</div></div>

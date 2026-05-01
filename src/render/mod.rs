@@ -466,6 +466,55 @@ heading_anchors = false
     }
 
     #[test]
+    fn escapes_anchor_text_html() {
+        let html = render("[<script>x</script>](http://e.com)");
+        assert!(
+            !html.contains("<script>x</script>"),
+            "anchor text must not pass raw <script>, got: {html}"
+        );
+        assert!(html.contains("&lt;script&gt;"), "got: {html}");
+    }
+
+    #[test]
+    fn escapes_anchor_href_quotes() {
+        let html = render(r#"[click](http://e.com"onclick=alert(1))"#);
+        assert!(
+            !html.contains(r#"http://e.com"onclick"#),
+            "anchor href must escape attribute breakout, got: {html}"
+        );
+        assert!(html.contains("&quot;"), "got: {html}");
+    }
+
+    #[test]
+    fn escapes_image_alt_html() {
+        let html = render("![<script>x</script>](/p.jpg)");
+        assert!(
+            !html.contains("<script>x</script>"),
+            "image alt must not pass raw <script>, got: {html}"
+        );
+        assert!(html.contains("&lt;script&gt;"), "got: {html}");
+    }
+
+    #[test]
+    fn escapes_embed_args_attribute() {
+        let html = render(r#"{{custom|"><script>alert(1)</script>}}"#);
+        assert!(
+            !html.contains("<script>alert(1)</script>"),
+            "embed args must escape attribute breakout, got: {html}"
+        );
+        assert!(html.contains("&quot;"), "got: {html}");
+    }
+
+    #[test]
+    fn escapes_icon_name() {
+        let html = render("!! note\n! <script>alert(1)</script>\nbody\n!!");
+        assert!(
+            !html.contains("<script>alert(1)</script>"),
+            "icon name must not pass raw <script>, got: {html}"
+        );
+    }
+
+    #[test]
     fn fragment_override_for_image() {
         let dir = tempfile::tempdir().expect("tempdir");
         let fragments_dir = dir.path().join("fragments");

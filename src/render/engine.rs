@@ -106,8 +106,12 @@ const FRAGMENT_DEFAULTS: &[(&str, &str, &str)] = &[
 
 const FRAGMENT_TEMPLATE_PREFIX: &str = "__bar_fragment__";
 
+/// Fragment templates are registered under names ending in `.html` so that
+/// Tera's default auto-escape (which keys off the suffix) protects every
+/// `{{ var }}` substitution. Fields that legitimately carry pre-rendered HTML
+/// (e.g. `content`, `body`, `highlighted`, icon HTML) opt out with `| safe`.
 pub(super) fn fragment_template_name(key: &str) -> String {
-    format!("{FRAGMENT_TEMPLATE_PREFIX}{key}")
+    format!("{FRAGMENT_TEMPLATE_PREFIX}{key}.html")
 }
 
 pub(super) fn fragment_key(node: &Node) -> &'static str {
@@ -196,6 +200,10 @@ impl FragmentEngine {
             BarDiagnostic::new(format!("failed to load fragment templates from {glob}"))
                 .with_source(BarDiagnostic::new(e.to_string()))
         })?;
+        // Use our own escape function so URLs in href/src don't get '/' rewritten
+        // to &#x2F;. Tera's default escapes per OWASP recommendation, which is
+        // valid HTML but visually noisy for static-site output.
+        tera.set_escape_fn(super::context::html_escape);
         if let Some(svc) = services {
             svc.register(&mut tera);
         }
