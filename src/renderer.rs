@@ -1,3 +1,4 @@
+use std::path::Path;
 use std::sync::Arc;
 
 use rss::{ChannelBuilder, Item};
@@ -12,6 +13,16 @@ use crate::{
     render::{FragmentEngine, render_html},
     site::FeedType,
 };
+
+fn yamd_display_path(project_path: &Path, content_path: &Path, pid: &str) -> String {
+    let yamd_path = project_path
+        .join(content_path)
+        .join(pid.trim_start_matches('/'))
+        .with_extension("yamd");
+    yamd_path
+        .strip_prefix(project_path)
+        .map_or_else(|_| pid.to_string(), |p| p.display().to_string())
+}
 
 /// # Errors
 /// Returns error if page rendering or feed generation fails.
@@ -52,13 +63,15 @@ pub fn render(
 
     for pid in pages.keys() {
         if let Some(content_page) = pages.get(&pid) {
+            let display_path =
+                yamd_display_path(&ctx.config.path, &ctx.config.config.content_path, &pid);
             let rendered = render_html(
                 &content_page.ops,
                 &content_page.source,
                 &engine,
                 &ctx.theme,
                 &ctx.syntax_set,
-                &pid,
+                &display_path,
             )
             .map_err(|e| {
                 BarDiagnostic::new(format!("content rendering failed for \"{pid}\"")).with_source(e)
@@ -207,9 +220,7 @@ fn tera_error_names(err: &tera::Error) -> Vec<String> {
         {
             names.push(name.to_owned());
         }
-        current = e
-            .source()
-            .and_then(|s| s.downcast_ref::<tera::Error>());
+        current = e.source().and_then(|s| s.downcast_ref::<tera::Error>());
     }
     names
 }
@@ -249,5 +260,39 @@ mod tests {
         let err = tera::Error::template_not_found("missing.html");
         let names = tera_error_names(&err);
         assert_eq!(names, vec!["missing.html".to_string()]);
+    }
+}
+
+#[cfg(test)]
+mod path_tests {
+    use std::path::{Path, PathBuf};
+
+    use super::yamd_display_path;
+
+    #[test]
+    fn yamd_display_path_returns_relative_path_with_extension() {
+        let project = PathBuf::from("/home/user/site");
+        let got = yamd_display_path(&project, Path::new("content"), "/post/hello");
+        assert_eq!(got, "content/post/hello.yamd");
+    }
+
+    #[test]
+    fn yamd_display_path_handles_pid_without_leading_slash() {
+        let project = PathBuf::from("/home/user/site");
+        let got = yamd_display_path(&project, Path::new("content"), "post/hello");
+        assert_eq!(got, "content/post/hello.yamd");
+    }
+
+    #[test]
+    fn yamd_display_path_falls_back_to_pid_when_strip_fails() {
+        // When content_path is absolute and points outside project_path,
+        // Path::join replaces the prefix, so strip_prefix(project_path) fails
+        // and we fall back to the pid string.
+        let project = PathBuf::from("/home/user/site");
+        let got = yamd_display_path(&project, Path::new("/elsewhere/content"), "/post/hello");
+        assert_eq!(
+            got, "/post/hello",
+            "should fall back to pid when content path is outside the project root"
+        );
     }
 }

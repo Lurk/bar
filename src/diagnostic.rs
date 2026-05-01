@@ -88,15 +88,19 @@ impl std::error::Error for BarDiagnostic {
 
 impl Diagnostic for BarDiagnostic {
     fn source_code(&self) -> Option<&dyn SourceCode> {
-        self.source_code.as_ref().map(|s| s as &dyn SourceCode)
+        if let Some(s) = self.source_code.as_ref() {
+            return Some(s as &dyn SourceCode);
+        }
+        self.source_error
+            .as_deref()
+            .and_then(Diagnostic::source_code)
     }
 
     fn labels(&self) -> Option<Box<dyn Iterator<Item = LabeledSpan> + '_>> {
-        if self.labels.is_empty() {
-            None
-        } else {
-            Some(Box::new(self.labels.iter().cloned()))
+        if !self.labels.is_empty() {
+            return Some(Box::new(self.labels.iter().cloned()));
         }
+        self.source_error.as_deref().and_then(Diagnostic::labels)
     }
 
     fn help<'a>(&'a self) -> Option<Box<dyn Display + 'a>> {
@@ -347,5 +351,44 @@ mod tests {
 
         let source = err.source().expect("should have source");
         assert_eq!(source.to_string(), "low level");
+    }
+
+    #[test]
+    fn outer_wrap_falls_through_to_inner_source_code_and_labels() {
+        use miette::Diagnostic;
+
+        let inner = BarDiagnostic::new("inner")
+            .with_source_code("file.txt", "hello world")
+            .with_label((0usize, 5usize).into(), "here");
+        let outer = BarDiagnostic::new("outer").with_source(inner);
+
+        assert!(
+            outer.source_code().is_some(),
+            "outer should fall through to inner source_code"
+        );
+        let labels: Vec<_> = outer.labels().expect("outer should have labels").collect();
+        assert_eq!(labels.len(), 1, "outer should fall through to inner label");
+        assert_eq!(labels[0].label(), Some("here"));
+    }
+
+    #[test]
+    fn outer_with_own_source_code_does_not_fall_through() {
+        use miette::Diagnostic;
+
+        let inner = BarDiagnostic::new("inner")
+            .with_source_code("inner.txt", "inner content")
+            .with_label((0usize, 5usize).into(), "inner-label");
+        let outer = BarDiagnostic::new("outer")
+            .with_source_code("outer.txt", "outer content")
+            .with_label((0usize, 5usize).into(), "outer-label")
+            .with_source(inner);
+
+        let labels: Vec<_> = outer.labels().expect("outer should have labels").collect();
+        assert_eq!(
+            labels.len(),
+            1,
+            "outer must keep its own labels, not fall through"
+        );
+        assert_eq!(labels[0].label(), Some("outer-label"));
     }
 }

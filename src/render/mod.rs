@@ -73,7 +73,7 @@ pub(super) fn render_node(
                 .map_or_else(Vec::new, |m| m.keys().cloned().collect());
             BarDiagnostic::new(format!("failed to render fragment template for '{key}'"))
                 .with_help(format!("available variables: {}", available.join(", ")))
-                .with_source(BarDiagnostic::new(e.to_string()))
+                .with_source(e.into())
         })
         .map_err(&wrap_with_yamd_context)?;
 
@@ -883,6 +883,99 @@ css = "fragments/paragraph.css"
         assert!(
             rendered.contains("hello world"),
             "error should include yamd source snippet, got: {rendered}"
+        );
+    }
+
+    #[test]
+    fn render_error_for_failing_embed_shows_location_chain_and_snippet() {
+        use std::collections::HashMap;
+        use tera::Value;
+
+        use crate::diagnostic::BarDiagnostic;
+
+        let dir = tempfile::tempdir().expect("tempdir");
+        let theme = test_theme();
+        let ss = test_syntax_set();
+        let mut engine = FragmentEngine::build(dir.path(), &theme, None).expect("engine");
+
+        // The default embed template only takes the gpx branch when has_services
+        // is true, so flip it on for this test.
+        engine.has_services = true;
+
+        // Stub render_gpx to return a chained Tera error mimicking the real
+        // shape: a CallFunction error wrapping a deeper IO-style message.
+        engine
+            .tera
+            .register_function("render_gpx", |_args: &HashMap<String, Value>| {
+                Err(tera::Error::call_function(
+                    "render_gpx",
+                    tera::Error::msg("No such file or directory (os error 2): /bad/path.gpx"),
+                ))
+            });
+
+        let source = "intro paragraph\n\n{{gpx|/bad/path.gpx}}\n\ntrailing text";
+        let ops = yamd::op::parse(source);
+
+        // Mimic renderer.rs:64 — render_html's error gets wrapped in an outer
+        // "content rendering failed for ..." diagnostic before reaching miette.
+        let inner = render_html(
+            &ops,
+            source,
+            &engine,
+            &theme,
+            &ss,
+            "content/post/sample.yamd",
+        )
+        .expect_err("render should fail when render_gpx errors");
+        let outer =
+            BarDiagnostic::new("content rendering failed for \"/post/sample\"").with_source(inner);
+
+        let rendered = format!("{outer:?}");
+
+        assert!(
+            rendered.contains("content/post/sample.yamd"),
+            "snippet header should include the yamd source name, got:\n{rendered}"
+        );
+        assert!(
+            rendered.contains("{{gpx|"),
+            "rendered output should include the offending embed snippet, got:\n{rendered}"
+        );
+        assert!(
+            rendered.contains("/bad/path.gpx"),
+            "cause chain should preserve the bad path string, got:\n{rendered}"
+        );
+        assert!(
+            rendered.contains("No such file") || rendered.contains("not found"),
+            "cause chain should preserve the underlying IO message, got:\n{rendered}"
+        );
+    }
+
+    #[test]
+    fn tera_error_chain_is_preserved_on_into_bar_diagnostic() {
+        use std::error::Error as _;
+
+        use crate::diagnostic::BarDiagnostic;
+
+        let leaf = tera::Error::msg("deepest cause");
+        let mid = tera::Error::call_function("render_gpx", leaf);
+        let top = tera::Error::call_function("__bar_fragment__embed.html", mid);
+
+        let diag: BarDiagnostic = top.into();
+
+        let mut messages = vec![diag.to_string()];
+        let mut current: Option<&dyn std::error::Error> = diag.source();
+        while let Some(e) = current {
+            messages.push(e.to_string());
+            current = e.source();
+        }
+
+        assert!(
+            messages.iter().any(|m| m.contains("deepest cause")),
+            "expected deepest message in chain, got: {messages:?}"
+        );
+        assert!(
+            messages.iter().any(|m| m.contains("render_gpx")),
+            "expected mid-chain function name, got: {messages:?}"
         );
     }
 
