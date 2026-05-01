@@ -185,10 +185,51 @@ pub(super) fn build_fragment_context(
         Node::Heading => {
             let text_content = resolve_content(&ops[start].content, source);
             let level = heading_level(text_content);
-            let text = extract_inner_text(ops, source, start, end);
-            let slug = slugify(&text);
+
+            // Per yamd grammar, a heading body is a sequence of plain Text and
+            // Anchor nodes. Render anchors via the fragment engine and keep a
+            // separate plain-text accumulator for the slug so anchor URLs don't
+            // leak into either the displayed heading or its id.
+            let inner = &ops[start + 1..end];
+            let mut body_html = String::new();
+            let mut slug_text = String::new();
+            let mut j = 0;
+            while j < inner.len() {
+                match &inner[j].kind {
+                    OpKind::Start(node) if matches!(node, Node::Anchor) => {
+                        let anchor_end = find_matching_end(inner, j, "anchor");
+                        let mut in_title = false;
+                        for op in &inner[j + 1..anchor_end] {
+                            match &op.kind {
+                                OpKind::Start(Node::Title) => in_title = true,
+                                OpKind::End(Node::Title) => in_title = false,
+                                OpKind::Value if in_title => {
+                                    slug_text.push_str(resolve_content(&op.content, source));
+                                }
+                                _ => {}
+                            }
+                        }
+                        let (rendered, next_j) =
+                            render_node(inner, source, node, j, used_nodes, render_ctx)?;
+                        body_html.push_str(&rendered);
+                        j = next_j;
+                    }
+                    OpKind::Value => {
+                        let text = resolve_content(&inner[j].content, source);
+                        body_html.push_str(&html_escape(text));
+                        slug_text.push_str(text);
+                        j += 1;
+                    }
+                    _ => {
+                        j += 1;
+                    }
+                }
+            }
+
+            let slug = slugify(slug_text.trim());
             ctx.insert("level", &level);
-            ctx.insert("text", &text);
+            ctx.insert("body", &body_html);
+            ctx.insert("text", &slug_text);
             ctx.insert("anchor_id", &slug);
             ctx.insert("heading_anchors", &theme.render.heading_anchors);
         }

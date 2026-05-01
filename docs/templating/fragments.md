@@ -65,7 +65,8 @@ pre.code code { font-family: monospace; }
 | Variable | Type | Description |
 |----------|------|-------------|
 | `level` | integer | Heading depth: 1–6 |
-| `text` | string | Plain text of the heading (no markup) |
+| `body` | string | Pre-rendered HTML body (text plus any inline anchors) — pipe through `\| safe` |
+| `text` | string | Plain-text concatenation of body text and anchor labels (no markup) |
 | `anchor_id` | string | URL-safe slug derived from `text` |
 | `heading_anchors` | bool | Whether to add `id` attribute (from theme config) |
 

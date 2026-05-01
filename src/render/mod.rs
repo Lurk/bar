@@ -220,6 +220,37 @@ heading_anchors = true
     }
 
     #[test]
+    fn renders_heading_with_anchor() {
+        let html = render("# intro [link](/x) end");
+        assert!(html.contains("<h1"), "got: {html}");
+        assert!(
+            html.contains(r#"<a href="/x">link</a>"#),
+            "anchor inside heading must be rendered, got: {html}"
+        );
+        assert!(
+            !html.contains(">/x<") && !html.contains(" /x "),
+            "anchor destination must not leak into heading text, got: {html}"
+        );
+        assert!(
+            html.contains(r#"id="intro-link-end""#),
+            "slug should derive from heading text + anchor label, got: {html}"
+        );
+    }
+
+    #[test]
+    fn renders_heading_with_leading_anchor() {
+        let html = render("# [link](/x) tail");
+        assert!(
+            html.contains(r#"<a href="/x">link</a>"#),
+            "leading anchor must be rendered, got: {html}"
+        );
+        assert!(
+            html.contains("tail</h1>"),
+            "trailing text must follow the anchor, got: {html}"
+        );
+    }
+
+    #[test]
     fn renders_heading_without_anchors() {
         let theme_toml = r#"
 [theme]
