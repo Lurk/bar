@@ -515,6 +515,82 @@ heading_anchors = false
     }
 
     #[test]
+    fn embed_renders_gpx_icons_unescaped() {
+        use std::collections::HashMap;
+        use tera::{Context, Tera, Value};
+
+        use crate::render::context::html_escape;
+        use crate::render::engine::fragment_template_name;
+
+        let mut tera = Tera::default();
+        tera.set_escape_fn(html_escape);
+
+        let template_name = fragment_template_name("embed");
+        tera.add_raw_template(
+            &template_name,
+            include_str!("../defaults/fragments/embed.html"),
+        )
+        .expect("embed template should parse");
+
+        tera.register_function("render_gpx", |_args: &HashMap<String, Value>| {
+            Ok(Value::String("/foo.png".to_owned()))
+        });
+        tera.register_function("get_gpx_stats", |_args: &HashMap<String, Value>| {
+            Ok(serde_json::json!({
+                "total_ascent_m": 100,
+                "distance_km": 25.0,
+            }))
+        });
+        tera.register_function("add_static_file", |_args: &HashMap<String, Value>| {
+            Ok(Value::String("/public/gpx/foo.gpx".to_owned()))
+        });
+        tera.register_filter("crc32", |value: &Value, _: &HashMap<String, Value>| {
+            let s = value
+                .as_str()
+                .ok_or_else(|| tera::Error::msg("crc32 stub requires a string"))?;
+            Ok(Value::String(s.to_owned()))
+        });
+
+        let mut ctx = Context::new();
+        ctx.insert("kind", "gpx");
+        ctx.insert("args", "/test.gpx");
+        ctx.insert("has_services", &true);
+        ctx.insert(
+            "icon_elevation",
+            "<span class=\"icon icon-elevation\">e</span>",
+        );
+        ctx.insert(
+            "icon_distance",
+            "<span class=\"icon icon-distance\">d</span>",
+        );
+        ctx.insert(
+            "icon_download",
+            "<span class=\"icon icon-download\">o</span>",
+        );
+
+        let html = tera
+            .render(&template_name, &ctx)
+            .expect("render should succeed");
+
+        assert!(
+            html.contains(r#"<span class="icon icon-elevation">e</span>"#),
+            "icon_elevation must render raw, got: {html}"
+        );
+        assert!(
+            html.contains(r#"<span class="icon icon-distance">d</span>"#),
+            "icon_distance must render raw, got: {html}"
+        );
+        assert!(
+            html.contains(r#"<span class="icon icon-download">o</span>"#),
+            "icon_download must render raw, got: {html}"
+        );
+        assert!(
+            !html.contains("&lt;span class=&quot;icon icon-"),
+            "icon HTML must not be entity-escaped, got: {html}"
+        );
+    }
+
+    #[test]
     fn fragment_override_for_image() {
         let dir = tempfile::tempdir().expect("tempdir");
         let fragments_dir = dir.path().join("fragments");
