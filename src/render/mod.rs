@@ -506,6 +506,23 @@ heading_anchors = false
     }
 
     #[test]
+    fn embed_unknown_kind_renders_as_iframe() {
+        let html = render("{{iframe|/stages/?s=001}}");
+        assert!(
+            html.contains(r#"<iframe class="iframe""#),
+            "unknown embed kind must render as iframe element, got: {html}"
+        );
+        assert!(
+            html.contains(r#"src="/stages/?s=001""#),
+            "iframe src must contain url, got: {html}"
+        );
+        assert!(
+            !html.contains(r#"<div class="embed iframe""#),
+            "must not fall back to empty div, got: {html}"
+        );
+    }
+
+    #[test]
     fn escapes_icon_name() {
         let html = render("!! note\n! <script>alert(1)</script>\nbody\n!!");
         assert!(
