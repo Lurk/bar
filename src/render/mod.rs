@@ -214,15 +214,19 @@ heading_anchors = true
     #[test]
     fn renders_heading() {
         let html = render("# My Title");
-        assert!(html.contains("<h1"), "got: {html}");
-        assert!(html.contains("My Title"), "got: {html}");
-        assert!(html.contains("id=\"my-title\""), "got: {html}");
+        assert!(html.contains("<h1>"), "got: {html}");
+        assert!(html.contains("</h1>"), "got: {html}");
+        assert!(
+            html.contains(r##"<a id="My Title" href="#My Title" class="second">#</a>"##),
+            "heading should contain a clickable hash anchor with literal text id, got: {html}"
+        );
+        assert!(html.contains(">My Title</h1>"), "got: {html}");
     }
 
     #[test]
     fn renders_heading_with_anchor() {
         let html = render("# intro [link](/x) end");
-        assert!(html.contains("<h1"), "got: {html}");
+        assert!(html.contains("<h1>"), "got: {html}");
         assert!(
             html.contains(r#"<a href="/x">link</a>"#),
             "anchor inside heading must be rendered, got: {html}"
@@ -232,8 +236,10 @@ heading_anchors = true
             "anchor destination must not leak into heading text, got: {html}"
         );
         assert!(
-            html.contains(r#"id="intro-link-end""#),
-            "slug should derive from heading text + anchor label, got: {html}"
+            html.contains(
+                r##"<a id="intro link end" href="#intro link end" class="second">#</a>"##
+            ),
+            "id and href should be the literal heading text (anchor label included), got: {html}"
         );
     }
 

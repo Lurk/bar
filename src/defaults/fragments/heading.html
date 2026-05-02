@@ -1,1 +1,1 @@
-{% if heading_anchors %}<h{{ level }} id="{{ anchor_id }}">{{ body | safe }}</h{{ level }}>{% else %}<h{{ level }}>{{ body | safe }}</h{{ level }}>{% endif %}
+{% if heading_anchors %}<h{{ level }}><a id="{{ text }}" href="#{{ text }}" class="second">#</a>{{ body | safe }}</h{{ level }}>{% else %}<h{{ level }}>{{ body | safe }}</h{{ level }}>{% endif %}
