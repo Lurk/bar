@@ -8,7 +8,7 @@ rust-version = "1.88.0"
 workspace = true
 
 [dependencies]
-clap = { version = "4.6.0", features = ["derive"] }
+clap = { version = "4.6.1", features = ["derive"] }
 directories = "6.0.0"
 geo = "0.32.0"
 geo-types = "0.7.18"
