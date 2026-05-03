@@ -3,8 +3,8 @@ use crate::{
     fs::seahash_checksum,
     gpx_embed::gpx,
     pages::Pages,
+    render::RenderedContentCache,
     site::{DynamicPage, Feed, FeedType, Page, Site, StaticPage},
-    syntax_highlight::code,
 };
 use cloudinary::transformation::{
     Image, Transformations,
@@ -18,6 +18,7 @@ use data_encoding::BASE64URL_NOPAD;
 use gpxtools::{StatsArgs, calculate_stats};
 use std::{
     collections::HashMap,
+    hash::BuildHasher,
     path::{Path, PathBuf},
     sync::Arc,
 };
@@ -26,8 +27,10 @@ use tracing::info;
 use url::Url;
 
 #[must_use]
-#[allow(clippy::implicit_hasher)]
-pub fn get_string_arg(args: &HashMap<String, Value>, key: &str) -> Option<String> {
+pub fn get_string_arg<S: BuildHasher>(
+    args: &HashMap<String, Value, S>,
+    key: &str,
+) -> Option<String> {
     match args.get(key) {
         Some(value) => value.as_str().map(std::string::ToString::to_string),
         None => None,
@@ -36,9 +39,8 @@ pub fn get_string_arg(args: &HashMap<String, Value>, key: &str) -> Option<String
 
 /// # Errors
 /// Returns error if the value cannot be parsed as a URL.
-#[allow(clippy::implicit_hasher)]
-pub fn get_url_arg(
-    args: &HashMap<String, Value>,
+pub fn get_url_arg<S: BuildHasher>(
+    args: &HashMap<String, Value, S>,
     key: &str,
 ) -> std::result::Result<Option<Url>, tera::Error> {
     match args.get(key) {
@@ -52,8 +54,10 @@ pub fn get_url_arg(
     }
 }
 
-#[allow(clippy::implicit_hasher)]
-pub fn get_arc_str_arg(args: &HashMap<String, Value>, key: &str) -> Option<Arc<str>> {
+pub fn get_arc_str_arg<S: BuildHasher>(
+    args: &HashMap<String, Value, S>,
+    key: &str,
+) -> Option<Arc<str>> {
     match args.get(key) {
         Some(value) => value.as_str().map(Arc::from),
         None => None,
@@ -176,22 +180,44 @@ fn get_similar(pages: Arc<Pages>) -> impl Function + 'static {
     }
 }
 
-fn get_page_by_path(pages: Arc<Pages>) -> impl Function + 'static {
+fn get_page_by_path(
+    pages: Arc<Pages>,
+    rendered_cache: RenderedContentCache,
+) -> impl Function + 'static {
     move |args: &HashMap<String, Value>| {
         let path = get_string_arg(args, "path")
             .ok_or_else(|| tera::Error::msg("path is required for get_page_by_path"))?;
         let pid = path.trim_end_matches(".html");
         let page = pages.get(pid);
-        Ok(tera::to_value(page)?)
+        let mut val = tera::to_value(page)?;
+        if let Some(obj) = val.as_object_mut() {
+            let cache = rendered_cache.lock().expect("rendered cache poisoned");
+            if let Some(rendered) = cache.get(pid) {
+                obj.insert("rendered_html".into(), rendered.html.clone().into());
+                obj.insert("rendered_css".into(), rendered.css.clone().into());
+            }
+        }
+        Ok(val)
     }
 }
 
-fn get_page_by_pid(pages: Arc<Pages>) -> impl Function + 'static {
+fn get_page_by_pid(
+    pages: Arc<Pages>,
+    rendered_cache: RenderedContentCache,
+) -> impl Function + 'static {
     move |args: &HashMap<String, Value>| {
         let pid = get_string_arg(args, "pid")
             .ok_or_else(|| tera::Error::msg("pid is required for get_page_by_pid"))?;
         let page = pages.get(&pid);
-        Ok(tera::to_value(page)?)
+        let mut val = tera::to_value(page)?;
+        if let Some(obj) = val.as_object_mut() {
+            let cache = rendered_cache.lock().expect("rendered cache poisoned");
+            if let Some(rendered) = cache.get(pid.as_str()) {
+                obj.insert("rendered_html".into(), rendered.html.clone().into());
+                obj.insert("rendered_css".into(), rendered.css.clone().into());
+            }
+        }
+        Ok(val)
     }
 }
 
@@ -338,9 +364,47 @@ fn crc32(value: &Value, _: &HashMap<String, Value>) -> Result<Value> {
     ))?)
 }
 
+pub fn register_functions(
+    tera: &mut Tera,
+    site: Arc<Site>,
+    config: Arc<crate::config::Config>,
+    project_path: Arc<PathBuf>,
+    pages: &Arc<Pages>,
+    rendered_cache: RenderedContentCache,
+) {
+    tera.register_function("add_feed", add_feed(site.clone()));
+    tera.register_function("add_page", add_page(site.clone()));
+    tera.register_function(
+        "add_static_file",
+        add_static_file(site.clone(), project_path.clone()),
+    );
+    tera.register_function("get_gpx_stats", get_gpx_stats(project_path.clone()));
+    tera.register_function(
+        "get_image_url",
+        get_image_url(site.clone(), project_path.clone()),
+    );
+    tera.register_function("get_pages_by_tag", get_pages_by_tag(pages.clone()));
+    tera.register_function(
+        "get_page_by_path",
+        get_page_by_path(pages.clone(), rendered_cache.clone()),
+    );
+    tera.register_function(
+        "get_page_by_pid",
+        get_page_by_pid(pages.clone(), rendered_cache),
+    );
+    tera.register_function("get_similar", get_similar(pages.clone()));
+    tera.register_function("get_static_file", get_static_file(site.clone()));
+    tera.register_function("render_gpx", render_gpx(site, config, project_path));
+    tera.register_filter("crc32", crc32);
+}
+
 /// # Errors
 /// Returns error if templates cannot be loaded or parsed.
-pub fn initialize(ctx: &BuildContext, template_path: &Path) -> Result<Tera> {
+pub fn initialize(
+    ctx: &BuildContext,
+    template_path: &Path,
+    rendered_cache: RenderedContentCache,
+) -> Result<Tera> {
     let templates = format!(
         "{}/**/*.html",
         template_path
@@ -354,30 +418,14 @@ pub fn initialize(ctx: &BuildContext, template_path: &Path) -> Result<Tera> {
     let project_path = Arc::new(ctx.config.path.clone());
     let config = Arc::new(ctx.config.config.clone());
     let mut tera = Tera::new(&templates)?;
-    tera.register_function("add_feed", add_feed(ctx.site.clone()));
-    tera.register_function("add_page", add_page(ctx.site.clone()));
-    tera.register_function(
-        "add_static_file",
-        add_static_file(ctx.site.clone(), project_path.clone()),
+    register_functions(
+        &mut tera,
+        ctx.site.clone(),
+        config,
+        project_path,
+        &ctx.pages,
+        rendered_cache,
     );
-    tera.register_function("code", code(ctx.syntax_set.clone()));
-    tera.register_function("get_gpx_stats", get_gpx_stats(project_path.clone()));
-    tera.register_function(
-        "get_image_url",
-        get_image_url(ctx.site.clone(), project_path.clone()),
-    );
-    tera.register_function("get_pages_by_tag", get_pages_by_tag(ctx.pages.clone()));
-    tera.register_function("get_page_by_path", get_page_by_path(ctx.pages.clone()));
-    tera.register_function("get_page_by_pid", get_page_by_pid(ctx.pages.clone()));
-    tera.register_function("get_similar", get_similar(ctx.pages.clone()));
-    tera.register_function("get_static_file", get_static_file(ctx.site.clone()));
-    tera.register_function(
-        "render_gpx",
-        render_gpx(ctx.site.clone(), config, project_path),
-    );
-
-    tera.register_filter("crc32", crc32);
-
     info!("template initialization complete");
     Ok(tera)
 }

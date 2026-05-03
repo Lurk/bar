@@ -1,0 +1,10 @@
+[theme]
+name = "test-theme"
+version = "1.0.0"
+description = "Test theme for fixtures"
+compatible_bar_versions = ">=0.1.0"
+tags = []
+
+[render]
+lazy_images = false
+heading_anchors = false

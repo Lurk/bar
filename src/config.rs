@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 use tracing::{debug, info};
 use url::Url;
 
-use crate::error::{BarErr, ContextExt};
+use crate::diagnostic::{BarDiagnostic, ContextExt};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
@@ -115,8 +115,8 @@ pub struct Config {
 }
 
 impl TryFrom<&PathBuf> for Config {
-    type Error = BarErr;
-    fn try_from(value: &PathBuf) -> Result<Self, BarErr> {
+    type Error = BarDiagnostic;
+    fn try_from(value: &PathBuf) -> Result<Self, BarDiagnostic> {
         let config_path = value.join("config.yaml");
         info!("initializing config");
         debug!("reading config at: {}", config_path.display());

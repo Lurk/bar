@@ -1,0 +1,11 @@
+---
+title: "draft article"
+date: 2026-04-29T00:00:00+00:00
+image: /img.jpg
+preview: "draft preview"
+tags:
+- draft only tag
+is_draft: true
+---
+
+This article should never reach Pages.

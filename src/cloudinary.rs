@@ -13,7 +13,10 @@ use yamd::{
     op::{Content, Node, Op, OpKind},
 };
 
-use crate::{cache::Cache, error::BarErr};
+use crate::{
+    cache::Cache,
+    diagnostic::{BarDiagnostic, ContextExt},
+};
 
 fn image_to_ops(image: &Image) -> Vec<Op> {
     vec![
@@ -41,7 +44,7 @@ async fn cloudinary_gallery_to_images(
     args: &str,
     should_alt_text_be_empty: bool,
     base_path: &Path,
-) -> Result<Images, BarErr> {
+) -> Result<Images, BarDiagnostic> {
     let cache = Cache::<Images>::new("cloudinary_gallery", 1, base_path);
 
     if let Some(images) = cache.get(args)? {
@@ -57,7 +60,7 @@ async fn cloudinary_gallery_to_images(
 
     let mut tags = get_tags(cloud_name.into(), tag.into())
         .await
-        .map_err(|e| BarErr::from(format!("error loading cloudinary tag '{tag}': {e}")))?;
+        .map_err(|e| BarDiagnostic::from(format!("error loading cloudinary tag '{tag}': {e}")))?;
 
     tags.resources
         .sort_by(|a, b| cmp(&a.public_id, &b.public_id));
@@ -82,11 +85,11 @@ async fn cloudinary_gallery_to_images(
 }
 
 pub fn unwrap_cloudinary<'a>(
-    stream: Pin<Box<dyn Stream<Item = Result<Op, BarErr>> + Send + 'a>>,
+    stream: Pin<Box<dyn Stream<Item = Result<Op, BarDiagnostic>> + Send + 'a>>,
     source: &'a str,
     should_alt_text_be_empty: bool,
     base_path: Arc<PathBuf>,
-) -> Pin<Box<dyn Stream<Item = Result<Op, BarErr>> + Send + 'a>> {
+) -> Pin<Box<dyn Stream<Item = Result<Op, BarDiagnostic>> + Send + 'a>> {
     let mut buffer: Vec<Op> = Vec::new();
     let mut in_embed = false;
 
@@ -141,7 +144,10 @@ pub fn unwrap_cloudinary<'a>(
 
             buffer.clear();
 
-            match cloudinary_gallery_to_images(&args, should_alt_text_be_empty, &base_path).await {
+            match cloudinary_gallery_to_images(&args, should_alt_text_be_empty, &base_path)
+                .await
+                .with_context(|| format!("processing cloudinary_gallery embed with args: {args}"))
+            {
                 Ok(images) => {
                     for op in images_to_ops(&images) {
                         yield Ok(op);
@@ -173,7 +179,7 @@ mod tests {
     async fn non_embed_ops_pass_through() {
         let ops = make_paragraph_ops();
         let expected_len = ops.len();
-        let stream: Pin<Box<dyn Stream<Item = Result<Op, BarErr>> + Send>> =
+        let stream: Pin<Box<dyn Stream<Item = Result<Op, BarDiagnostic>> + Send>> =
             Box::pin(iter(ops.into_iter().map(Ok)));
         let result: Vec<Op> = unwrap_cloudinary(stream, "", false, Arc::new(PathBuf::new()))
             .collect::<Vec<_>>()
@@ -200,7 +206,7 @@ mod tests {
     #[tokio::test]
     async fn non_cloudinary_embed_passes_through() {
         let ops = make_youtube_embed_ops();
-        let stream: Pin<Box<dyn Stream<Item = Result<Op, BarErr>> + Send>> =
+        let stream: Pin<Box<dyn Stream<Item = Result<Op, BarDiagnostic>> + Send>> =
             Box::pin(iter(ops.into_iter().map(Ok)));
         let result: Vec<Op> = unwrap_cloudinary(stream, "", false, Arc::new(PathBuf::new()))
             .collect::<Vec<_>>()

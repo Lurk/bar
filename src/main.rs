@@ -4,24 +4,27 @@ mod cache;
 mod cloudinary;
 pub mod config;
 pub mod context;
-pub mod error;
+pub mod diagnostic;
+pub mod fragment_services;
 pub mod fs;
 mod gpx_embed;
 mod image_alt;
 pub mod json_feed;
 mod metadata;
 pub mod pages;
+pub mod render;
 pub mod renderer;
 mod req;
 pub mod site;
 pub mod syntax_highlight;
 pub mod templating;
+pub mod theme;
 
 use args::{Args, ArticleArgs, BuildArgs, Commands};
 use clap::Parser;
 use config::Config;
 use context::{BuildConfig, BuildContext};
-use error::BarErr;
+use diagnostic::BarDiagnostic;
 use fs::write_file;
 use metadata::Metadata;
 use renderer::render;
@@ -30,6 +33,7 @@ use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::Arc;
 use templating::initialize;
+use theme::Theme;
 use tokio::fs::{create_dir_all, remove_dir_all, remove_file, try_exists};
 use tokio::try_join;
 use tracing::subscriber;
@@ -38,7 +42,7 @@ use tracing_subscriber::FmtSubscriber;
 use yamd::Yamd;
 use yamd::nodes::Paragraph;
 
-use crate::error::ContextExt;
+use crate::diagnostic::ContextExt;
 use crate::fs::canonicalize_with_context;
 use crate::pages::init_pages;
 use crate::syntax_highlight::init;
@@ -65,46 +69,51 @@ async fn main() {
             }
         };
         if let Err(e) = res {
-            eprintln!("{e}");
+            eprintln!("{e:?}");
         }
     });
 
     handle.await.expect("tokio task panicked");
 }
 
-async fn build(args: BuildArgs) -> Result<(), BarErr> {
+async fn build(args: BuildArgs) -> Result<(), BarDiagnostic> {
     let build_config = BuildConfig {
         config: Config::try_from(&args.path)?,
         path: args.path,
     };
 
     let template_path = build_config.path.join(&build_config.config.template);
+    let template_path = canonicalize_with_context(&template_path).await?;
 
-    let (template_path, pages, site) = try_join!(
-        canonicalize_with_context(&template_path),
-        init_pages(&build_config),
-        init_site(&build_config)
-    )?;
-
+    let theme = Theme::load(&template_path.join("theme.toml"))?;
+    theme.validate(env!("CARGO_PKG_VERSION"), &template_path)?;
     let syntax_set = init()?;
+
+    let (pages, site) = try_join!(init_pages(&build_config), init_site(&build_config))?;
+
+    let theme = Arc::new(theme);
 
     let ctx = Arc::new(BuildContext {
         config: build_config,
         pages,
         site,
         syntax_set,
+        theme,
     });
 
-    let tera = initialize(&ctx, &template_path)?;
+    let rendered_cache =
+        std::sync::Arc::new(std::sync::Mutex::new(std::collections::HashMap::new()));
+    let tera = initialize(&ctx, &template_path, rendered_cache.clone())?;
 
     let ctx_clone = ctx.clone();
-    tokio::task::spawn_blocking(move || render(&ctx_clone, &tera)).await??;
+    let cache = rendered_cache;
+    tokio::task::spawn_blocking(move || render(&ctx_clone, &tera, &cache)).await??;
 
     ctx.site.save().await?;
     Ok(())
 }
 
-async fn create_article(args: ArticleArgs) -> Result<(), BarErr> {
+async fn create_article(args: ArticleArgs) -> Result<(), BarDiagnostic> {
     let path = PathBuf::from(format!("./{}.yamd", args.title));
 
     if try_exists(&path).await? {
@@ -142,7 +151,7 @@ async fn create_article(args: ArticleArgs) -> Result<(), BarErr> {
     Ok(())
 }
 
-async fn clear(args: BuildArgs) -> Result<(), BarErr> {
+async fn clear(args: BuildArgs) -> Result<(), BarDiagnostic> {
     let build_config = BuildConfig {
         config: Config::try_from(&args.path)?,
         path: args.path,
