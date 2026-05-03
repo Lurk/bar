@@ -21,7 +21,10 @@ fn yamd_display_path(project_path: &Path, content_path: &Path, pid: &str) -> Str
         .with_extension("yamd");
     yamd_path
         .strip_prefix(project_path)
-        .map_or_else(|_| pid.to_string(), |p| p.display().to_string())
+        .map_or_else(
+            |_| pid.to_string(),
+            |p| p.display().to_string().replace('\\', "/"),
+        )
 }
 
 /// # Errors
