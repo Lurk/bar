@@ -29,7 +29,7 @@ hf-hub = "0.5.0"
 image = { version = "0.25.10", default-features = false, features = ["jpeg", "png", "webp"] }
 tabled = { version = "0.20.0", optional = true }
 thiserror = "2.0.18"
-tokenizers = "0.22.2"
+tokenizers = "0.23.1"
 tokio = { version = "1.50.0", features = ["sync"] }
 tracing = "0.1.44"
 tracing-subscriber = { version = "0.3.23", optional = true }
