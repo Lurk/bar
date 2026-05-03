@@ -31,7 +31,7 @@ chrono = { version = "0.4.44", features = ["serde"] }
 yamd = { version = "0.19.0", features = ["serde"] }
 tera = { version = "1.20.1", features = ["builtins", "preserve_order"] }
 url = { version = "2.5.8", features = ["serde"] }
-tokio = { version = "1.50.0", features = ["full", "rt"] }
+tokio = { version = "1.52.1", features = ["full", "rt"] }
 rss = "2.0.12"
 numeric-sort = "0.1.5"
 tracing = "0.1.44"
