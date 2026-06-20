@@ -1,5 +1,5 @@
-.highlight { display: grid; gap: 1rem; margin-bottom: 1rem; padding: 1rem; }
+.highlight { display: grid; column-gap: 1rem; margin-bottom: 1rem; padding: 1rem; }
 .highlight:has(.hicon) { grid-template-columns: 1fr 9fr; }
 .highlight .hicon { display: flex; justify-content: center; align-items: center; }
 .highlight .body { display: flex; flex-direction: column; justify-content: center; }
-.highlight .htitle { font-weight: bold; }
+.highlight .htitle { margin-top: 0; margin-bottom: 0.5em; }
