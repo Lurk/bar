@@ -27,6 +27,21 @@ pub struct Cache<T> {
     base_path: PathBuf,
 }
 
+/// Path of a raw cache entry under `base_path`, independent of any `Cache`
+/// instance — useful for callers (e.g. image variants) that own the cache key
+/// and layout themselves and only need the on-disk location.
+pub fn raw_cache_path(base_path: &Path, kind: &str, key: &str, ext: &str) -> PathBuf {
+    base_path.join(format!(".cache/{kind}/{key}.{ext}"))
+}
+
+/// Two-level shard directory prefix (`ab/cd`) from the first four characters of
+/// `hash`, so cache entries spread across directories instead of piling into a
+/// single one. Callers join it ahead of the entry's own filename.
+#[must_use]
+pub fn shard_prefix(hash: &str) -> String {
+    format!("{}/{}", &hash[..2], &hash[2..4])
+}
+
 impl<T> Cache<T> {
     pub fn new(kind: &str, version: usize, base_path: &Path) -> Self {
         Cache {
@@ -40,12 +55,11 @@ impl<T> Cache<T> {
 
     pub fn make_key(input: &str) -> String {
         let hash = BASE64URL_NOPAD.encode(seahash::hash(input.as_bytes()).to_be_bytes().as_ref());
-        format!("{}/{}/{}", &hash[..2], &hash[2..4], hash)
+        format!("{}/{hash}", shard_prefix(&hash))
     }
 
     pub fn raw_path(&self, key: &str, ext: &str) -> PathBuf {
-        self.base_path
-            .join(format!(".cache/{}/{key}.{ext}", self.kind))
+        raw_cache_path(&self.base_path, &self.kind, key, ext)
     }
 
     pub async fn set_raw(&self, key: &str, ext: &str, data: &[u8]) -> Result<(), BarDiagnostic> {
@@ -147,6 +161,20 @@ mod tests {
         assert_eq!(
             path,
             PathBuf::from("/base/.cache/remote_images/ab/cd/abcdef.jpg")
+        );
+    }
+
+    #[test]
+    fn shard_prefix_uses_first_four_hash_chars() {
+        assert_eq!(super::shard_prefix("abcdef123"), "ab/cd");
+    }
+
+    #[test]
+    fn raw_cache_path_matches_method_without_an_instance() {
+        let path = super::raw_cache_path(Path::new("/base"), "image_variants", "v1-h-p-1x1", "jpg");
+        assert_eq!(
+            path,
+            PathBuf::from("/base/.cache/image_variants/v1-h-p-1x1.jpg")
         );
     }
 

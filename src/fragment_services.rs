@@ -12,6 +12,7 @@ pub struct FragmentServices {
     pub pages: Arc<Pages>,
     pub syntax_set: Arc<SyntaxSet>,
     pub rendered_cache: RenderedContentCache,
+    pub image_widths: Arc<Vec<usize>>,
 }
 
 impl FragmentServices {
@@ -23,6 +24,7 @@ impl FragmentServices {
             self.project_path.clone(),
             &self.pages,
             self.rendered_cache.clone(),
+            self.image_widths.clone(),
         );
     }
 }
@@ -42,6 +44,7 @@ mod tests {
             content_path: PathBuf::from("./content"),
             static_source_path: PathBuf::from("./public"),
             static_files_extensions: vec![],
+            image_output_dir: "images".to_string(),
             template: PathBuf::from("./template"),
             domain: Arc::from(url::Url::parse("https://test.com").unwrap()),
             title: Arc::from("test"),
@@ -64,6 +67,7 @@ mod tests {
             pages,
             syntax_set,
             rendered_cache,
+            image_widths: Arc::new(vec![352, 704, 1008, 1568, 2016, 3840]),
         };
         let mut tera = tera::Tera::default();
         services.register(&mut tera);

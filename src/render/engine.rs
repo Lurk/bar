@@ -60,7 +60,9 @@ const FRAGMENT_DEFAULTS: &[(&str, &str, &str)] = &[
     (
         "image",
         include_str!("../defaults/fragments/image.html"),
-        include_str!("../defaults/fragments/image.css"),
+        // Empty by design: image delegates to the picture fragment, whose CSS is
+        // pulled in via the uses_picture branch in collect_css.
+        "",
     ),
     (
         "images",
@@ -86,6 +88,11 @@ const FRAGMENT_DEFAULTS: &[(&str, &str, &str)] = &[
         "paragraph",
         include_str!("../defaults/fragments/paragraph.html"),
         include_str!("../defaults/fragments/paragraph.css"),
+    ),
+    (
+        "picture",
+        include_str!("../defaults/fragments/picture.html"),
+        include_str!("../defaults/fragments/picture.css"),
     ),
     (
         "strikethrough",
@@ -164,13 +171,23 @@ pub(super) fn find_matching_end(ops: &[Op], start: usize, node_key: &str) -> usi
 
 pub(super) fn collect_css(engine: &FragmentEngine, used_nodes: &HashSet<&str>) -> String {
     let mut css = String::new();
+    let mut uses_picture = false;
     for node_name in used_nodes {
         let node_key = node_name.to_lowercase();
+        if matches!(node_key.as_str(), "image" | "images" | "embed") {
+            uses_picture = true;
+        }
         if let Some(content) = engine.css.get(node_key.as_str()) {
             css.push_str(content);
             if !content.is_empty() && !content.ends_with('\n') {
                 css.push('\n');
             }
+        }
+    }
+    if uses_picture && let Some(content) = engine.css.get("picture") {
+        css.push_str(content);
+        if !content.is_empty() && !content.ends_with('\n') {
+            css.push('\n');
         }
     }
     css
@@ -192,7 +209,8 @@ impl FragmentEngine {
     /// cannot be read, or if any fragment template fails to parse.
     pub fn build(
         template_dir: &Path,
-        theme: &Theme,
+        // Retained for signature stability; override resolution is now by filename convention.
+        _theme: &Theme,
         services: Option<&crate::fragment_services::FragmentServices>,
     ) -> Result<Self, BarDiagnostic> {
         let glob = template_dir.join("**").join("*.html").display().to_string();
@@ -212,26 +230,33 @@ impl FragmentEngine {
         for &(key, default_template, default_css) in FRAGMENT_DEFAULTS {
             let name = fragment_template_name(key);
 
-            if let Some(fragment) = theme.render.fragments.get(key) {
-                let template_path = template_dir.join(&fragment.template);
-                let template_content = std::fs::read_to_string(&template_path).map_err(|e| {
+            let override_html = template_dir.join("fragments").join(format!("{key}.html"));
+            if override_html.exists() {
+                let template_content = std::fs::read_to_string(&override_html).map_err(|e| {
                     BarDiagnostic::new(format!("failed to read fragment template for '{key}'"))
-                        .with_help(format!("expected file at: {}", template_path.display()))
+                        .with_help(format!("expected file at: {}", override_html.display()))
                         .with_source(e.into())
                 })?;
+                // The glob pre-parse above catches syntax errors at startup, so this
+                // error arm rarely fires; the call is still needed to register the
+                // template under its canonical __bar_fragment__<key> name.
                 tera.add_raw_template(&name, &template_content)
                     .map_err(|e| {
                         BarDiagnostic::new(format!("syntax error in fragment template for '{key}'"))
-                            .with_source_code(template_path.display().to_string(), template_content)
+                            .with_source_code(override_html.display().to_string(), template_content)
                             .with_source(BarDiagnostic::new(e.to_string()))
                     })?;
 
-                let css_path = template_dir.join(&fragment.css);
-                let css_content = std::fs::read_to_string(&css_path).map_err(|e| {
-                    BarDiagnostic::new(format!("failed to read fragment css for '{key}'"))
-                        .with_help(format!("expected file at: {}", css_path.display()))
-                        .with_source(e.into())
-                })?;
+                let override_css = template_dir.join("fragments").join(format!("{key}.css"));
+                let css_content = if override_css.exists() {
+                    std::fs::read_to_string(&override_css).map_err(|e| {
+                        BarDiagnostic::new(format!("failed to read fragment css for '{key}'"))
+                            .with_help(format!("expected file at: {}", override_css.display()))
+                            .with_source(e.into())
+                    })?
+                } else {
+                    default_css.to_string()
+                };
                 css.insert(key.to_string(), css_content);
             } else {
                 tera.add_raw_template(&name, default_template)
