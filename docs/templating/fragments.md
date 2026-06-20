@@ -130,12 +130,39 @@ Default template: `src/defaults/fragments/embed.html`
 Default styles (`src/defaults/fragments/embed.css`):
 
 ```css
-.embed { margin: 1em 0; }
-.embed iframe { width: 100%; aspect-ratio: 16/9; border: none; }
-.gpx-map .image { display: block; width: 100%; }
-.gpx-map img { width: 100%; display: block; }
-.gpx-embed.with-icon { display: flex; gap: 1rem; padding: 0.5rem 0; align-items: center; }
-.gpx-embed.with-icon div { display: flex; align-items: center; gap: 0.25rem; }
+.embed {
+	margin: 1em 0;
+}
+
+.embed iframe {
+	width: 100%;
+	aspect-ratio: 16/9;
+	border: none;
+}
+
+.gpx-map .image {
+	display: block;
+	width: 100%;
+}
+
+.gpx-map img {
+	width: 100%;
+	display: block;
+}
+
+.gpx-embed.with-icon {
+	display: flex;
+	gap: 1rem;
+	padding: 0.5rem 0;
+	align-items: center;
+	margin: -1rem 0;
+}
+
+.gpx-embed.with-icon div {
+	display: flex;
+	align-items: center;
+	gap: 0.25rem;
+}
 ```
 
 ### `collapsible`
@@ -172,11 +199,11 @@ Default template: `src/defaults/fragments/highlight.html`
 Default styles (`src/defaults/fragments/highlight.css`):
 
 ```css
-.highlight { display: grid; gap: 1rem; margin-bottom: 1rem; padding: 1rem; }
+.highlight { display: grid; column-gap: 1rem; margin-bottom: 1rem; padding: 1rem; }
 .highlight:has(.hicon) { grid-template-columns: 1fr 9fr; }
 .highlight .hicon { display: flex; justify-content: center; align-items: center; }
 .highlight .body { display: flex; flex-direction: column; justify-content: center; }
-.highlight .htitle { font-weight: bold; }
+.highlight .htitle { margin-top: 0; margin-bottom: 0.5em; }
 ```
 
 ### `images`
@@ -223,6 +250,12 @@ Default styles (`src/defaults/fragments/images.css`):
 | `content` | string | Inner HTML rendered by the default renderer |
 
 Default template: `src/defaults/fragments/paragraph.html`
+
+Default styles (`src/defaults/fragments/paragraph.css`):
+
+```css
+p { margin: 0 0 1rem; }
+```
 
 ### `unordered_list`
 
