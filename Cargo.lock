@@ -238,7 +238,9 @@ dependencies = [
  "data-encoding",
  "futures-core",
  "gpxtools",
+ "image",
  "img2text",
+ "imgtools",
  "itertools",
  "linked-hash-map",
  "miette",
@@ -2192,6 +2194,14 @@ dependencies = [
  "tokio",
  "tracing",
  "tracing-subscriber",
+]
+
+[[package]]
+name = "imgtools"
+version = "0.1.0"
+dependencies = [
+ "image",
+ "thiserror 2.0.18",
 ]
 
 [[package]]
