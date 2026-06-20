@@ -451,9 +451,93 @@ heading_anchors = false
         assert!(html.contains("allowfullscreen"), "got: {html}");
     }
 
+    // The gallery is a :target slideshow: each slide div is hidden, the hash-targeted one
+    // (or the first) is shown. The `picture` fragment wraps each slide image in its OWN
+    // nested `.image` div, so the slide-selection rules MUST use direct-child combinators
+    // (`.ig > .frame > .image > div`). A descendant rule like `.ig .image div { display: none }`
+    // would also match the nested picture wrapper and hide the visible slide's image — the
+    // exact regression a theme hit when this fragment changed shape.
+    #[test]
+    fn gallery_slideshow_css_uses_direct_child_combinator() {
+        let css = include_str!("../defaults/fragments/images.css");
+        assert!(
+            css.contains(".ig > .frame > .image > div:target"),
+            "slideshow must select slides via a direct-child `> div:target`: {css}"
+        );
+        assert!(
+            !css.contains("\n.ig .image "),
+            "a descendant `.ig .image ...` rule also matches nested picture wrappers and breaks slides: {css}"
+        );
+    }
+
     #[test]
     fn renders_images_gallery() {
-        let html = render("![a](b)\n![c](d)");
+        use crate::render::context::html_escape;
+        use crate::render::engine::fragment_template_name;
+        use std::collections::HashMap;
+        use tera::{Context, Tera, Value};
+
+        let mut tera = Tera::default();
+        tera.set_escape_fn(html_escape);
+        // images.html includes picture.html per slide, so both must be registered.
+        let picture_name = fragment_template_name("picture");
+        tera.add_raw_template(
+            &picture_name,
+            include_str!("../defaults/fragments/picture.html"),
+        )
+        .expect("picture template parses");
+        let name = fragment_template_name("images");
+        tera.add_raw_template(&name, include_str!("../defaults/fragments/images.html"))
+            .expect("images template parses");
+        tera.register_function("get_srcset", |_a: &HashMap<String, Value>| {
+            Ok(Value::String(
+                "/images/h-352x198.jpg 352w, /images/h-1008x567.jpg 1008w".to_owned(),
+            ))
+        });
+        tera.register_function("get_image_url", |args: &HashMap<String, Value>| {
+            let src = args
+                .get("src")
+                .and_then(Value::as_str)
+                .unwrap_or("")
+                .to_owned();
+            Ok(Value::String(src))
+        });
+        // crc32 is used in images.html to produce stable slide anchor ids.
+        tera.register_filter("crc32", |value: &Value, _: &HashMap<String, Value>| {
+            let s = value
+                .as_str()
+                .ok_or_else(|| tera::Error::msg("crc32 stub requires a string"))?;
+            Ok(Value::String(s.to_owned()))
+        });
+
+        let images: Vec<serde_json::Value> = vec![
+            serde_json::json!({"src": "/a.jpg", "alt": "image a"}),
+            serde_json::json!({"src": "/b.jpg", "alt": "image b"}),
+        ];
+
+        let mut ctx = Context::new();
+        ctx.insert("images", &images);
+        ctx.insert("has_services", &true);
+        ctx.insert("lazy_images", &true);
+        ctx.insert("image_sizes", "(min-width: 1008px) 1008px, 100vw");
+
+        let html = tera.render(&name, &ctx).expect("render");
+
+        // Exactly one gallery-level fullscreen button (no per-slide leakage).
+        assert_eq!(
+            html.matches("class=\"fullscreen\"").count(),
+            1,
+            "expected exactly one gallery-level fullscreen button, got: {html}"
+        );
+        // CSS is not inlined into markup.
+        assert!(
+            !html.contains("scroll-snap"),
+            "CSS must not appear in markup, got: {html}"
+        );
+        // 2 fixture images → 2 slide <img> (via picture include) + 2 thumbnail <img> = 4 total.
+        // An exact count catches a regression where a slide drops its <img>.
+        assert_eq!(html.matches("<img").count(), 4, "got: {html}");
+        // Gallery container is present.
         assert!(html.contains("class=\"ig\""), "got: {html}");
     }
 
@@ -548,6 +632,13 @@ heading_anchors = false
         let mut tera = Tera::default();
         tera.set_escape_fn(html_escape);
 
+        // embed.html includes picture.html for the GPX branch, so both must be registered.
+        let picture_name = fragment_template_name("picture");
+        tera.add_raw_template(
+            &picture_name,
+            include_str!("../defaults/fragments/picture.html"),
+        )
+        .expect("picture template should parse");
         let template_name = fragment_template_name("embed");
         tera.add_raw_template(
             &template_name,
@@ -557,6 +648,11 @@ heading_anchors = false
 
         tera.register_function("render_gpx", |_args: &HashMap<String, Value>| {
             Ok(Value::String("/foo.png".to_owned()))
+        });
+        tera.register_function("get_gpx_srcset", |_args: &HashMap<String, Value>| {
+            Ok(Value::String(
+                "/foo-352w.png 352w, /foo-1008w.png 1008w".to_owned(),
+            ))
         });
         tera.register_function("get_gpx_stats", |_args: &HashMap<String, Value>| {
             Ok(serde_json::json!({
@@ -578,6 +674,8 @@ heading_anchors = false
         ctx.insert("kind", "gpx");
         ctx.insert("args", "/test.gpx");
         ctx.insert("has_services", &true);
+        ctx.insert("lazy_images", &true);
+        ctx.insert("image_sizes", "(min-width: 1008px) 1008px, 100vw");
         ctx.insert(
             "icon_elevation",
             "<span class=\"icon icon-elevation\">e</span>",
@@ -614,6 +712,63 @@ heading_anchors = false
     }
 
     #[test]
+    fn embed_gpx_map_uses_picture_fragment() {
+        use std::collections::HashMap;
+        use tera::{Context, Tera, Value};
+
+        use crate::render::context::html_escape;
+        use crate::render::engine::fragment_template_name;
+
+        let mut tera = Tera::default();
+        tera.set_escape_fn(html_escape);
+        // embed.html includes picture.html, so both must be registered.
+        let picture_name = fragment_template_name("picture");
+        tera.add_raw_template(
+            &picture_name,
+            include_str!("../defaults/fragments/picture.html"),
+        )
+        .expect("picture template should parse");
+        let name = fragment_template_name("embed");
+        tera.add_raw_template(&name, include_str!("../defaults/fragments/embed.html"))
+            .expect("embed template should parse");
+        tera.register_function("render_gpx", |_a: &HashMap<String, Value>| {
+            Ok(Value::String("/foo.png".to_owned()))
+        });
+        tera.register_function("get_gpx_srcset", |_a: &HashMap<String, Value>| {
+            Ok(Value::String(
+                "/foo-352w.png 352w, /foo-1008w.png 1008w".to_owned(),
+            ))
+        });
+        tera.register_function("get_gpx_stats", |_a: &HashMap<String, Value>| {
+            Ok(serde_json::json!({ "total_ascent_m": 100, "distance_km": 25.0 }))
+        });
+        tera.register_function("add_static_file", |_a: &HashMap<String, Value>| {
+            Ok(Value::String("/public/gpx/foo.gpx".to_owned()))
+        });
+        tera.register_filter("crc32", |v: &Value, _: &HashMap<String, Value>| {
+            Ok(Value::String(v.as_str().unwrap_or_default().to_owned()))
+        });
+
+        let mut ctx = Context::new();
+        ctx.insert("kind", "gpx");
+        ctx.insert("args", "/test.gpx");
+        ctx.insert("has_services", &true);
+        ctx.insert("lazy_images", &true);
+        ctx.insert("image_sizes", "(min-width: 1008px) 1008px, 100vw");
+        ctx.insert("icon_elevation", "");
+        ctx.insert("icon_distance", "");
+        ctx.insert("icon_download", "");
+
+        let html = tera.render(&name, &ctx).expect("render should succeed");
+        // The GPX branch now delegates to the shared picture fragment, which
+        // wraps the image in its own <div class="image">. The outer gpx-map div
+        // lets embed.css target .gpx-map .image for sizing.
+        assert!(html.contains("srcset="), "got: {html}");
+        assert!(html.contains("requestFullscreen()"), "got: {html}");
+        assert!(!html.contains("<picture"), "got: {html}");
+    }
+
+    #[test]
     fn fragment_override_for_image() {
         let dir = tempfile::tempdir().expect("tempdir");
         let fragments_dir = dir.path().join("fragments");
@@ -639,10 +794,6 @@ tags = []
 [render]
 lazy_images = true
 heading_anchors = true
-
-[render.fragments.image]
-template = "fragments/image.html"
-css = "fragments/image.css"
 "#;
         let theme = Theme::parse(theme_toml).expect("parse");
         let source = "![alt text](/photo.jpg)";
@@ -679,10 +830,6 @@ tags = []
 [render]
 lazy_images = false
 heading_anchors = true
-
-[render.fragments.heading]
-template = "fragments/heading.html"
-css = "fragments/heading.css"
 "#;
         let theme = Theme::parse(theme_toml).expect("parse");
         let source = "# Hello";
@@ -700,6 +847,16 @@ css = "fragments/heading.css"
     #[test]
     fn fragment_override_missing_template_errors() {
         let dir = tempfile::tempdir().expect("tempdir");
+        let fragments_dir = dir.path().join("fragments");
+        std::fs::create_dir_all(&fragments_dir).expect("mkdir");
+        // A syntactically broken template triggers an error during build. Tera
+        // catches it during the initial glob load before the per-fragment pass.
+        std::fs::write(
+            fragments_dir.join("image.html"),
+            "{% if unclosed_block %}oops",
+        )
+        .expect("write broken template");
+
         let theme_toml = r#"
 [theme]
 name = "test"
@@ -711,18 +868,17 @@ tags = []
 [render]
 lazy_images = false
 heading_anchors = false
-
-[render.fragments.image]
-template = "fragments/missing.html"
-css = "fragments/missing.css"
 "#;
         let theme = Theme::parse(theme_toml).expect("parse");
         let err = FragmentEngine::build(dir.path(), &theme, None)
             .err()
-            .expect("engine build should fail with missing override files");
+            .expect("engine build should fail with broken override template");
         let rendered = format!("{err:?}");
+        // The glob pre-loads every *.html in the fragments dir, so a
+        // syntactically broken override is caught at load time (Tera::new),
+        // before the per-fragment convention branch runs.
         assert!(
-            rendered.contains("failed to read fragment template for 'image'"),
+            rendered.contains("failed to load fragment templates from"),
             "got: {rendered}"
         );
     }
@@ -752,10 +908,6 @@ tags = []
 [render]
 lazy_images = false
 heading_anchors = false
-
-[render.fragments.paragraph]
-template = "fragments/paragraph.html"
-css = "fragments/paragraph.css"
 "#;
         let theme = Theme::parse(theme_toml).expect("parse");
         let source = "hello world";
@@ -808,10 +960,6 @@ tags = []
 [render]
 lazy_images = true
 heading_anchors = true
-
-[render.fragments.image]
-template = "fragments/image.html"
-css = "fragments/image.css"
 "#;
         let theme = Theme::parse(theme_toml).expect("parse");
         let source = "![alt](/photo.jpg)";
@@ -867,10 +1015,6 @@ tags = []
 [render]
 lazy_images = false
 heading_anchors = false
-
-[render.fragments.paragraph]
-template = "fragments/paragraph.html"
-css = "fragments/paragraph.css"
 "#;
         let theme = Theme::parse(theme_toml).expect("parse");
         let source = "hello world";
@@ -1033,10 +1177,6 @@ tags = []
 [render]
 lazy_images = false
 heading_anchors = false
-
-[render.fragments.anchor]
-template = "fragments/anchor.html"
-css = "fragments/anchor.css"
 "#;
         let theme = Theme::parse(theme_toml).expect("parse");
         let ops = op::parse(source);
@@ -1087,6 +1227,7 @@ css = "fragments/anchor.css"
             "list_item",
             "thematic_break",
             "icon",
+            "picture",
         ];
 
         for name in fragment_files {
@@ -1101,6 +1242,119 @@ css = "fragments/anchor.css"
                 );
             }
         }
+    }
+
+    #[test]
+    fn image_context_exposes_sizes() {
+        // The non-services <img> path ignores image_sizes, so assert via a
+        // fragment override that echoes it.
+        let dir = tempfile::tempdir().expect("tempdir");
+        let fragments_dir = dir.path().join("fragments");
+        std::fs::create_dir_all(&fragments_dir).expect("mkdir");
+        std::fs::write(
+            fragments_dir.join("image.html"),
+            "<img data-sizes=\"{{ image_sizes }}\" src=\"{{ src }}\">",
+        )
+        .expect("write template");
+        std::fs::write(fragments_dir.join("image.css"), "").expect("write css");
+
+        let theme_toml = r#"
+[theme]
+name = "test"
+version = "1.0.0"
+description = "Test"
+compatible_bar_versions = ">=0.1.0"
+tags = []
+
+[render]
+lazy_images = false
+heading_anchors = false
+"#;
+        let theme = Theme::parse(theme_toml).expect("parse");
+        let source = "![alt](/photo.jpg)";
+        let ops = op::parse(source);
+        let ss = test_syntax_set();
+        let engine = FragmentEngine::build(dir.path(), &theme, None).expect("engine");
+        let html = render_html(&ops, source, &engine, &theme, &ss, "test")
+            .expect("render")
+            .html;
+        assert!(
+            html.contains("data-sizes=\"(display-mode: fullscreen) 100vw, (min-width:"),
+            "got: {html}"
+        );
+    }
+
+    #[test]
+    fn image_fragment_uses_srcset_with_services() {
+        use crate::render::context::html_escape;
+        use crate::render::engine::fragment_template_name;
+        use std::collections::HashMap;
+        use tera::{Context, Tera, Value};
+
+        let mut tera = Tera::default();
+        tera.set_escape_fn(html_escape);
+        // image.html includes picture, so register both.
+        let picture_name = fragment_template_name("picture");
+        tera.add_raw_template(
+            &picture_name,
+            include_str!("../defaults/fragments/picture.html"),
+        )
+        .expect("picture template parses");
+        let name = fragment_template_name("image");
+        tera.add_raw_template(&name, include_str!("../defaults/fragments/image.html"))
+            .expect("image template parses");
+        tera.register_function("get_srcset", |_a: &HashMap<String, Value>| {
+            Ok(Value::String(
+                "/images/h-352x198.jpg 352w, /images/h-1008x567.jpg 1008w".to_owned(),
+            ))
+        });
+
+        let mut ctx = Context::new();
+        ctx.insert("src", "/photo.jpg");
+        ctx.insert("alt", "a cat");
+        ctx.insert("has_services", &true);
+        ctx.insert("lazy_images", &true);
+        ctx.insert("image_sizes", "(min-width: 1008px) 1008px, 100vw");
+
+        let html = tera.render(&name, &ctx).expect("render");
+        assert!(
+            html.contains("srcset=\"/images/h-352x198.jpg 352w"),
+            "got: {html}"
+        );
+        assert!(html.contains("sizes=\""), "got: {html}");
+        assert!(html.contains("requestFullscreen()"), "got: {html}");
+    }
+
+    #[test]
+    fn image_fragment_plain_img_without_services() {
+        use crate::render::context::html_escape;
+        use crate::render::engine::fragment_template_name;
+        use tera::{Context, Tera};
+
+        let mut tera = Tera::default();
+        tera.set_escape_fn(html_escape);
+        // image.html includes picture, so register both.
+        let picture_name = fragment_template_name("picture");
+        tera.add_raw_template(
+            &picture_name,
+            include_str!("../defaults/fragments/picture.html"),
+        )
+        .expect("picture template parses");
+        let name = fragment_template_name("image");
+        tera.add_raw_template(&name, include_str!("../defaults/fragments/image.html"))
+            .expect("image template parses");
+        // No get_srcset registered: must take the else branch (no-services path).
+
+        let mut ctx = Context::new();
+        ctx.insert("src", "/photo.jpg");
+        ctx.insert("alt", "a cat");
+        ctx.insert("has_services", &false);
+        ctx.insert("lazy_images", &false);
+        ctx.insert("image_sizes", "(min-width: 1008px) 1008px, 100vw");
+        let html = tera.render(&name, &ctx).expect("render");
+        assert!(html.contains(r#"<img src="/photo.jpg""#), "got: {html}");
+        assert!(!html.contains("srcset"), "got: {html}");
+        assert!(!html.contains("fullscreen"), "got: {html}");
     }
 
     #[test]
@@ -1144,10 +1398,6 @@ tags = []
 [render]
 lazy_images = false
 heading_anchors = false
-
-[render.fragments.icon]
-template = "fragments/icon.html"
-css = "fragments/icon.css"
 "#;
         let theme = Theme::parse(theme_toml).expect("parse");
         let source = "{% inner\n\nbody\n%}";
@@ -1166,5 +1416,203 @@ css = "fragments/icon.css"
             err.contains("icon"),
             "error should mention the icon fragment, got: {err}"
         );
+    }
+
+    const MINIMAL_THEME_TOML: &str = r#"
+[theme]
+name = "t"
+version = "1.0.0"
+description = "d"
+compatible_bar_versions = ">=0.1.0"
+tags = []
+
+[render]
+lazy_images = true
+heading_anchors = true
+"#;
+
+    #[test]
+    fn picture_renders_and_image_pulls_its_css() {
+        use crate::render::engine::{collect_css, fragment_template_name};
+
+        let dir = tempfile::tempdir().expect("tempdir");
+        let theme = Theme::parse(MINIMAL_THEME_TOML).expect("parse");
+        let engine = FragmentEngine::build(dir.path(), &theme, None).expect("engine");
+
+        let mut c = tera::Context::new();
+        c.insert("has_services", &true);
+        c.insert("src", "/a.jpg");
+        c.insert("srcset", "/a.jpg 352w");
+        c.insert("alt", "x");
+        c.insert("image_sizes", "100vw");
+        c.insert("lazy_images", &true);
+        let html = engine
+            .tera
+            .render(&fragment_template_name("picture"), &c)
+            .expect("render");
+        assert!(html.contains("class=\"fullscreen\""), "got: {html}");
+        assert!(html.contains("requestFullscreen()"), "got: {html}");
+
+        let mut used = std::collections::HashSet::new();
+        used.insert("Image");
+        let css = collect_css(&engine, &used);
+        assert!(
+            css.contains(".image .fullscreen"),
+            "picture css missing: {css}"
+        );
+    }
+
+    #[test]
+    fn picture_fallback_src_is_smallest_variant() {
+        use crate::render::engine::fragment_template_name;
+
+        let dir = tempfile::tempdir().expect("tempdir");
+        let theme = Theme::parse(MINIMAL_THEME_TOML).expect("parse");
+        let engine = FragmentEngine::build(dir.path(), &theme, None).expect("engine");
+
+        let mut c = tera::Context::new();
+        c.insert("has_services", &true);
+        // The raw original must never be the fallback src: it is not published.
+        c.insert("src", "/photo.jpg");
+        c.insert(
+            "srcset",
+            "/images/h-352x198.jpg 352w, /images/h-1008x567.jpg 1008w",
+        );
+        c.insert("alt", "x");
+        c.insert("image_sizes", "100vw");
+        c.insert("lazy_images", &true);
+        let html = engine
+            .tera
+            .render(&fragment_template_name("picture"), &c)
+            .expect("render");
+        // Fallback src is the smallest (first) srcset candidate, a published variant.
+        assert!(
+            html.contains(r#"src="/images/h-352x198.jpg""#),
+            "got: {html}"
+        );
+        assert!(
+            !html.contains(r#"src="/photo.jpg""#),
+            "raw unpublished original must not be the fallback src: {html}"
+        );
+    }
+
+    #[test]
+    fn picture_passthrough_srcset_is_usable_fallback() {
+        use crate::render::engine::fragment_template_name;
+
+        let dir = tempfile::tempdir().expect("tempdir");
+        let theme = Theme::parse(MINIMAL_THEME_TOML).expect("parse");
+        let engine = FragmentEngine::build(dir.path(), &theme, None).expect("engine");
+
+        let mut c = tera::Context::new();
+        c.insert("has_services", &true);
+        c.insert("src", "/icon.svg");
+        // Passthrough sources (svg, non-cloudinary remote) yield a single
+        // descriptor-less candidate; the fallback must still resolve to it.
+        c.insert("srcset", "/icon.svg");
+        c.insert("alt", "x");
+        c.insert("image_sizes", "100vw");
+        c.insert("lazy_images", &false);
+        let html = engine
+            .tera
+            .render(&fragment_template_name("picture"), &c)
+            .expect("render");
+        assert!(html.contains(r#"src="/icon.svg""#), "got: {html}");
+    }
+
+    #[test]
+    fn gallery_slides_carry_lazy_loading_when_enabled() {
+        use std::collections::HashMap;
+        use tera::Value;
+
+        // Build an engine with stub service functions so has_services=true and
+        // images.html takes the slider branch (the path where lazy_images must
+        // be forwarded from the Node::Images context arm).
+        let dir = tempfile::tempdir().expect("tempdir");
+        let theme = test_theme(); // lazy_images = true
+        let ss = test_syntax_set();
+        let mut engine = FragmentEngine::build(dir.path(), &theme, None).expect("engine");
+
+        // Promote to has_services so images.html renders slides via picture.
+        engine.has_services = true;
+        engine
+            .tera
+            .register_function("get_srcset", |_: &HashMap<String, Value>| {
+                Ok(Value::String(
+                    "/a-352w.jpg 352w, /a-1008w.jpg 1008w".to_owned(),
+                ))
+            });
+        engine
+            .tera
+            .register_function("get_image_url", |args: &HashMap<String, Value>| {
+                let src = args
+                    .get("src")
+                    .and_then(Value::as_str)
+                    .unwrap_or("")
+                    .to_owned();
+                Ok(Value::String(src))
+            });
+        engine
+            .tera
+            .register_filter("crc32", |v: &Value, _: &HashMap<String, Value>| {
+                Ok(Value::String(v.as_str().unwrap_or_default().to_owned()))
+            });
+
+        // Two images on consecutive lines → yamd parses them as Node::Images.
+        let source = "![img a](/a.jpg)\n![img b](/b.jpg)";
+        let ops = yamd::op::parse(source);
+        let html = render_html(&ops, source, &engine, &theme, &ss, "test")
+            .expect("render should succeed")
+            .html;
+
+        // The two slide <img> elements must carry loading="lazy" when
+        // theme.render.lazy_images is true. The thumbnail row always hardcodes
+        // loading="lazy" on its <img> tags, so with 2 images we expect at least
+        // 4 occurrences total (2 slides + 2 thumbnails). Without the fix the
+        // Node::Images context arm omits lazy_images, picture.html receives no
+        // value for it, and the slide <img> tags skip the attribute — leaving
+        // only 2 occurrences (thumbnails only).
+        let lazy_count = html.matches(r#"loading="lazy""#).count();
+        assert!(
+            lazy_count >= 4,
+            "expected >=4 lazy attrs (2 slides + 2 thumbnails) but got {lazy_count}; \
+             gallery slides must carry loading=\"lazy\" when lazy_images=true, got: {html}"
+        );
+        assert!(
+            html.contains("class=\"ig\""),
+            "gallery container missing, got: {html}"
+        );
+    }
+
+    #[test]
+    fn fragment_override_resolved_by_convention() {
+        use crate::render::engine::fragment_template_name;
+
+        let dir = tempfile::tempdir().expect("tempdir");
+        let frag_dir = dir.path().join("fragments");
+        std::fs::create_dir_all(&frag_dir).unwrap();
+        std::fs::write(
+            frag_dir.join("paragraph.html"),
+            "<p class=\"custom\">{{ content | safe }}</p>",
+        )
+        .unwrap();
+        std::fs::write(frag_dir.join("paragraph.css"), ".custom{color:red}").unwrap();
+
+        let theme = Theme::parse(MINIMAL_THEME_TOML).expect("parse");
+        let engine = FragmentEngine::build(dir.path(), &theme, None).expect("engine");
+
+        assert_eq!(
+            engine.css.get("paragraph").map(String::as_str),
+            Some(".custom{color:red}")
+        );
+        let rendered = engine
+            .tera
+            .render(&fragment_template_name("paragraph"), &{
+                let mut c = tera::Context::new();
+                c.insert("content", "hi");
+                c
+            })
+            .expect("render");
+        assert!(rendered.contains("class=\"custom\""), "got: {rendered}");
     }
 }

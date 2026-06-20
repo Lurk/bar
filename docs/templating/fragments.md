@@ -1,22 +1,32 @@
 # Fragment Overrides
 
-Fragments let you replace the default HTML rendering for any YAMD node type with your own Tera template. When bar renders content it checks `[render.fragments]` in `theme.toml` before falling back to built-in rendering.
+Fragments let you replace default HTML rendering for any YAMD node type with own Tera template.
 
 ## How fragments work
 
-For each node type you declare in `theme.toml`, bar:
+Bar renders each YAMD node via built-in default fragment. Theme overrides fragment by placing `fragments/<key>.html` (and optionally `fragments/<key>.css`) in its template directory. Bar detects files by filename convention at startup.
 
-1. Extracts variables specific to that node type from the parsed content.
-2. Renders your `.html` template with those variables as context.
-3. Collects your `.css` file's content and injects it into `fragment_styles` on the page.
+For each node type, bar:
 
-Fragment templates are standalone Tera renders — they do not inherit from `base.html` and have no access to site-wide context variables.
+1. Extracts variables specific to that node type from parsed content.
+2. Renders `.html` template (theme override if present, else built-in default) with those variables as context.
+3. Collects matching `.css` file content, injects into `fragment_styles` on page.
+
+Fragment templates standalone Tera renders — no inherit from `base.html`, no access to site-wide context variables.
 
 ## Default fragments
 
-The default fragments for all node types live in `src/defaults/fragments/`. Each node type has an `.html` template and a `.css` file. These are compiled into the binary and used when no theme override is provided.
+Default fragments for all node types live in `src/defaults/fragments/`. Each node type has `.html` template and `.css` file. Compiled into binary, used when no theme override present.
 
-To customize a node type, copy the default files to your theme's fragments directory and modify them.
+To customize node type, place own `fragments/<key>.html` (and optionally `fragments/<key>.css`) in theme directory. Bar uses them automatically.
+
+### Available keys
+
+Every overridable key (use as `fragments/<key>.html`):
+
+`anchor`, `bold`, `code`, `code_span`, `collapsible`, `embed`, `emphasis`, `heading`, `highlight`, `icon`, `image`, `images`, `italic`, `list_item`, `ordered_list`, `paragraph`, `picture`, `strikethrough`, `thematic_break`, `unordered_list`
+
+`picture` is not a YAMD node — shared image renderer included by `image`, `images`, `embed`. See its section below.
 
 ## Variables per node type
 
@@ -27,18 +37,35 @@ To customize a node type, copy the default files to your theme's fragments direc
 | `src` | string | Image URL or path |
 | `alt` | string | Alt text |
 | `lazy_images` | bool | Whether to add `loading="lazy"` (from theme config) |
+| `image_sizes` | string | Value for the `<img sizes>` attribute |
 | `has_services` | bool | Whether template functions are available |
 
 Default template: `src/defaults/fragments/image.html`
 
-Default styles (`src/defaults/fragments/image.css`):
+Default `image` template delegates rendering to shared `picture` fragment (via `{% include %}`), which emits `.image` box and inline fullscreen button. All CSS rules once in `image.css` now live in `picture.css`. `image.css` empty.
+
+### `picture`
+
+`picture` is shared image renderer included by `image`, `images` (per slide), and `embed` (for GPX maps). Emits `.image` wrapper `<div>`, `<img>` element with optional `srcset`/`sizes`/`loading="lazy"`, and inline fullscreen button. Override to change how every image surface looks at once.
+
+| Variable | Type | Description |
+|----------|------|-------------|
+| `src` | string | Image URL or path. Used directly as the `<img src>` only in the no-services branch; in the services branch the `src` fallback is derived from the smallest `srcset` candidate (a published variant), since the raw `src` may be an unpublished original |
+| `srcset` | string | Pre-computed srcset string. Not inserted by bar — the including fragment sets it (e.g. `{% set srcset = get_srcset(src=src) %}`); the no-services branch omits it |
+| `alt` | string | Alt text |
+| `image_sizes` | string | Value for the `<img sizes>` attribute |
+| `lazy_images` | bool | Whether to add `loading="lazy"` to the `<img>` |
+| `has_services` | bool | True when service functions (e.g. `get_srcset`) are available |
+| `fullscreen` | bool | Controls the inline fullscreen button; defaults to `true` (galleries pass `false` and render one gallery-level button instead) |
+
+Default template: `src/defaults/fragments/picture.html`
+
+Default styles (`src/defaults/fragments/picture.css`):
 
 ```css
 .image { margin: 1em 0; position: relative; }
-.image img { max-width: 100%; height: auto; display: block; }
-.image picture { display: block; width: 100%; }
-.image picture img { width: 100%; display: block; }
-.image .fullscreen { position: absolute; bottom: 0.5rem; right: 0.5rem; text-decoration: none; font-size: 1.5rem; opacity: 0.7; }
+.image img { width: 100%; aspect-ratio: 16 / 9; display: block; }
+.image .fullscreen { position: absolute; bottom: 0.5rem; right: 0.5rem; cursor: pointer; text-decoration: none; font-size: 1.5rem; opacity: 0.7; color: #fff; text-shadow: 0 0 4px rgba(0, 0, 0, 0.7); }
 .image .fullscreen:hover { opacity: 1; }
 ```
 
@@ -105,6 +132,8 @@ Default styles (`src/defaults/fragments/embed.css`):
 ```css
 .embed { margin: 1em 0; }
 .embed iframe { width: 100%; aspect-ratio: 16/9; border: none; }
+.gpx-map .image { display: block; width: 100%; }
+.gpx-map img { width: 100%; display: block; }
 .gpx-embed.with-icon { display: flex; gap: 1rem; padding: 0.5rem 0; align-items: center; }
 .gpx-embed.with-icon div { display: flex; align-items: center; gap: 0.25rem; }
 ```
@@ -156,6 +185,8 @@ Default styles (`src/defaults/fragments/highlight.css`):
 |----------|------|-------------|
 | `content` | string | Inner HTML rendered by the default renderer |
 | `images` | array | List of `{src, alt}` objects for each image in the gallery |
+| `image_sizes` | string | Value for the `<img sizes>` attribute |
+| `lazy_images` | bool | Whether to add `loading="lazy"` to slide images (forwarded to `picture` per slide) |
 | `has_services` | bool | True when fragment services (e.g. `get_image_url`) are available |
 
 Default template: `src/defaults/fragments/images.html`
@@ -164,14 +195,24 @@ Default styles (`src/defaults/fragments/images.css`):
 
 ```css
 .ig { margin: 1em 0; }
-.ig .image { position: relative; overflow-x: auto; scroll-snap-type: x mandatory; display: flex; }
-.ig .image > div { scroll-snap-align: start; min-width: 100%; }
-.ig .image picture { display: block; width: 100%; }
-.ig .image picture img { width: 100%; display: block; }
-.ig .image .left, .ig .image .right { position: absolute; top: 50%; transform: translateY(-50%); z-index: 1; font-size: 2rem; text-decoration: none; padding: 0.5rem; }
-.ig .image .left { left: 0.5rem; }
-.ig .image .right { right: 0.5rem; }
-.ig .thumb { display: flex; flex-wrap: wrap; gap: 0.25em; margin-top: 0.5em; }
+.ig > .frame { position: relative; }
+.ig > .frame > .image > div { display: none; position: relative; }
+.ig > .frame > .image > div:target { display: block; }
+.ig > .frame > .image:not(:has(> div:target)) > div:first-child { display: block; }
+.ig > .frame > .image > div > .image { margin: 0; }
+.ig > .frame > .image > div > .image > img { width: 100%; aspect-ratio: 16 / 9; display: block; }
+.ig > .frame > .image .left, .ig > .frame > .image .right { position: absolute; top: 50%; transform: translateY(-50%); z-index: 1; font-size: 2rem; text-decoration: none; padding: 0.5rem; color: #fff; text-shadow: 0 0 4px rgba(0, 0, 0, 0.7); }
+.ig > .frame > .image .left { left: 0.5rem; }
+.ig > .frame > .image .right { right: 0.5rem; }
+.ig > .frame > .fullscreen { position: absolute; bottom: 0.5rem; right: 0.5rem; cursor: pointer; text-decoration: none; font-size: 1.5rem; opacity: 0.7; z-index: 1; color: #fff; text-shadow: 0 0 4px rgba(0, 0, 0, 0.7); }
+.ig > .frame > .fullscreen:hover { opacity: 1; }
+.ig > .frame:fullscreen { background: #000; display: flex; align-items: center; justify-content: center; }
+.ig > .frame:fullscreen > .image,
+.ig > .frame:fullscreen > .image > div:target,
+.ig > .frame:fullscreen > .image:not(:has(> div:target)) > div:first-child,
+.ig > .frame:fullscreen > .image > div > .image { display: contents; }
+.ig > .frame:fullscreen img { max-width: 100%; max-height: 100%; width: auto; height: auto; aspect-ratio: auto; object-fit: contain; }
+.ig .thumb { display: flex; flex-wrap: wrap; justify-content: center; gap: 0.25em; margin-top: 0.5em; }
 .ig .thumb img { display: block; }
 ```
 
@@ -209,7 +250,7 @@ Default template: `src/defaults/fragments/list_item.html`
 
 ### `thematic_break`
 
-No variables. This node type renders a static element.
+No variables. Renders static element.
 
 Default template: `src/defaults/fragments/thematic_break.html`
 
@@ -233,13 +274,42 @@ Default styles (`src/defaults/fragments/icon.css`):
 .icon { display: inline-block; }
 ```
 
-## CSS requirement
+### Inline text fragments
 
-Every fragment declaration **must** include a CSS file. If you have no styles to add, create an empty `.css` file. Bar will fail validation if either the template or the CSS file is missing.
+`bold`, `italic`, `emphasis`, `strikethrough`, `code_span` are inline nodes. Each takes one variable:
 
-The CSS from all fragment overrides used on a given page is concatenated and exposed as the `fragment_styles` template variable. Your page template is responsible for injecting it (typically in `<head>` via a `<style>` block).
+| Variable | Type | Description |
+|----------|------|-------------|
+| `content` | string | Inner HTML rendered by the default renderer — pipe through `\| safe` |
+
+Defaults (all have empty `.css`):
+
+| Key | YAMD | Default template | Output |
+|-----|------|------------------|--------|
+| `bold` | `**x**` | `src/defaults/fragments/bold.html` | `<b>` |
+| `italic` | `_x_` | `src/defaults/fragments/italic.html` | `<i>` |
+| `emphasis` | `*x*` | `src/defaults/fragments/emphasis.html` | `<em>` |
+| `strikethrough` | `~~x~~` | `src/defaults/fragments/strikethrough.html` | `<s>` |
+| `code_span` | `` `x` `` | `src/defaults/fragments/code_span.html` | `<code>` |
+
+## CSS convention
+
+When theme provides `fragments/<key>.html`, bar also checks for `fragments/<key>.css`. If CSS file exists, used instead of built-in default; if absent, built-in CSS kept. To suppress all default styles, supply empty `.css` file.
+
+CSS from all fragment overrides used on a page concatenated, exposed as `fragment_styles` template variable. Your page template responsible for injecting it (typically in `<head>` via `<style>` block).
 
 ## Example: custom image fragment
+
+Place two files in theme's `fragments/` directory — no `theme.toml` entry required:
+
+**`fragments/image.html`**
+
+```html
+<figure>
+  <img src="{{ src }}" alt="{{ alt }}"{% if lazy_images %} loading="lazy"{% endif %}/>
+  <figcaption>{{ alt }}</figcaption>
+</figure>
+```
 
 **`fragments/image.css`**
 
@@ -260,15 +330,9 @@ The CSS from all fragment overrides used on a given page is concatenated and exp
 }
 ```
 
-**`theme.toml`**
-
-```toml
-[render.fragments.image]
-template = "fragments/image.html"
-css = "fragments/image.css"
-```
-
 ## Example: custom heading fragment
+
+Place `fragments/heading.html` and `fragments/heading.css` in theme directory:
 
 **`fragments/heading.css`**
 
@@ -288,10 +352,10 @@ h1, h2, h3, h4, h5, h6 {
 
 ## Debugging
 
-When a fragment template fails to render, bar prints:
+When fragment template fails to render, bar prints:
 
-- The fragment key that failed (e.g. `failed to render fragment template for 'image'`).
-- The available variables for that fragment, so you can check for typos.
-- The Tera error with a source code pointer if the template has a syntax error.
+- Failed fragment key (e.g. `failed to render fragment template for 'image'`).
+- Available variables for that fragment, so you can check typos.
+- Tera error with source code pointer if template has syntax error.
 
-To see which variables are available at runtime, temporarily add `{{ __tera_context }}` to your fragment template — Tera will dump the full context as JSON.
+To see which variables available at runtime, temporarily add `{{ __tera_context }}` to fragment template — Tera dumps full context as JSON.

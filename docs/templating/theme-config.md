@@ -1,6 +1,6 @@
 # theme.toml Reference
 
-`theme.toml` lives at the root of the theme directory. Bar validates it on every build and rejects incompatible or malformed configs.
+`theme.toml` live at root of theme directory. Bar validate on every build, reject incompatible or malformed config.
 
 ## `[theme]`
 
@@ -14,7 +14,7 @@
 
 ### Version compatibility format
 
-`compatible_bar_versions` uses standard semver requirement syntax:
+`compatible_bar_versions` use standard semver requirement syntax:
 
 ```
 ">=0.1.0"          # any version at or above 0.1.0
@@ -22,28 +22,32 @@
 "^0.3.0"           # compatible with 0.3.x
 ```
 
-Bar's own version is checked against this requirement at build time. A mismatch is a hard error.
+Bar's own version checked against this requirement at build time. Mismatch = hard error.
 
 ## `[render]`
 
 | Key | Type | Required | Default | Description |
 |-----|------|----------|---------|-------------|
 | `lazy_images` | bool | yes | — | Add `loading="lazy"` to `<img>` tags in default image rendering |
-| `heading_anchors` | bool | yes | — | Wrap heading text in an `<a>` with `href="#anchor_id"` |
+| `heading_anchors` | bool | yes | — | Wrap heading text in `<a>` with `href="#anchor_id"` |
 | `code_class` | string | no | none | CSS class added to `<pre>` in default code rendering |
 
-## `[render.fragments.NODE_TYPE]`
+## Fragment overrides (filename convention)
 
-Overrides the HTML (and CSS) used to render a specific YAMD node type. Both keys are required together — you cannot provide one without the other.
+To override fragment, place `fragments/<key>.html` (and optionally `fragments/<key>.css`) in theme directory. No TOML declaration needed — bar detect overrides by filename at startup.
 
-| Key | Type | Description |
-|-----|------|-------------|
-| `template` | path | Path to the Tera template, relative to the theme directory |
-| `css` | path | Path to the CSS file, relative to the theme directory |
-
-`NODE_TYPE` must match a fragment key. Valid keys: `anchor`, `bold`, `code`, `code_span`, `collapsible`, `destination`, `document`, `embed`, `emphasis`, `heading`, `highlight`, `icon`, `image`, `images`, `italic`, `list_item`, `metadata`, `modifier`, `ordered_list`, `paragraph`, `strikethrough`, `thematic_break`, `title`, `unordered_list`.
+Valid keys: `anchor`, `bold`, `code`, `code_span`, `collapsible`, `destination`, `document`, `embed`, `emphasis`, `heading`, `highlight`, `icon`, `image`, `images`, `italic`, `list_item`, `metadata`, `modifier`, `ordered_list`, `paragraph`, `picture`, `strikethrough`, `thematic_break`, `title`, `unordered_list`.
 
 See [fragments.md](fragments.md) for available template variables per node type.
+
+## `[render.image]`
+
+Control responsive image ladder used when services available (local image resizing or Cloudinary). Both keys optional.
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| `sizes` | string | `(display-mode: fullscreen) 100vw, (min-width: 1008px) 1008px, 100vw` | Value for `<img sizes>` attribute, passed to `picture` as `image_sizes` |
+| `widths` | array of integers | `[352, 704, 1008, 1568, 2016, 3840]` | Pixel widths for srcset candidate ladder |
 
 ## Full example
 
@@ -60,15 +64,9 @@ lazy_images = true
 heading_anchors = true
 code_class = "highlight"
 
-[render.fragments.image]
-template = "fragments/image.html"
-css = "fragments/image.css"
-
-[render.fragments.code]
-template = "fragments/code.html"
-css = "fragments/code.css"
-
-[render.fragments.heading]
-template = "fragments/heading.html"
-css = "fragments/heading.css"
+[render.image]
+sizes = "(min-width: 1008px) 1008px, 100vw"
+widths = [352, 704, 1008, 1568, 2016, 3840]
 ```
+
+Fragment overrides (`fragments/image.html`, `fragments/code.html`, etc.) picked up automatically from `fragments/` directory — no TOML entries needed.

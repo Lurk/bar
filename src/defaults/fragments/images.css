@@ -1,10 +1,20 @@
 .ig { margin: 1em 0; }
-.ig .image { position: relative; overflow-x: auto; scroll-snap-type: x mandatory; display: flex; }
-.ig .image > div { scroll-snap-align: start; min-width: 100%; }
-.ig .image picture { display: block; width: 100%; }
-.ig .image picture img { width: 100%; display: block; }
-.ig .image .left, .ig .image .right { position: absolute; top: 50%; transform: translateY(-50%); z-index: 1; font-size: 2rem; text-decoration: none; padding: 0.5rem; }
-.ig .image .left { left: 0.5rem; }
-.ig .image .right { right: 0.5rem; }
-.ig .thumb { display: flex; flex-wrap: wrap; gap: 0.25em; margin-top: 0.5em; }
+.ig > .frame { position: relative; }
+.ig > .frame > .image > div { display: none; position: relative; }
+.ig > .frame > .image > div:target { display: block; }
+.ig > .frame > .image:not(:has(> div:target)) > div:first-child { display: block; }
+.ig > .frame > .image > div > .image { margin: 0; }
+.ig > .frame > .image > div > .image > img { width: 100%; aspect-ratio: 16 / 9; display: block; }
+.ig > .frame > .image .left, .ig > .frame > .image .right { position: absolute; top: 50%; transform: translateY(-50%); z-index: 1; font-size: 2rem; text-decoration: none; padding: 0.5rem; color: #fff; text-shadow: 0 0 4px rgba(0, 0, 0, 0.7); }
+.ig > .frame > .image .left { left: 0.5rem; }
+.ig > .frame > .image .right { right: 0.5rem; }
+.ig > .frame > .fullscreen { position: absolute; bottom: 0.5rem; right: 0.5rem; cursor: pointer; text-decoration: none; font-size: 1.5rem; opacity: 0.7; z-index: 1; color: #fff; text-shadow: 0 0 4px rgba(0, 0, 0, 0.7); }
+.ig > .frame > .fullscreen:hover { opacity: 1; }
+.ig > .frame:fullscreen { background: #000; display: flex; align-items: center; justify-content: center; }
+.ig > .frame:fullscreen > .image,
+.ig > .frame:fullscreen > .image > div:target,
+.ig > .frame:fullscreen > .image:not(:has(> div:target)) > div:first-child,
+.ig > .frame:fullscreen > .image > div > .image { display: contents; }
+.ig > .frame:fullscreen img { max-width: 100%; max-height: 100%; width: auto; height: auto; aspect-ratio: auto; object-fit: contain; }
+.ig .thumb { display: flex; flex-wrap: wrap; justify-content: center; gap: 0.25em; margin-top: 0.5em; }
 .ig .thumb img { display: block; }

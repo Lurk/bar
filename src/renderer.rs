@@ -58,6 +58,7 @@ pub fn render(
         pages: pages.clone(),
         syntax_set: ctx.syntax_set.clone(),
         rendered_cache: rendered_cache.clone(),
+        image_widths: Arc::new(ctx.theme.render.image.widths()),
     };
 
     let engine = FragmentEngine::build(&template_dir, &ctx.theme, Some(&services))?;

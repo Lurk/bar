@@ -153,6 +153,7 @@ pub(super) fn build_fragment_context(
             ctx.insert("alt", &alt);
             ctx.insert("lazy_images", &theme.render.lazy_images);
             ctx.insert("has_services", &has_services);
+            ctx.insert("image_sizes", theme.render.image.sizes());
         }
         Node::Code => {
             let mut language = String::new();
@@ -272,6 +273,8 @@ pub(super) fn build_fragment_context(
             ctx.insert("has_services", &has_services);
 
             if kind == "gpx" {
+                ctx.insert("image_sizes", theme.render.image.sizes());
+                ctx.insert("lazy_images", &theme.render.lazy_images);
                 for (var_name, icon_name) in [
                     ("icon_elevation", "lower-right-triangle"),
                     ("icon_distance", "distance"),
@@ -377,6 +380,8 @@ pub(super) fn build_fragment_context(
             }
             ctx.insert("images", &images);
             ctx.insert("has_services", &has_services);
+            ctx.insert("image_sizes", theme.render.image.sizes());
+            ctx.insert("lazy_images", &theme.render.lazy_images);
         }
         Node::ListItem => {
             let inner_ops = &ops[start + 1..end];

@@ -29,12 +29,17 @@ fn default_extension() -> Vec<String> {
         "png".to_string(),
         "jpg".to_string(),
         "jpeg".to_string(),
+        "webp".to_string(),
         "gif".to_string(),
         "svg".to_string(),
         "webmanifest".to_string(),
         "ico".to_string(),
         "txt".to_string(),
     ]
+}
+
+fn default_image_output_dir() -> String {
+    "images".to_string()
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -97,9 +102,13 @@ pub struct Config {
     pub static_source_path: PathBuf,
     /// White list of file extensions to be copied to the dist directory.
     /// The extensions should not include the dot.
-    /// Default: `["css", "js", "png", "jpg", "jpeg", "gif", "svg", "webmanifest", "ico", "txt"]`
+    /// Default: `["css", "js", "png", "jpg", "jpeg", "webp", "gif", "svg", "webmanifest", "ico", "txt"]`
     #[serde(default = "default_extension")]
     pub static_files_extensions: Vec<String>,
+    /// Directory (under dist) where processed local image variants are written.
+    /// Default: `images`
+    #[serde(default = "default_image_output_dir")]
+    pub image_output_dir: String,
     pub template: PathBuf,
     pub domain: Arc<Url>,
     pub title: Arc<str>,
@@ -123,5 +132,36 @@ impl TryFrom<&PathBuf> for Config {
         let f = File::open(&config_path)
             .with_context(|| format!("config file: {}", config_path.display()))?;
         Ok(serde_yaml::from_reader(f)?)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Config;
+
+    const MINIMAL: &str = r"
+dist_path: ./dist
+content_path: ./content
+static_source_path: ./public
+template: ./template
+domain: https://example.com
+title: t
+description: d
+template_config: {}
+yamd_processors:
+  convert_cloudinary_embed: false
+";
+
+    #[test]
+    fn image_output_dir_defaults_to_images() {
+        let config: Config = serde_yaml::from_str(MINIMAL).expect("parse");
+        assert_eq!(config.image_output_dir, "images");
+    }
+
+    #[test]
+    fn image_output_dir_can_be_overridden() {
+        let yaml = format!("{MINIMAL}image_output_dir: assets/img\n");
+        let config: Config = serde_yaml::from_str(&yaml).expect("parse");
+        assert_eq!(config.image_output_dir, "assets/img");
     }
 }

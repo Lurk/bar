@@ -6,13 +6,16 @@ edition = "2024"
 rust-version = "1.88.0"
 
 [workspace]
-members = ["libs/img2text", "libs/gpxtools"]
+members = ["libs/img2text", "libs/gpxtools", "libs/imgtools"]
 
 [dependencies.gpxtools]
 path = "libs/gpxtools"
 
 [dependencies.img2text]
 path = "libs/img2text"
+
+[dependencies.imgtools]
+path = "libs/imgtools"
 
 [dependencies]
 async-stream = "0.3.6"
@@ -58,3 +61,4 @@ result_large_err = "allow"
 [dev-dependencies]
 pretty_assertions = "1.4.1"
 tempfile = "3.27.0"
+image = { version = "0.25.10", default-features = false, features = ["jpeg", "png", "webp"] }

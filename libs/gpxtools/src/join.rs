@@ -56,7 +56,7 @@ pub fn join(paths: PathsArgs) -> Result<(), GPXError> {
                 .expect("waypoint to have time"),
         });
     }
-    tracks_data.sort_by(|a, b| a.time.cmp(&b.time));
+    tracks_data.sort_by_key(|a| a.time);
     let mut joined_gpx = Gpx {
         version: gpx::GpxVersion::Gpx11,
         creator: Some("gpxtools".to_string()),
