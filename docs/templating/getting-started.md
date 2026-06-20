@@ -1,6 +1,6 @@
 # Getting Started with Themes
 
-Themes control how bar renders your site. A theme is a directory of Tera HTML templates, optional CSS, and a `theme.toml` config file.
+Themes control how bar render site. Theme = directory of Tera HTML templates, optional CSS, and `theme.toml` config file.
 
 ## Minimal theme structure
 
@@ -16,7 +16,7 @@ my-theme/
     └── image.css
 ```
 
-Point `config.yaml` at your theme directory:
+Point `config.yaml` at theme directory:
 
 ```yaml
 template: ./my-theme/
@@ -27,9 +27,9 @@ template: ./my-theme/
 | File | Purpose |
 |------|---------|
 | `theme.toml` | Declares theme metadata and render options. Bar refuses to build without it. |
-| `index.html` | Rendered for the site root (`/`). |
+| `index.html` | Rendered for site root (`/`). |
 
-Any `.html` file in the theme directory is available as a Tera template. Bar pre-registers `index.html` and `404.html` automatically; all other pages must be registered by calling `add_page()` from within a template.
+Any `.html` file in theme directory available as Tera template. Bar pre-registers `index.html` and `404.html` automatically; all other pages must be registered by calling `add_page()` from within template.
 
 ## Minimal theme.toml
 
@@ -46,19 +46,19 @@ lazy_images = false
 heading_anchors = true
 ```
 
-See [theme-config.md](theme-config.md) for the full reference.
+See [theme-config.md](theme-config.md) for full reference.
 
 ## Testing your theme
 
-From the project root (the directory containing `config.yaml`):
+From project root (directory containing `config.yaml`):
 
 ```bash
 cargo run -- build
 ```
 
-Built output goes to the directory specified by `dist_path` in `config.yaml` (default `./dist`).
+Built output goes to directory specified by `dist_path` in `config.yaml` (default `./dist`).
 
-To wipe the dist folder and tile/alt-text cache before a fresh build:
+Wipe dist folder and tile/alt-text cache before fresh build:
 
 ```bash
 cargo run -- clear && cargo run -- build
