@@ -72,9 +72,6 @@ domain: 'https://blog.com'
 title: 'this is the blog'
 description: 'blog'
 yamd_processors:
-  # if set to true BAR will convert Cloudinary [Embed](https://docs.rs/yamd/latest/yamd/nodes/struct.Embed.html)
-  # to [Images](https://docs.rs/yamd/latest/yamd/nodes/struct.Images.html)
-  convert_cloudinary_embed: true
   # If set BAR will generate alt text for images using
   # [MoonDream1](https://huggingface.co/vikhyatk/moondream1) model locally. It will do so only for images that do not
   # have alt text.

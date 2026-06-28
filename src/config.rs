@@ -44,9 +44,6 @@ fn default_image_output_dir() -> String {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct YamdProcessors {
-    /// converts cloudinary embed to image gallery
-    #[serde(default)]
-    pub convert_cloudinary_embed: bool,
     /// generate alt text for images
     #[serde(default)]
     pub generate_alt_text: Option<AltTextGenerator>,
@@ -148,8 +145,7 @@ domain: https://example.com
 title: t
 description: d
 template_config: {}
-yamd_processors:
-  convert_cloudinary_embed: false
+yamd_processors: {}
 ";
 
     #[test]

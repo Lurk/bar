@@ -52,7 +52,6 @@ mod tests {
             language: Arc::from("en"),
             template_config: std::collections::HashMap::new(),
             yamd_processors: YamdProcessors {
-                convert_cloudinary_embed: false,
                 generate_alt_text: None,
             },
             gpx_embedding: GpxEmbeddingConfig::default(),

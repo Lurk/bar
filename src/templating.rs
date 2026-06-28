@@ -20,7 +20,7 @@ use gpxtools::{StatsArgs, calculate_stats};
 use std::{
     collections::HashMap,
     hash::BuildHasher,
-    path::{Component, Path, PathBuf},
+    path::{Path, PathBuf},
     sync::{Arc, Mutex},
 };
 use tera::{Function, Result, Tera, Value};
@@ -31,11 +31,6 @@ const VARIANT_CACHE_VERSION: usize = 2;
 
 const PIXEL_CACHE_CAP: usize = 4;
 
-/// Per-build image cache split by cost: `meta` (content hash + display dims) is
-/// tiny and kept for the whole build so a warm rebuild never decodes; `pixels`
-/// holds the expensive decoded images, bounded to the few most-recently-used
-/// sources because rendering is sequential and a source's variants are produced
-/// back-to-back.
 #[derive(Clone)]
 pub(crate) struct ImageCache(Arc<Mutex<ImageCacheInner>>);
 
@@ -147,27 +142,8 @@ fn get_usize_arg(args: &HashMap<String, Value>, key: &str) -> Option<usize> {
         .map(|n| n as usize)
 }
 
-/// Resolve a user-supplied, project-relative path against `project_path`,
-/// rejecting any path that escapes the root via `..` or an absolute prefix.
 fn resolve_in_project(project_path: &Path, raw: &str) -> Result<PathBuf> {
-    let rel = raw.trim().trim_start_matches('/');
-    let mut depth: usize = 0;
-    for comp in Path::new(rel).components() {
-        match comp {
-            Component::Normal(_) => depth += 1,
-            Component::CurDir => {}
-            Component::ParentDir => {
-                depth = depth.checked_sub(1).ok_or_else(|| {
-                    tera::Error::msg(format!("path '{raw}' escapes the project root"))
-                })?;
-            }
-            Component::RootDir | Component::Prefix(_) => {
-                return Err(tera::Error::msg(format!(
-                    "path '{raw}' must be project-relative"
-                )));
-            }
-        }
-    }
+    let rel = crate::fs::normalize_project_rel(raw).map_err(tera::Error::msg)?;
     Ok(project_path.join(rel))
 }
 
@@ -483,6 +459,14 @@ pub(crate) struct VariantSpec<'a> {
     pub ar: Option<(u32, u32)>,
 }
 
+pub(crate) fn output_format_for_ext(ext: &str) -> Option<imgtools::OutputFormat> {
+    match ext {
+        "png" => Some(imgtools::OutputFormat::Png),
+        "jpg" | "jpeg" | "webp" => Some(imgtools::OutputFormat::Jpeg),
+        _ => None,
+    }
+}
+
 pub(crate) fn image_variant(
     site: &Site,
     project_path: &Path,
@@ -513,20 +497,16 @@ pub(crate) fn image_variant(
             .extension()
             .and_then(|e| e.to_str())
             .map(str::to_ascii_lowercase);
-        let format = match ext.as_deref() {
-            Some("png") => imgtools::OutputFormat::Png,
-            Some("jpg" | "jpeg" | "webp") => imgtools::OutputFormat::Jpeg,
-            _ => {
-                site.add_page(
-                    StaticPage {
-                        destination: src.trim().into(),
-                        source: Some(source),
-                        fallback: None,
-                    }
-                    .into(),
-                );
-                return Ok((src.to_string(), None));
-            }
+        let Some(format) = ext.as_deref().and_then(output_format_for_ext) else {
+            site.add_page(
+                StaticPage {
+                    destination: src.trim().into(),
+                    source: Some(source),
+                    fallback: None,
+                }
+                .into(),
+            );
+            return Ok((src.to_string(), None));
         };
 
         // Cheap metadata: content hash + display dims, memoized for the whole
@@ -909,7 +889,7 @@ mod tests {
         );
         assert_eq!(
             resolve_in_project(root, "tracks/../tracks/run.gpx").unwrap(),
-            root.join("tracks/../tracks/run.gpx")
+            root.join("tracks/run.gpx")
         );
     }
 

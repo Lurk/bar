@@ -7,6 +7,8 @@ pub mod context;
 pub mod diagnostic;
 pub mod fragment_services;
 pub mod fs;
+mod gallery;
+mod gallery_ops;
 mod gpx_embed;
 mod image_alt;
 pub mod json_feed;
