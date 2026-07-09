@@ -41,7 +41,8 @@ fn ext_from_content_type(content_type: &str) -> Option<String> {
 
 async fn str_to_path(path: &str, base_path: &Path) -> Result<PathBuf, BarDiagnostic> {
     if !path.starts_with("http") {
-        let path = PathBuf::from(path);
+        let rel = crate::fs::normalize_project_rel(path).map_err(BarDiagnostic::from)?;
+        let path = base_path.join(rel);
         if !path.exists() {
             return Err(format!("Image file does not exist: {}", path.display()).into());
         }
@@ -248,6 +249,16 @@ mod tests {
         .unwrap();
         assert_eq!(result.len(), 3);
         assert_eq!(result[0].kind, OpKind::Start(Node::Paragraph));
+    }
+
+    #[tokio::test]
+    async fn str_to_path_resolves_site_rooted_local_path_against_base() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::create_dir_all(dir.path().join("img/gal")).unwrap();
+        std::fs::write(dir.path().join("img/gal/1.png"), b"x").unwrap();
+
+        let resolved = str_to_path("/img/gal/1.png", dir.path()).await.unwrap();
+        assert_eq!(resolved, dir.path().join("img/gal/1.png"));
     }
 
     #[test]

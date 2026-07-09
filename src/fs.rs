@@ -4,7 +4,7 @@ use std::{
     fs::File,
     hash::Hasher,
     io::{BufReader, Read},
-    path::{Path, PathBuf},
+    path::{Component, Path, PathBuf},
     sync::Arc,
 };
 use tokio::{
@@ -13,6 +13,36 @@ use tokio::{
 };
 
 use crate::diagnostic::{BarDiagnostic, ContextExt};
+
+/// Validate and normalize a user-supplied, project-relative path into a clean
+/// relative string: no leading `/`, no `.`/`..`/`//` left in the output. Rejects
+/// any path that escapes the project root via `..` or carries an absolute
+/// prefix. The result is fs-join-safe and safe to emit as a published URL path.
+/// Returns a plain message on rejection so callers wrap it in their own error
+/// type. May return an empty string for empty / all-`.` input — callers that
+/// require a non-empty path must check.
+///
+/// # Errors
+/// Returns a message if the path escapes the root or is absolute.
+pub fn normalize_project_rel(raw: &str) -> Result<String, String> {
+    let rel = raw.trim().trim_start_matches('/');
+    let mut parts: Vec<String> = Vec::new();
+    for comp in Path::new(rel).components() {
+        match comp {
+            Component::Normal(c) => parts.push(c.to_string_lossy().into_owned()),
+            Component::CurDir => {}
+            Component::ParentDir => {
+                parts
+                    .pop()
+                    .ok_or_else(|| format!("path '{raw}' escapes the project root"))?;
+            }
+            Component::RootDir | Component::Prefix(_) => {
+                return Err(format!("path '{raw}' must be project-relative"));
+            }
+        }
+    }
+    Ok(parts.join("/"))
+}
 
 /// # Errors
 /// Returns error if the path cannot be canonicalized.
@@ -120,6 +150,50 @@ mod tests {
             ]
         );
         Ok(())
+    }
+
+    #[test]
+    fn normalize_strips_leading_slash_and_cur_dir() {
+        assert_eq!(
+            normalize_project_rel("/photos/trip").unwrap(),
+            "photos/trip"
+        );
+        assert_eq!(
+            normalize_project_rel("photos/./trip").unwrap(),
+            "photos/trip"
+        );
+        assert_eq!(
+            normalize_project_rel("photos//trip").unwrap(),
+            "photos/trip"
+        );
+        assert_eq!(
+            normalize_project_rel("/photos/trip/").unwrap(),
+            "photos/trip"
+        );
+    }
+
+    #[test]
+    fn normalize_resolves_interior_parent_dir() {
+        assert_eq!(
+            normalize_project_rel("photos/x/../trip").unwrap(),
+            "photos/trip"
+        );
+        assert_eq!(
+            normalize_project_rel("tracks/../tracks/run.gpx").unwrap(),
+            "tracks/run.gpx"
+        );
+    }
+
+    #[test]
+    fn normalize_rejects_escaping_and_absolute() {
+        assert!(normalize_project_rel("/../etc").is_err());
+        assert!(normalize_project_rel("a/../../b").is_err());
+    }
+
+    #[test]
+    fn normalize_allows_empty() {
+        assert_eq!(normalize_project_rel("").unwrap(), "");
+        assert_eq!(normalize_project_rel("/").unwrap(), "");
     }
 
     #[tokio::test]

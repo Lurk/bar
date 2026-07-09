@@ -4,6 +4,7 @@ use crate::{
     context::BuildConfig,
     diagnostic::{BarDiagnostic, ContextExt},
     fs::{canonicalize_with_context, get_files_by_ext_deep},
+    gallery::unwrap_gallery,
     image_alt::add_alt_text,
     metadata::Metadata,
 };
@@ -308,8 +309,6 @@ pub async fn init_pages(build_config: &BuildConfig) -> Result<Arc<Pages>, BarDia
         .generate_alt_text
         .is_some();
 
-    let convert_cloudinary = build_config.config.yamd_processors.convert_cloudinary_embed;
-
     let alt_text_config = build_config
         .config
         .yamd_processors
@@ -327,16 +326,14 @@ pub async fn init_pages(build_config: &BuildConfig) -> Result<Arc<Pages>, BarDia
         let stream: Pin<Box<dyn Stream<Item = Result<Op, BarDiagnostic>> + Send>> =
             Box::pin(tokio_stream::iter(ops.into_iter().map(Ok)));
 
-        let stream = if convert_cloudinary {
-            unwrap_cloudinary(
-                stream,
-                &source_text,
-                should_generate_alt_text,
-                base_path.clone(),
-            )
-        } else {
-            stream
-        };
+        let stream = unwrap_cloudinary(
+            stream,
+            &source_text,
+            should_generate_alt_text,
+            base_path.clone(),
+        );
+
+        let stream = unwrap_gallery(stream, &source_text, base_path.clone());
 
         let stream = if let Some((ref generator, ref config)) = alt_text_config {
             add_alt_text(
