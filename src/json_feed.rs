@@ -25,7 +25,7 @@ impl FeedItem {
     #[must_use]
     pub fn new(page: &Page, base_url: &Url) -> Self {
         let mut url = base_url.clone();
-        url.set_path(format!("{}.html", &page.pid).as_str());
+        url.set_path(format!("{}.html", page.pid).as_str());
         let image =
             page.get_image(base_url)
                 .map(|src| match Image::try_from(src.clone()) {
