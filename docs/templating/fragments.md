@@ -182,8 +182,8 @@ Default styles (`src/defaults/fragments/collapsible.css`):
 .collapsible { margin: 1em 0; }
 .collapsible input[type="checkbox"] { display: none; }
 .collapsible label { cursor: pointer; font-weight: bold; display: block; }
-.collapsible .body { display: none; }
-.collapsible input[type="checkbox"]:checked ~ .body { display: block; }
+.collapsible>.body { display: none; }
+.collapsible input[type="checkbox"]:checked~.body { display: block; }
 ```
 
 ### `highlight`
