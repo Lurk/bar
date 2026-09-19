@@ -168,7 +168,7 @@ pub fn add_alt_text<'a>(
             // Find the src value (index 5: ..., Start(Destination), Value(src), ...)
             let src = buffer
                 .get(5)
-                .map(|op| op.content.as_str(source).to_owned())
+                .map(|op| op.content.as_str(source).into_owned())
                 .unwrap_or_default();
 
             debug!("no alt text found for image: {}", src);
