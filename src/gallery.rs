@@ -137,7 +137,7 @@ pub fn unwrap_gallery<'a>(
 
             let args = buffer
                 .get(3)
-                .map(|op| op.content.as_str(source).to_owned())
+                .map(|op| op.content.to_string(source))
                 .unwrap_or_default();
             buffer.clear();
 
@@ -162,7 +162,7 @@ pub fn unwrap_gallery<'a>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::fs;
+    use std::{borrow::Cow, fs};
     use tokio_stream::iter;
 
     fn touch(dir: &Path, name: &str) {
@@ -335,9 +335,9 @@ mod tests {
     fn non_embed_ops_pass_through() {
         use yamd::op::{Content, Node};
         let ops = vec![
-            Op::new_start(Node::Paragraph, Content::Span(0..0)),
-            Op::new_value(Content::Materialized("hello".into())),
-            Op::new_end(Node::Paragraph, Content::Span(0..0)),
+            Op::new_start(Node::Paragraph, Content::empty()),
+            Op::new_value(Content::detached("hello")),
+            Op::new_end(Node::Paragraph, Content::empty()),
         ];
         let stream: Pin<Box<dyn Stream<Item = Result<Op, BarDiagnostic>> + Send>> =
             Box::pin(iter(ops.into_iter().map(Ok)));
@@ -350,18 +350,18 @@ mod tests {
     fn non_gallery_embed_passes_through() {
         use yamd::op::{Content, Node};
         let ops = vec![
-            Op::new_start(Node::Embed, Content::Span(0..0)),
-            Op::new_value(Content::Materialized("youtube".into())),
-            Op::new_value(Content::Materialized("|".into())),
-            Op::new_value(Content::Materialized("abc123".into())),
-            Op::new_end(Node::Embed, Content::Span(0..0)),
+            Op::new_start(Node::Embed, Content::empty()),
+            Op::new_value(Content::detached("youtube")),
+            Op::new_value(Content::detached("|")),
+            Op::new_value(Content::detached("abc123")),
+            Op::new_end(Node::Embed, Content::empty()),
         ];
         let stream: Pin<Box<dyn Stream<Item = Result<Op, BarDiagnostic>> + Send>> =
             Box::pin(iter(ops.into_iter().map(Ok)));
         let result = collect(unwrap_gallery(stream, "", Arc::new(PathBuf::new())));
         assert_eq!(result.len(), 5);
         assert_eq!(result[0].kind, OpKind::Start(Node::Embed));
-        assert_eq!(result[1].content, Content::Materialized("youtube".into()));
+        assert_eq!(result[1].content, Content::detached("youtube"));
     }
 
     #[test]
@@ -376,11 +376,11 @@ mod tests {
 
         let source = "gallery|/g";
         let ops = vec![
-            Op::new_start(Node::Embed, Content::Span(0..0)),
-            Op::new_value(Content::Materialized("gallery".into())),
-            Op::new_value(Content::Materialized("|".into())),
-            Op::new_value(Content::Materialized("/g".into())),
-            Op::new_end(Node::Embed, Content::Span(0..0)),
+            Op::new_start(Node::Embed, Content::empty()),
+            Op::new_value(Content::detached("gallery")),
+            Op::new_value(Content::detached("|")),
+            Op::new_value(Content::detached("/g")),
+            Op::new_end(Node::Embed, Content::empty()),
         ];
         let stream: Pin<Box<dyn Stream<Item = Result<Op, BarDiagnostic>> + Send>> =
             Box::pin(iter(ops.into_iter().map(Ok)));
@@ -392,7 +392,7 @@ mod tests {
 
         assert_eq!(result.first().unwrap().kind, OpKind::Start(Node::Images));
         assert_eq!(result.last().unwrap().kind, OpKind::End(Node::Images));
-        let dest_values: Vec<&str> = result
+        let dest_values: Vec<Cow<str>> = result
             .iter()
             .zip(result.iter().skip(1))
             .filter(|(a, _)| a.kind == OpKind::Start(Node::Destination))

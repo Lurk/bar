@@ -12,7 +12,7 @@ mod engine;
 
 pub use engine::FragmentEngine;
 
-use context::{build_fragment_context, html_escape, resolve_content, source_span_for_ops};
+use context::{build_fragment_context, html_escape, source_span_for_ops};
 use engine::{collect_css, find_matching_end, fragment_key, fragment_template_name};
 
 pub type RenderedContentCache = Arc<Mutex<HashMap<Arc<str>, RenderedContent>>>;
@@ -114,7 +114,7 @@ fn walk_ops(
                 continue;
             }
             OpKind::Value => {
-                let text = resolve_content(&ops[i].content, source);
+                let text = &ops[i].content.as_str(source);
                 html.push_str(&html_escape(text));
             }
         }

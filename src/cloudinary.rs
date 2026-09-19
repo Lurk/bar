@@ -118,7 +118,7 @@ pub fn unwrap_cloudinary<'a>(
 
             let args = buffer
                 .get(3)
-                .map(|op| op.content.as_str(source).to_owned())
+                .map(|op| op.content.to_string(source))
                 .unwrap_or_default();
 
             buffer.clear();
@@ -149,9 +149,9 @@ mod tests {
 
     fn make_paragraph_ops() -> Vec<Op> {
         vec![
-            Op::new_start(Node::Paragraph, Content::Span(0..0)),
-            Op::new_value(Content::Materialized("hello".into())),
-            Op::new_end(Node::Paragraph, Content::Span(0..0)),
+            Op::new_start(Node::Paragraph, Content::span(0..0)),
+            Op::new_value(Content::detached("hello")),
+            Op::new_end(Node::Paragraph, Content::span(0..0)),
         ]
     }
 
@@ -175,11 +175,11 @@ mod tests {
 
     fn make_youtube_embed_ops() -> Vec<Op> {
         vec![
-            Op::new_start(Node::Embed, Content::Span(0..0)),
-            Op::new_value(Content::Materialized("youtube".into())),
-            Op::new_value(Content::Materialized("|".into())),
-            Op::new_value(Content::Materialized("abc123".into())),
-            Op::new_end(Node::Embed, Content::Span(0..0)),
+            Op::new_start(Node::Embed, Content::empty()),
+            Op::new_value(Content::detached("youtube")),
+            Op::new_value(Content::detached("|")),
+            Op::new_value(Content::detached("abc123")),
+            Op::new_end(Node::Embed, Content::empty()),
         ]
     }
 
@@ -196,7 +196,7 @@ mod tests {
             .unwrap();
         assert_eq!(result.len(), 5);
         assert_eq!(result[0].kind, OpKind::Start(Node::Embed));
-        assert_eq!(result[1].content, Content::Materialized("youtube".into()));
+        assert_eq!(result[1].content, Content::detached("youtube"));
         assert_eq!(result[4].kind, OpKind::End(Node::Embed));
     }
 }
