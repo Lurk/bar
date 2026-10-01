@@ -12,7 +12,7 @@ candle-nn = { version = "0.11.0", features = ["metal"] }
 candle-transformers = { version = "0.11.0", features = ["metal"] }
 
 [dependencies]
-reqwest = { version = "0.13.4", features = [
+reqwest = { version = "0.13.5", features = [
 	"json",
 	"multipart",
 	"stream",
