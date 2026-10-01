@@ -168,7 +168,7 @@ pub fn add_alt_text<'a>(
             // Find the src value (index 5: ..., Start(Destination), Value(src), ...)
             let src = buffer
                 .get(5)
-                .map(|op| op.content.as_str(source).to_owned())
+                .map(|op| op.content.as_str(source).into_owned())
                 .unwrap_or_default();
 
             debug!("no alt text found for image: {}", src);
@@ -179,7 +179,7 @@ pub fn add_alt_text<'a>(
             {
                 Ok(alt_text) => {
                     // Replace the title value op with the generated alt text
-                    buffer[2] = Op::new_value(Content::Materialized(alt_text));
+                    buffer[2] = Op::new_value(Content::detached(alt_text));
                     for buffered_op in buffer.drain(..) {
                         yield Ok(buffered_op);
                     }
@@ -200,22 +200,22 @@ mod tests {
 
     fn make_image_ops_with_alt(alt: &str, src: &str) -> Vec<Op> {
         vec![
-            Op::new_start(Node::Image, Content::Span(0..0)),
-            Op::new_start(Node::Title, Content::Span(0..0)),
-            Op::new_value(Content::Materialized(alt.into())),
-            Op::new_end(Node::Title, Content::Span(0..0)),
-            Op::new_start(Node::Destination, Content::Span(0..0)),
-            Op::new_value(Content::Materialized(src.into())),
-            Op::new_end(Node::Destination, Content::Span(0..0)),
-            Op::new_end(Node::Image, Content::Span(0..0)),
+            Op::new_start(Node::Image, Content::empty()),
+            Op::new_start(Node::Title, Content::empty()),
+            Op::new_value(Content::detached(alt.to_owned())),
+            Op::new_end(Node::Title, Content::empty()),
+            Op::new_start(Node::Destination, Content::empty()),
+            Op::new_value(Content::detached(src.to_owned())),
+            Op::new_end(Node::Destination, Content::empty()),
+            Op::new_end(Node::Image, Content::empty()),
         ]
     }
 
     fn make_paragraph_ops() -> Vec<Op> {
         vec![
-            Op::new_start(Node::Paragraph, Content::Span(0..0)),
-            Op::new_value(Content::Materialized("hello".into())),
-            Op::new_end(Node::Paragraph, Content::Span(0..0)),
+            Op::new_start(Node::Paragraph, Content::empty()),
+            Op::new_value(Content::detached("hello")),
+            Op::new_end(Node::Paragraph, Content::empty()),
         ]
     }
 
@@ -341,9 +341,6 @@ mod tests {
         .unwrap();
         assert_eq!(result.len(), expected_len);
         assert_eq!(result[0].kind, OpKind::Start(Node::Image));
-        assert_eq!(
-            result[2].content,
-            Content::Materialized("existing alt".into())
-        );
+        assert_eq!(result[2].content, Content::detached("existing alt"));
     }
 }

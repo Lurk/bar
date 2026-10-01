@@ -5,22 +5,22 @@ use yamd::{
 
 fn image_to_ops(image: &Image) -> Vec<Op> {
     vec![
-        Op::new_start(Node::Image, Content::Span(0..0)),
-        Op::new_start(Node::Title, Content::Span(0..0)),
-        Op::new_value(Content::Materialized(image.alt.clone())),
-        Op::new_end(Node::Title, Content::Span(0..0)),
-        Op::new_start(Node::Destination, Content::Span(0..0)),
-        Op::new_value(Content::Materialized(image.src.clone())),
-        Op::new_end(Node::Destination, Content::Span(0..0)),
-        Op::new_end(Node::Image, Content::Span(0..0)),
+        Op::new_start(Node::Image, Content::empty()),
+        Op::new_start(Node::Title, Content::empty()),
+        Op::new_value(Content::detached(image.alt.clone())),
+        Op::new_end(Node::Title, Content::empty()),
+        Op::new_start(Node::Destination, Content::empty()),
+        Op::new_value(Content::detached(image.src.clone())),
+        Op::new_end(Node::Destination, Content::empty()),
+        Op::new_end(Node::Image, Content::empty()),
     ]
 }
 
 pub(crate) fn images_to_ops(images: &Images) -> Vec<Op> {
-    let mut ops = vec![Op::new_start(Node::Images, Content::Span(0..0))];
+    let mut ops = vec![Op::new_start(Node::Images, Content::empty())];
     for image in &images.body {
         ops.extend(image_to_ops(image));
     }
-    ops.push(Op::new_end(Node::Images, Content::Span(0..0)));
+    ops.push(Op::new_end(Node::Images, Content::empty()));
     ops
 }

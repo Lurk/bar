@@ -14,6 +14,7 @@ use img2text::Img2Text;
 use itertools::Itertools;
 use serde::Serialize;
 use std::{
+    borrow::Cow,
     cmp::Ordering,
     collections::{BTreeSet, HashMap, HashSet},
     path::PathBuf,
@@ -273,7 +274,7 @@ async fn path_to_yamd(
     Ok((pid, file_contents, ops))
 }
 
-fn extract_metadata<'a>(ops: &'a [Op], source: &'a str) -> Option<&'a str> {
+fn extract_metadata<'a>(ops: &'a [Op], source: &'a str) -> Option<Cow<'a, str>> {
     let mut in_metadata = false;
     for op in ops {
         match &op.kind {
@@ -356,7 +357,7 @@ pub async fn init_pages(build_config: &BuildConfig) -> Result<Arc<Pages>, BarDia
 
         let metadata_str = extract_metadata(&ops, &source_text)
             .ok_or_else(|| BarDiagnostic::from(format!("{pid} is missing metadata")))?;
-        let metadata: Metadata = serde_yaml::from_str(metadata_str)
+        let metadata: Metadata = serde_yaml::from_str(metadata_str.as_ref())
             .map_err(|e| BarDiagnostic::from(format!("{pid} has invalid yaml metadata: {e}")))?;
 
         if metadata.is_draft.unwrap_or(false) {

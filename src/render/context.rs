@@ -3,19 +3,12 @@ use std::collections::HashSet;
 use syntect::html::{ClassStyle, ClassedHTMLGenerator};
 use syntect::parsing::SyntaxSet;
 use syntect::util::LinesWithEndings;
-use yamd::op::{Content, Node, Op, OpKind};
+use yamd::op::{Node, Op, OpKind};
 
 use crate::diagnostic::BarDiagnostic;
 
 use super::engine::{FragmentEngine, find_matching_end, fragment_template_name};
 use super::{RenderCtx, render_node, render_ops_to_html};
-
-pub(super) fn resolve_content<'a>(content: &'a Content, source: &'a str) -> &'a str {
-    match content {
-        Content::Span(range) => &source[range.clone()],
-        Content::Materialized(s) => s.as_str(),
-    }
-}
 
 pub(super) fn html_escape(input: &str) -> String {
     let mut out = String::with_capacity(input.len());
@@ -52,7 +45,7 @@ fn map_language(language: &str) -> String {
         "bash" | "sh" => "Bourne Again Shell (bash)".to_owned(),
         "yaml" | "yml" => "YAML".to_owned(),
         "md" | "yamd" => "Markdown".to_owned(),
-        other => other.to_owned(),
+        _ => language.to_owned(),
     }
 }
 
@@ -74,14 +67,8 @@ fn highlight_code(code: &str, language: &str, syntax_set: &SyntaxSet) -> String 
 }
 
 pub(super) fn source_span_for_ops(ops: &[Op], start: usize, end: usize) -> Option<(usize, usize)> {
-    let start_offset = match &ops[start].content {
-        Content::Span(range) => range.start,
-        Content::Materialized(_) => return None,
-    };
-    let end_offset = match &ops[end].content {
-        Content::Span(range) => range.end,
-        Content::Materialized(_) => return None,
-    };
+    let start_offset = ops[start].content.range()?.start;
+    let end_offset = ops[end].content.range()?.end;
     Some((start_offset, end_offset.saturating_sub(start_offset)))
 }
 
@@ -89,7 +76,7 @@ fn extract_inner_text(ops: &[Op], source: &str, start: usize, end: usize) -> Str
     let mut text = String::new();
     for op in &ops[start + 1..end] {
         if op.kind == OpKind::Value {
-            text.push_str(resolve_content(&op.content, source));
+            text.push_str(&op.content.as_str(source));
         }
     }
     text
@@ -139,11 +126,11 @@ pub(super) fn build_fragment_context(
                     OpKind::Start(Node::Destination) => in_dest = true,
                     OpKind::End(Node::Destination) => in_dest = false,
                     OpKind::Value => {
-                        let text = resolve_content(&op.content, source);
+                        let text = op.content.as_str(source);
                         if in_title {
-                            alt.push_str(text);
+                            alt.push_str(&text);
                         } else if in_dest {
-                            src.push_str(text);
+                            src.push_str(&text);
                         }
                     }
                     _ => {}
@@ -164,7 +151,7 @@ pub(super) fn build_fragment_context(
                     OpKind::Start(Node::Modifier) => in_modifier = true,
                     OpKind::End(Node::Modifier) => in_modifier = false,
                     OpKind::Value => {
-                        let text = resolve_content(&op.content, source);
+                        let text = &op.content.to_string(source);
                         if in_modifier {
                             language.push_str(text);
                         } else {
@@ -184,7 +171,7 @@ pub(super) fn build_fragment_context(
             );
         }
         Node::Heading => {
-            let text_content = resolve_content(&ops[start].content, source);
+            let text_content = &ops[start].content.to_string(source);
             let level = heading_level(text_content);
 
             // Per yamd grammar, a heading body is a sequence of plain Text and
@@ -205,7 +192,7 @@ pub(super) fn build_fragment_context(
                                 OpKind::Start(Node::Title) => in_title = true,
                                 OpKind::End(Node::Title) => in_title = false,
                                 OpKind::Value if in_title => {
-                                    slug_text.push_str(resolve_content(&op.content, source));
+                                    slug_text.push_str(&op.content.as_str(source));
                                 }
                                 _ => {}
                             }
@@ -216,7 +203,7 @@ pub(super) fn build_fragment_context(
                         j = next_j;
                     }
                     OpKind::Value => {
-                        let text = resolve_content(&inner[j].content, source);
+                        let text = &inner[j].content.as_str(source);
                         body_html.push_str(&html_escape(text));
                         slug_text.push_str(text);
                         j += 1;
@@ -246,7 +233,7 @@ pub(super) fn build_fragment_context(
                     OpKind::Start(Node::Destination) => in_dest = true,
                     OpKind::End(Node::Destination) => in_dest = false,
                     OpKind::Value => {
-                        let text = resolve_content(&op.content, source);
+                        let text = &op.content.as_str(source);
                         if in_title {
                             title.push_str(text);
                         } else if in_dest {
@@ -263,7 +250,7 @@ pub(super) fn build_fragment_context(
             let mut values: Vec<String> = Vec::new();
             for op in &ops[start + 1..end] {
                 if op.kind == OpKind::Value {
-                    values.push(resolve_content(&op.content, source).to_owned());
+                    values.push(op.content.to_string(source));
                 }
             }
             let kind = values.first().map_or("", String::as_str);
@@ -362,7 +349,7 @@ pub(super) fn build_fragment_context(
                             OpKind::Start(Node::Destination) => in_dest = true,
                             OpKind::End(Node::Destination) => in_dest = false,
                             OpKind::Value => {
-                                let text = resolve_content(&op.content, source);
+                                let text = &op.content.as_str(source);
                                 if in_title {
                                     alt.push_str(text);
                                 } else if in_dest {
@@ -399,7 +386,7 @@ pub(super) fn build_fragment_context(
                         j = next_j;
                     }
                     OpKind::Value => {
-                        html.push_str(&html_escape(resolve_content(&inner_ops[j].content, source)));
+                        html.push_str(&html_escape(&inner_ops[j].content.as_str(source)));
                         j += 1;
                     }
                 }

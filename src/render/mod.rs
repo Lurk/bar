@@ -12,7 +12,7 @@ mod engine;
 
 pub use engine::FragmentEngine;
 
-use context::{build_fragment_context, html_escape, resolve_content, source_span_for_ops};
+use context::{build_fragment_context, html_escape, source_span_for_ops};
 use engine::{collect_css, find_matching_end, fragment_key, fragment_template_name};
 
 pub type RenderedContentCache = Arc<Mutex<HashMap<Arc<str>, RenderedContent>>>;
@@ -59,7 +59,7 @@ pub(super) fn render_node(
     };
 
     let ctx = build_fragment_context(ops, source, node, start, end, render_ctx, used_nodes)
-        .map_err(&wrap_with_yamd_context)?;
+        .map_err(wrap_with_yamd_context)?;
 
     let template_name = fragment_template_name(key);
     let rendered = engine
@@ -75,7 +75,7 @@ pub(super) fn render_node(
                 .with_help(format!("available variables: {}", available.join(", ")))
                 .with_source(e.into())
         })
-        .map_err(&wrap_with_yamd_context)?;
+        .map_err(wrap_with_yamd_context)?;
 
     used_nodes.insert(key);
     Ok((rendered, end + 1))
@@ -114,7 +114,7 @@ fn walk_ops(
                 continue;
             }
             OpKind::Value => {
-                let text = resolve_content(&ops[i].content, source);
+                let text = &ops[i].content.as_str(source);
                 html.push_str(&html_escape(text));
             }
         }
