@@ -45,7 +45,7 @@ fn map_language(language: &str) -> String {
         "bash" | "sh" => "Bourne Again Shell (bash)".to_owned(),
         "yaml" | "yml" => "YAML".to_owned(),
         "md" | "yamd" => "Markdown".to_owned(),
-        other => other.to_owned(),
+        _ => language.to_owned(),
     }
 }
 
