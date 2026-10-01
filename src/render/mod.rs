@@ -59,7 +59,7 @@ pub(super) fn render_node(
     };
 
     let ctx = build_fragment_context(ops, source, node, start, end, render_ctx, used_nodes)
-        .map_err(&wrap_with_yamd_context)?;
+        .map_err(wrap_with_yamd_context)?;
 
     let template_name = fragment_template_name(key);
     let rendered = engine
@@ -75,7 +75,7 @@ pub(super) fn render_node(
                 .with_help(format!("available variables: {}", available.join(", ")))
                 .with_source(e.into())
         })
-        .map_err(&wrap_with_yamd_context)?;
+        .map_err(wrap_with_yamd_context)?;
 
     used_nodes.insert(key);
     Ok((rendered, end + 1))
