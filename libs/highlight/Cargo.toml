@@ -1,0 +1,15 @@
+[package]
+name = "highlight"
+version = "0.1.0"
+edition = "2024"
+
+[lints]
+workspace = true
+
+[dependencies]
+syntect = { version = "5.3.0", default-features = false, features = ["dump-load", "html", "parsing", "regex-onig"] }
+thiserror = "2.0.21"
+
+[build-dependencies]
+syntect = { version = "5.3.0", default-features = false, features = ["dump-create", "dump-load", "parsing", "yaml-load", "regex-onig"] }
+two-face = { version = "0.5.2", default-features = false, features = ["syntect-onig"] }

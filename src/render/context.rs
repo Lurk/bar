@@ -1,8 +1,6 @@
 use std::collections::HashSet;
 
-use syntect::html::{ClassStyle, ClassedHTMLGenerator};
-use syntect::parsing::SyntaxSet;
-use syntect::util::LinesWithEndings;
+use tracing::warn;
 use yamd::op::{Node, Op, OpKind};
 
 use crate::diagnostic::BarDiagnostic;
@@ -35,35 +33,6 @@ fn slugify(text: &str) -> String {
 fn heading_level(start_content: &str) -> u8 {
     let hashes = start_content.chars().take_while(|&c| c == '#').count();
     u8::try_from(hashes).unwrap_or(6).clamp(1, 6)
-}
-
-fn map_language(language: &str) -> String {
-    match language.to_lowercase().as_str() {
-        "js" | "javascript" => "JavaScript".to_owned(),
-        "ts" | "typescript" | "tsx" | "jsx" => "TypeScriptReact".to_owned(),
-        "rs" | "rust" => "Rust".to_owned(),
-        "bash" | "sh" => "Bourne Again Shell (bash)".to_owned(),
-        "yaml" | "yml" => "YAML".to_owned(),
-        "md" | "yamd" => "Markdown".to_owned(),
-        _ => language.to_owned(),
-    }
-}
-
-fn highlight_code(code: &str, language: &str, syntax_set: &SyntaxSet) -> String {
-    let mapped = map_language(language);
-    let syntax = syntax_set
-        .find_syntax_by_name(&mapped)
-        .or_else(|| syntax_set.find_syntax_by_extension(language))
-        .unwrap_or_else(|| syntax_set.find_syntax_plain_text());
-
-    let mut generator =
-        ClassedHTMLGenerator::new_with_class_style(syntax, syntax_set, ClassStyle::Spaced);
-    for line in LinesWithEndings::from(code) {
-        generator
-            .parse_html_for_line_which_includes_newline(line)
-            .expect("syntect line parse should not fail");
-    }
-    generator.finalize()
 }
 
 pub(super) fn source_span_for_ops(ops: &[Op], start: usize, end: usize) -> Option<(usize, usize)> {
@@ -106,9 +75,9 @@ pub(super) fn build_fragment_context(
 ) -> Result<tera::Context, BarDiagnostic> {
     let RenderCtx {
         theme,
-        syntax_set,
+        highlighter,
         engine,
-        ..
+        source_name,
     } = render_ctx;
     let has_services = engine.has_services;
     let mut ctx = tera::Context::new();
@@ -161,7 +130,11 @@ pub(super) fn build_fragment_context(
                     _ => {}
                 }
             }
-            let highlighted = highlight_code(&content, &language, syntax_set);
+            let highlighted = highlighter.highlight(&content, &language)?;
+            if !highlighted.recognized {
+                warn!("{source_name}: unknown code language '{language}', rendering as plain text");
+            }
+            let highlighted = highlighted.html;
             ctx.insert("language", &language);
             ctx.insert("content", &content);
             ctx.insert("highlighted", &highlighted);

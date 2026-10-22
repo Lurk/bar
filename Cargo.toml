@@ -6,7 +6,7 @@ edition = "2024"
 rust-version = "1.88.0"
 
 [workspace]
-members = ["libs/img2text", "libs/gpxtools", "libs/imgtools"]
+members = ["libs/img2text", "libs/gpxtools", "libs/imgtools", "libs/highlight"]
 
 [dependencies.gpxtools]
 path = "libs/gpxtools"
@@ -16,6 +16,9 @@ path = "libs/img2text"
 
 [dependencies.imgtools]
 path = "libs/imgtools"
+
+[dependencies.highlight]
+path = "libs/highlight"
 
 [dependencies]
 async-stream = "0.3.6"
@@ -28,7 +31,6 @@ cloudinary = { version = "0.8.3" }
 data-encoding = "2.11.1"
 serde = { version = "1.0.229", features = ["derive", "rc"] }
 serde_yaml = "0.9.34"
-syntect = { version = "5.3.0", features = ["dump-load"] }
 serde_json = "1.0.151"
 chrono = { version = "0.4.45", features = ["serde"] }
 yamd = { version = "0.20.0", features = ["serde"] }

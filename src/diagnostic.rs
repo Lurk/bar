@@ -234,6 +234,12 @@ impl From<gpxtools::GPXError> for BarDiagnostic {
     }
 }
 
+impl From<highlight::error::Error> for BarDiagnostic {
+    fn from(err: highlight::error::Error) -> Self {
+        chain_diagnostic(&err)
+    }
+}
+
 impl From<toml::de::Error> for BarDiagnostic {
     fn from(err: toml::de::Error) -> Self {
         chain_diagnostic(&err)

@@ -18,7 +18,6 @@ pub mod render;
 pub mod renderer;
 mod req;
 pub mod site;
-pub mod syntax_highlight;
 pub mod templating;
 pub mod theme;
 
@@ -28,6 +27,7 @@ use config::Config;
 use context::{BuildConfig, BuildContext};
 use diagnostic::BarDiagnostic;
 use fs::write_file;
+use highlight::Highlighter;
 use metadata::Metadata;
 use renderer::render;
 use site::init_site;
@@ -47,7 +47,6 @@ use yamd::nodes::Paragraph;
 use crate::diagnostic::ContextExt;
 use crate::fs::canonicalize_with_context;
 use crate::pages::init_pages;
-use crate::syntax_highlight::init;
 
 #[tokio::main]
 async fn main() {
@@ -89,7 +88,7 @@ async fn build(args: BuildArgs) -> Result<(), BarDiagnostic> {
 
     let theme = Theme::load(&template_path.join("theme.toml"))?;
     theme.validate(env!("CARGO_PKG_VERSION"), &template_path)?;
-    let syntax_set = init()?;
+    let highlighter = Arc::new(Highlighter::new()?);
 
     let (pages, site) = try_join!(init_pages(&build_config), init_site(&build_config))?;
 
@@ -99,7 +98,7 @@ async fn build(args: BuildArgs) -> Result<(), BarDiagnostic> {
         config: build_config,
         pages,
         site,
-        syntax_set,
+        highlighter,
         theme,
     });
 

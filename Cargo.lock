@@ -163,7 +163,7 @@ dependencies = [
  "chrono",
  "derive_builder",
  "diligent-date-parser",
- "quick-xml 0.41.0",
+ "quick-xml",
 ]
 
 [[package]]
@@ -237,6 +237,7 @@ dependencies = [
  "data-encoding",
  "futures-core",
  "gpxtools",
+ "highlight",
  "image",
  "img2text",
  "imgtools",
@@ -252,7 +253,6 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_yaml",
- "syntect",
  "tempfile",
  "tera",
  "tokio",
@@ -1885,6 +1885,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "highlight"
+version = "0.1.0"
+dependencies = [
+ "syntect",
+ "thiserror 2.0.21",
+ "two-face",
+]
+
+[[package]]
 name = "http"
 version = "1.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3101,19 +3110,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7edddbd0b52d732b21ad9a5fab5c704c14cd949e5e9a1ec5929a24fded1b904c"
 
 [[package]]
-name = "plist"
-version = "1.8.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "740ebea15c5d1428f910cd1a5f52cebf8d25006245ed8ade92702f4943d91e07"
-dependencies = [
- "base64 0.22.1",
- "indexmap",
- "quick-xml 0.38.4",
- "serde",
- "time",
-]
-
-[[package]]
 name = "png"
 version = "0.18.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3226,15 +3222,6 @@ name = "quick-error"
 version = "2.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a993555f31e5a609f617c12db6250dedcac1b0a85076912c436e6fc9b2c8e6a3"
-
-[[package]]
-name = "quick-xml"
-version = "0.38.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b66c2058c55a409d601666cffe35f04333cf1013010882cec174a7467cd4e21c"
-dependencies = [
- "memchr",
-]
 
 [[package]]
 name = "quick-xml"
@@ -3620,7 +3607,7 @@ checksum = "5fdc977a288e79bfacb4faeaba370da8aef9893ac38b68ae1df6a30d4224a2f9"
 dependencies = [
  "atom_syndication",
  "derive_builder",
- "quick-xml 0.41.0",
+ "quick-xml",
 ]
 
 [[package]]
@@ -4171,11 +4158,9 @@ dependencies = [
  "fnv",
  "once_cell",
  "onig",
- "plist",
  "regex-syntax",
  "serde",
  "serde_derive",
- "serde_json",
  "thiserror 2.0.21",
  "walkdir",
  "yaml-rust",
@@ -4719,6 +4704,17 @@ name = "try-lock"
 version = "0.2.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e421abadd41a4225275504ea4d6566923418b7f05506fbc9c0fe86ba7396114b"
+
+[[package]]
+name = "two-face"
+version = "0.5.2+bat-0.26.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "915be7adc2ff6f4338acbf71f3eda0a146f46003b992a1669c674308610efdac"
+dependencies = [
+ "serde",
+ "serde_derive",
+ "syntect",
+]
 
 [[package]]
 name = "typed-path"

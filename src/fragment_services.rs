@@ -1,6 +1,6 @@
 use std::{path::PathBuf, sync::Arc};
 
-use syntect::parsing::SyntaxSet;
+use highlight::Highlighter;
 use tera::Tera;
 
 use crate::{config::Config, pages::Pages, render::RenderedContentCache, site::Site};
@@ -10,7 +10,7 @@ pub struct FragmentServices {
     pub config: Arc<Config>,
     pub project_path: Arc<PathBuf>,
     pub pages: Arc<Pages>,
-    pub syntax_set: Arc<SyntaxSet>,
+    pub highlighter: Arc<Highlighter>,
     pub rendered_cache: RenderedContentCache,
     pub image_widths: Arc<Vec<usize>>,
 }
@@ -57,14 +57,14 @@ mod tests {
             gpx_embedding: GpxEmbeddingConfig::default(),
         });
         let pages = Arc::new(Pages::new());
-        let syntax_set = crate::syntax_highlight::init().unwrap();
+        let highlighter = Arc::new(Highlighter::new().unwrap());
         let rendered_cache = Arc::new(std::sync::Mutex::new(std::collections::HashMap::new()));
         let services = FragmentServices {
             site,
             config,
             project_path: Arc::new(PathBuf::from("/tmp")),
             pages,
-            syntax_set,
+            highlighter,
             rendered_cache,
             image_widths: Arc::new(vec![352, 704, 1008, 1568, 2016, 3840]),
         };

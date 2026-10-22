@@ -56,7 +56,7 @@ pub fn render(
         config: Arc::new(config.clone()),
         project_path: Arc::new(ctx.config.path.clone()),
         pages: pages.clone(),
-        syntax_set: ctx.syntax_set.clone(),
+        highlighter: ctx.highlighter.clone(),
         rendered_cache: rendered_cache.clone(),
         image_widths: Arc::new(ctx.theme.render.image.widths()),
     };
@@ -72,7 +72,7 @@ pub fn render(
                 &content_page.source,
                 &engine,
                 &ctx.theme,
-                &ctx.syntax_set,
+                &ctx.highlighter,
                 &display_path,
             )
             .map_err(|e| {
