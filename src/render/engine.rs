@@ -246,18 +246,6 @@ impl FragmentEngine {
                             .with_source_code(override_html.display().to_string(), template_content)
                             .with_source(BarDiagnostic::new(e.to_string()))
                     })?;
-
-                let override_css = template_dir.join("fragments").join(format!("{key}.css"));
-                let css_content = if override_css.exists() {
-                    std::fs::read_to_string(&override_css).map_err(|e| {
-                        BarDiagnostic::new(format!("failed to read fragment css for '{key}'"))
-                            .with_help(format!("expected file at: {}", override_css.display()))
-                            .with_source(e.into())
-                    })?
-                } else {
-                    default_css.to_string()
-                };
-                css.insert(key.to_string(), css_content);
             } else {
                 tera.add_raw_template(&name, default_template)
                     .map_err(|e| {
@@ -266,8 +254,19 @@ impl FragmentEngine {
                         ))
                         .with_source(BarDiagnostic::new(e.to_string()))
                     })?;
-                css.insert(key.to_string(), default_css.to_string());
             }
+
+            let override_css = template_dir.join("fragments").join(format!("{key}.css"));
+            let css_content = if override_css.exists() {
+                std::fs::read_to_string(&override_css).map_err(|e| {
+                    BarDiagnostic::new(format!("failed to read fragment css for '{key}'"))
+                        .with_help(format!("expected file at: {}", override_css.display()))
+                        .with_source(e.into())
+                })?
+            } else {
+                default_css.to_string()
+            };
+            css.insert(key.to_string(), css_content);
         }
 
         Ok(Self {

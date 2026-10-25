@@ -974,6 +974,51 @@ heading_anchors = true
     }
 
     #[test]
+    fn css_uses_fragment_css_override_without_html_override() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let fragments_dir = dir.path().join("fragments");
+        std::fs::create_dir_all(&fragments_dir).expect("mkdir");
+
+        let custom_css = "pre.code .keyword { color: hotpink; }\n";
+        std::fs::write(fragments_dir.join("code.css"), custom_css).expect("write css");
+
+        let theme = Theme::parse(MINIMAL_THEME_TOML).expect("parse");
+        let source = "```rust\nfn main() {}\n```";
+        let ops = op::parse(source);
+        let ss = test_highlighter();
+        let engine = FragmentEngine::build(dir.path(), &theme, None).expect("engine");
+        let result = render_html(&ops, source, &engine, &theme, &ss, "test").expect("render");
+        assert!(
+            result.css.contains("hotpink"),
+            "CSS should include fragment css override, got: {}",
+            result.css
+        );
+        assert!(
+            result.html.contains("<pre class=\"code\">"),
+            "default code template should still render, got: {}",
+            result.html
+        );
+    }
+
+    #[test]
+    fn code_default_css_colors_tokens_scoped_to_code_block() {
+        let result = render_full("```rust\nfn main() {}\n```");
+        assert!(
+            result.css.contains("pre.code .keyword"),
+            "code css should color tokens under pre.code, got: {}",
+            result.css
+        );
+        assert!(
+            !result
+                .css
+                .lines()
+                .any(|l| l.trim_start().starts_with(".keyword")),
+            "token selectors must not be global, got: {}",
+            result.css
+        );
+    }
+
+    #[test]
     fn renders_full_document() {
         let source = "# Hello World\n\nThis is a **paragraph** with *emphasis* and a [link](http://example.com).\n\n![An image](/photo.jpg)\n\n```rust\nfn main() {}\n```\n\n- list item one\n- list item two\n\n-----";
         let html = render(source);

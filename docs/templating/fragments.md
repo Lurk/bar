@@ -82,9 +82,89 @@ Default template: `src/defaults/fragments/code.html`
 
 Default styles (`src/defaults/fragments/code.css`):
 
+Token colors follow [gruvbox-material](https://github.com/sainnhe/gruvbox-material) dark. Highlighted tokens carry syntect scope names as classes (`<span class="storage type rust">`), all rules scoped to `pre.code`. Palette lives in `--code-*` custom properties on `pre.code`, so theme can re-skin colors by redefining them without replacing the whole file. Rules assume default `code_class`; theme with different class supplies own `code.css`.
+
 ```css
-pre.code { overflow-x: auto; padding: 1em; background: #2b2a2a; color: #f8f8f2; border-radius: 4px; }
+/*
+ * Token colors follow gruvbox-material (dark, material foreground):
+ * https://github.com/sainnhe/gruvbox-material
+ * Token classes are syntect scope names, which are generic enough (.string,
+ * .keyword) to collide with page markup, so every rule is scoped to pre.code.
+ * Later rules win at equal specificity, so generic scopes come first.
+ */
+pre.code {
+	--code-bg: #282828;
+	--code-fg: #d4be98;
+	--code-red: #ea6962;
+	--code-orange: #e78a4e;
+	--code-yellow: #d8a657;
+	--code-green: #a9b665;
+	--code-aqua: #89b482;
+	--code-blue: #7daea3;
+	--code-purple: #d3869b;
+	--code-grey: #928374;
+	overflow-x: auto;
+	padding: 1em;
+	background: var(--code-bg);
+	color: var(--code-fg);
+	border-radius: 4px;
+}
 pre.code code { font-family: monospace; }
+
+pre.code .comment { color: var(--code-grey); font-style: italic; }
+pre.code .string { color: var(--code-aqua); }
+pre.code .constant.character.escape,
+pre.code .string.regexp { color: var(--code-green); }
+pre.code .constant.other.placeholder { color: var(--code-yellow); }
+pre.code .constant.numeric,
+pre.code .constant.language { color: var(--code-purple); }
+
+/* Most grammars (Rust, JS/TS, Python) put declaration keywords like let, const, fn, def under storage.type. */
+pre.code .keyword,
+pre.code .storage { color: var(--code-red); }
+pre.code .keyword.operator { color: var(--code-orange); }
+
+pre.code .entity.name,
+pre.code .support.type,
+pre.code .support.class { color: var(--code-yellow); }
+pre.code .entity.name.function,
+pre.code .support.function,
+pre.code .variable.function,
+pre.code .support.macro { color: var(--code-green); }
+pre.code .entity.name.label,
+pre.code .entity.name.tag { color: var(--code-orange); }
+pre.code .entity.other.attribute-name { color: var(--code-green); }
+
+pre.code .variable.language { color: var(--code-purple); }
+pre.code .variable.other.member,
+pre.code .variable.other.property,
+pre.code .support.type.property-name,
+pre.code .meta.mapping.key .string,
+pre.code .entity.name.tag.yaml,
+pre.code .entity.name.tag.toml { color: var(--code-blue); }
+
+pre.code .meta.annotation,
+pre.code .meta.attribute,
+pre.code .meta.preprocessor { color: var(--code-aqua); }
+
+pre.code .punctuation.separator,
+pre.code .punctuation.terminator,
+pre.code .punctuation.accessor { color: var(--code-grey); }
+
+pre.code .invalid { color: var(--code-red); }
+
+pre.code .markup.heading,
+pre.code .entity.name.section { color: var(--code-orange); font-weight: bold; }
+pre.code .markup.bold { font-weight: bold; }
+pre.code .markup.italic { font-style: italic; }
+pre.code .markup.underline.link { color: var(--code-blue); text-decoration: underline; }
+pre.code .markup.raw { color: var(--code-aqua); }
+pre.code .markup.quote { color: var(--code-grey); }
+pre.code .markup.inserted { color: var(--code-green); }
+pre.code .markup.deleted { color: var(--code-red); }
+pre.code .markup.changed,
+pre.code .meta.diff.range { color: var(--code-blue); }
+pre.code .meta.diff.header { color: var(--code-grey); }
 ```
 
 ### `heading`
@@ -327,7 +407,7 @@ Defaults (all have empty `.css`):
 
 ## CSS convention
 
-When theme provides `fragments/<key>.html`, bar also checks for `fragments/<key>.css`. If CSS file exists, used instead of built-in default; if absent, built-in CSS kept. To suppress all default styles, supply empty `.css` file.
+If theme provides `fragments/<key>.css`, used instead of built-in default CSS; if absent, built-in CSS kept. Works with or without matching `fragments/<key>.html` override, so theme can restyle fragment while keeping default template. To suppress all default styles, supply empty `.css` file.
 
 CSS from all fragment overrides used on a page concatenated, exposed as `fragment_styles` template variable. Your page template responsible for injecting it (typically in `<head>` via `<style>` block).
 
