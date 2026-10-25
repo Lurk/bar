@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 
-use syntect::parsing::SyntaxSet;
+use highlight::Highlighter;
 use yamd::op::{Node, Op, OpKind};
 
 use crate::diagnostic::BarDiagnostic;
@@ -26,7 +26,7 @@ pub struct RenderedContent {
 #[derive(Clone, Copy)]
 pub(super) struct RenderCtx<'a> {
     pub(super) theme: &'a Theme,
-    pub(super) syntax_set: &'a SyntaxSet,
+    pub(super) highlighter: &'a Highlighter,
     pub(super) engine: &'a FragmentEngine,
     pub(super) source_name: &'a str,
 }
@@ -143,12 +143,12 @@ pub fn render_html(
     source: &str,
     engine: &FragmentEngine,
     theme: &Theme,
-    syntax_set: &SyntaxSet,
+    highlighter: &Highlighter,
     source_name: &str,
 ) -> Result<RenderedContent, BarDiagnostic> {
     let render_ctx = RenderCtx {
         theme,
-        syntax_set,
+        highlighter,
         engine,
         source_name,
     };
@@ -164,10 +164,9 @@ mod tests {
     use std::path::Path;
     use std::sync::Arc;
 
-    use syntect::parsing::SyntaxSet;
+    use highlight::Highlighter;
     use yamd::op;
 
-    use crate::syntax_highlight::init;
     use crate::theme::Theme;
 
     use super::{FragmentEngine, RenderedContent, render_html};
@@ -189,8 +188,8 @@ heading_anchors = true
         Theme::parse(TEST_THEME_TOML).expect("test theme should parse")
     }
 
-    fn test_syntax_set() -> Arc<SyntaxSet> {
-        init().expect("syntax set should init")
+    fn test_highlighter() -> Arc<Highlighter> {
+        Arc::new(Highlighter::new().expect("highlighter should init"))
     }
 
     fn render(source: &str) -> String {
@@ -200,7 +199,7 @@ heading_anchors = true
     fn render_full(source: &str) -> RenderedContent {
         let ops = op::parse(source);
         let theme = test_theme();
-        let ss = test_syntax_set();
+        let ss = test_highlighter();
         let engine = FragmentEngine::build(Path::new("/tmp"), &theme, None).expect("engine");
         render_html(&ops, source, &engine, &theme, &ss, "test").expect("render should succeed")
     }
@@ -273,7 +272,7 @@ heading_anchors = false
         let theme = Theme::parse(theme_toml).expect("parse");
         let source = "# Title";
         let ops = op::parse(source);
-        let ss = test_syntax_set();
+        let ss = test_highlighter();
         let engine = FragmentEngine::build(Path::new("/tmp"), &theme, None).expect("engine");
         let html = render_html(&ops, source, &engine, &theme, &ss, "test")
             .expect("ok")
@@ -798,7 +797,7 @@ heading_anchors = true
         let theme = Theme::parse(theme_toml).expect("parse");
         let source = "![alt text](/photo.jpg)";
         let ops = op::parse(source);
-        let ss = test_syntax_set();
+        let ss = test_highlighter();
         let engine = FragmentEngine::build(dir.path(), &theme, None).expect("engine");
         let result = render_html(&ops, source, &engine, &theme, &ss, "test").expect("render");
         assert!(result.html.contains("<figure>"), "got: {}", result.html);
@@ -834,7 +833,7 @@ heading_anchors = true
         let theme = Theme::parse(theme_toml).expect("parse");
         let source = "# Hello";
         let ops = op::parse(source);
-        let ss = test_syntax_set();
+        let ss = test_highlighter();
         let engine = FragmentEngine::build(dir.path(), &theme, None).expect("engine");
         let result = render_html(&ops, source, &engine, &theme, &ss, "test").expect("render");
         assert!(
@@ -912,7 +911,7 @@ heading_anchors = false
         let theme = Theme::parse(theme_toml).expect("parse");
         let source = "hello world";
         let ops = op::parse(source);
-        let ss = test_syntax_set();
+        let ss = test_highlighter();
         let engine = FragmentEngine::build(dir.path(), &theme, None).expect("engine");
         let result = render_html(&ops, source, &engine, &theme, &ss, "test").expect("render");
         assert!(
@@ -964,12 +963,57 @@ heading_anchors = true
         let theme = Theme::parse(theme_toml).expect("parse");
         let source = "![alt](/photo.jpg)";
         let ops = op::parse(source);
-        let ss = test_syntax_set();
+        let ss = test_highlighter();
         let engine = FragmentEngine::build(dir.path(), &theme, None).expect("engine");
         let result = render_html(&ops, source, &engine, &theme, &ss, "test").expect("render");
         assert!(
             result.css.contains(".custom-image"),
             "CSS should include fragment override, got: {}",
+            result.css
+        );
+    }
+
+    #[test]
+    fn css_uses_fragment_css_override_without_html_override() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let fragments_dir = dir.path().join("fragments");
+        std::fs::create_dir_all(&fragments_dir).expect("mkdir");
+
+        let custom_css = "pre.code .keyword { color: hotpink; }\n";
+        std::fs::write(fragments_dir.join("code.css"), custom_css).expect("write css");
+
+        let theme = Theme::parse(MINIMAL_THEME_TOML).expect("parse");
+        let source = "```rust\nfn main() {}\n```";
+        let ops = op::parse(source);
+        let ss = test_highlighter();
+        let engine = FragmentEngine::build(dir.path(), &theme, None).expect("engine");
+        let result = render_html(&ops, source, &engine, &theme, &ss, "test").expect("render");
+        assert!(
+            result.css.contains("hotpink"),
+            "CSS should include fragment css override, got: {}",
+            result.css
+        );
+        assert!(
+            result.html.contains("<pre class=\"code\">"),
+            "default code template should still render, got: {}",
+            result.html
+        );
+    }
+
+    #[test]
+    fn code_default_css_colors_tokens_scoped_to_code_block() {
+        let result = render_full("```rust\nfn main() {}\n```");
+        assert!(
+            result.css.contains("pre.code .keyword"),
+            "code css should color tokens under pre.code, got: {}",
+            result.css
+        );
+        assert!(
+            !result
+                .css
+                .lines()
+                .any(|l| l.trim_start().starts_with(".keyword")),
+            "token selectors must not be global, got: {}",
             result.css
         );
     }
@@ -1019,7 +1063,7 @@ heading_anchors = false
         let theme = Theme::parse(theme_toml).expect("parse");
         let source = "hello world";
         let ops = op::parse(source);
-        let ss = test_syntax_set();
+        let ss = test_highlighter();
         let engine = FragmentEngine::build(dir.path(), &theme, None).expect("engine");
         let result = render_html(&ops, source, &engine, &theme, &ss, "test.yamd");
         assert!(result.is_err(), "should fail on bad template");
@@ -1045,7 +1089,7 @@ heading_anchors = false
 
         let dir = tempfile::tempdir().expect("tempdir");
         let theme = test_theme();
-        let ss = test_syntax_set();
+        let ss = test_highlighter();
         let mut engine = FragmentEngine::build(dir.path(), &theme, None).expect("engine");
 
         // The default embed template only takes the gpx branch when has_services
@@ -1134,7 +1178,7 @@ heading_anchors = false
         let source = "# Title\n\nhello\n\n-----";
         let ops = op::parse(source);
         let theme = test_theme();
-        let ss = test_syntax_set();
+        let ss = test_highlighter();
         let engine = FragmentEngine::build(Path::new("/tmp"), &theme, None).expect("engine");
         let result = render_html(&ops, source, &engine, &theme, &ss, "test").unwrap();
         assert!(result.css.contains("h1"), "heading css: {}", result.css);
@@ -1180,7 +1224,7 @@ heading_anchors = false
 "#;
         let theme = Theme::parse(theme_toml).expect("parse");
         let ops = op::parse(source);
-        let ss = test_syntax_set();
+        let ss = test_highlighter();
         let engine = FragmentEngine::build(dir.path(), &theme, None).expect("engine");
         render_html(&ops, source, &engine, &theme, &ss, "test").expect("render")
     }
@@ -1273,7 +1317,7 @@ heading_anchors = false
         let theme = Theme::parse(theme_toml).expect("parse");
         let source = "![alt](/photo.jpg)";
         let ops = op::parse(source);
-        let ss = test_syntax_set();
+        let ss = test_highlighter();
         let engine = FragmentEngine::build(dir.path(), &theme, None).expect("engine");
         let html = render_html(&ops, source, &engine, &theme, &ss, "test")
             .expect("render")
@@ -1402,7 +1446,7 @@ heading_anchors = false
         let theme = Theme::parse(theme_toml).expect("parse");
         let source = "{% inner\n\nbody\n%}";
         let ops = op::parse(source);
-        let ss = test_syntax_set();
+        let ss = test_highlighter();
         let engine = FragmentEngine::build(dir.path(), &theme, None).expect("engine");
 
         let result = render_html(&ops, source, &engine, &theme, &ss, "test.yamd");
@@ -1530,7 +1574,7 @@ heading_anchors = true
         // be forwarded from the Node::Images context arm).
         let dir = tempfile::tempdir().expect("tempdir");
         let theme = test_theme(); // lazy_images = true
-        let ss = test_syntax_set();
+        let ss = test_highlighter();
         let mut engine = FragmentEngine::build(dir.path(), &theme, None).expect("engine");
 
         // Promote to has_services so images.html renders slides via picture.

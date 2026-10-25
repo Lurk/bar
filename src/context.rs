@@ -1,6 +1,6 @@
 use std::{path::PathBuf, sync::Arc};
 
-use syntect::parsing::SyntaxSet;
+use highlight::Highlighter;
 
 use crate::{config::Config, pages::Pages, site::Site, theme::Theme};
 
@@ -13,6 +13,6 @@ pub struct BuildContext {
     pub config: BuildConfig,
     pub pages: Arc<Pages>,
     pub site: Arc<Site>,
-    pub syntax_set: Arc<SyntaxSet>,
+    pub highlighter: Arc<Highlighter>,
     pub theme: Arc<Theme>,
 }
